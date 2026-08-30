@@ -1,6 +1,6 @@
 {
-  "version": "0.8.1",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.8.1/DeporiaQ_Setup_0.8.1.exe",
-  "sha256": "916990da156bd909988241166518bc1cfe07cb79bb1ca99953644e146ef535bc",
-  "notes": "Windows görev çubuğunu koruyan büyütülmüş görünüm, uygulama içi sayfalar, geri oku, Esc/Backspace ile gezinme ve otomatik güncelleme güvenlik düzeltmesi eklendi."
+  "version": "0.8.2",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.8.2/DeporiaQ_Setup_0.8.2.exe",
+  "sha256": "82818e843a5e50681ffddb01fd981ec294f7986a8c6bbb597c76ed9e434952a8",
+  "notes": "Koyu Windows başlık çubuğu, kabartmalı DeporiaQ markası, modern yazı sistemi, sade geri oku ve Ctrl+F/F5/Alt+Sol kısayolları eklendi."
 }
