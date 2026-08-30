@@ -1,6 +1,6 @@
 {
-  "version": "0.8.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.8.0/DeporiaQ_Setup_0.8.0.exe",
-  "sha256": "6744c9be600fde1fa3d678d92ff8eb32c17036637b7bdc13fb24e1e08f722193",
-  "notes": "Yetki tabanlı ekranlar, denetim ve oturum geçmişi, kritik stok, satış ve kâr raporu, Excel aktarımı, barkod etiketi, satış fişi ve otomatik veritabanı kurtarma eklendi."
+  "version": "0.8.1",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.8.1/DeporiaQ_Setup_0.8.1.exe",
+  "sha256": "916990da156bd909988241166518bc1cfe07cb79bb1ca99953644e146ef535bc",
+  "notes": "Windows görev çubuğunu koruyan büyütülmüş görünüm, uygulama içi sayfalar, geri oku, Esc/Backspace ile gezinme ve otomatik güncelleme güvenlik düzeltmesi eklendi."
 }
