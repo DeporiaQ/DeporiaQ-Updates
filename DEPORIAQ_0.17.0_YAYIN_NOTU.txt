@@ -1,0 +1,13 @@
+DeporiaQ 0.17.0 - Yardım ve Güncelleme Altyapısı
+
+- Basit yardım mesajı gerçek bir Yardım Merkezi ile değiştirildi.
+- Hızlı Başlangıç, Stok İşlemleri, Cloud ve Kullanıcılar, Raporlar ve Yazdır,
+  Kısayollar ve Sorun Giderme rehberleri eklendi.
+- Uygulama içinden takip numaralı yerel destek kaydı oluşturma eklendi.
+- Ana menüye Güncellemeleri Denetle komutu eklendi.
+- Program açıldıktan sonra güncelleme manifestini sessizce kontrol eder.
+- Yeni sürüm bulunduğunda sürüm notlarını gösterir ve güvenli güncelleme aracını açar.
+- Güncelleme indirmesi SHA-256 özetiyle doğrulanmaya devam eder.
+
+Otomatik güncelleme testi için GitHub sürümünde DeporiaQ_Setup_0.17.0.exe ve
+güncel guncelleme_manifest.json birlikte yayımlanmalıdır.

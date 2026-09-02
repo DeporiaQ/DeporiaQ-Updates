@@ -1,0 +1,17 @@
+DeporiaQ GitHub Otomatik Yayın Hattı
+
+`.github/workflows/windows-release.yml` dosyası GitHub üzerinde Windows EXE ve
+kurulum dosyasını otomatik üretir.
+
+Yayın sırası:
+1. Kaynak dosyalar ana dala yüklenir.
+2. GitHub > Actions > DeporiaQ Windows Release açılır.
+3. Run workflow seçilir ve sürüm olarak 0.17.0 girilir.
+4. GitHub Windows üzerinde EXE ve kurulumu üretir.
+5. DeporiaQ_Setup_0.17.0.exe dosyasını Release'e yükler.
+6. SHA-256 değerini hesaplar ve guncelleme_manifest.json dosyasını ana dala yazar.
+7. Kurulu 0.16.0 güncelleme bildiricisi manifesti gördüğünde kullanıcıyı uyarır.
+
+Not: Kod imzalama sertifikası eklenene kadar Windows SmartScreen bilinmeyen
+yayımcı uyarısı gösterebilir. Bu durum otomatik güncellemenin çalışmasına engel
+değildir.
