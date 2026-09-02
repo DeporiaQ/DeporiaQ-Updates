@@ -1,6 +1,6 @@
 {
-  "version": "0.10.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.10.0/DeporiaQ_Setup_0.10.0.exe",
-  "sha256": "a48a2ad1bac900e95704455a77812bdf819315b8eaf7d4b8e31e59d8adceb5be",
-  "notes": "Koyu Windows başlık çubuğu, kabartmalı DeporiaQ markası, modern yazı sistemi, sade geri oku ve Ctrl+F/F5/Alt+Sol kısayolları eklendi."
+  "version": "0.17.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.17.0/DeporiaQ_Setup_0.17.0.exe",
+  "sha256": "29e25c19b234f4b256e601e39f4caaa4b45e3eb3e9cf85c91ae7f6f764943142",
+  "notes": "Yeni Yardım Merkezi, destek kaydı ve uygulama içi otomatik güncelleme denetimi eklendi."
 }
