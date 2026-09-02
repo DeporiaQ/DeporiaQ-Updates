@@ -1,0 +1,85 @@
+name: DeporiaQ Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Yayın sürümü (örnek: 0.17.0)"
+        required: true
+        default: "0.17.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Kaynakları al
+        uses: actions/checkout@v4
+
+      - name: Python 3.12 hazırla
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Derleme araçlarını kur
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PySide6 ttkbootstrap pyinstaller
+          choco install innosetup -y --no-progress
+
+      - name: Sürüm tutarlılığını doğrula
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          if ((Get-Content deporiaq_qt.py -Raw) -notmatch ('SURUM = "' + [regex]::Escape($version) + '"')) {
+            throw "deporiaq_qt.py sürümü ile yayın sürümü uyuşmuyor."
+          }
+
+      - name: Windows uygulamalarını oluştur
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --collect-all PySide6 --collect-all shiboken6 --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeporiaQUpdate deporiaq_guncelleme_bildirici.py
+
+      - name: Kurulum dosyasını oluştur
+        shell: pwsh
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" DeporiaQ.iss'
+
+      - name: Güncelleme manifestini üret
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $setup = "kurulum\DeporiaQ_Setup_$version.exe"
+          if (-not (Test-Path $setup)) { throw "Kurulum dosyası oluşmadı: $setup" }
+          $sha = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = [ordered]@{
+            version = $version
+            download_url = "https://github.com/${{ github.repository }}/releases/download/v$version/DeporiaQ_Setup_$version.exe"
+            sha256 = $sha
+            notes = "Yeni Yardım Merkezi, destek kaydı ve uygulama içi otomatik güncelleme denetimi eklendi."
+          }
+          $manifest | ConvertTo-Json | Set-Content guncelleme_manifest.json -Encoding utf8
+
+      - name: GitHub Release oluştur
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ inputs.version }}"
+          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.17.0_YAYIN_NOTU.txt
+
+      - name: Manifesti ana dala gönder
+        shell: pwsh
+        run: |
+          Copy-Item guncelleme_manifest.json "$env:RUNNER_TEMP\guncelleme_manifest.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          Copy-Item "$env:RUNNER_TEMP\guncelleme_manifest.json" guncelleme_manifest.json
+          git add guncelleme_manifest.json
+          git commit -m "DeporiaQ ${{ inputs.version }} güncelleme manifesti" || echo "Manifest değişmedi"
+          git push origin main
