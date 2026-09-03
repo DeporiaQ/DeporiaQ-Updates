@@ -1,0 +1,11 @@
+DeporiaQ 0.18.0
+
+- Güncelleme paketleri için güvenli indirme sınırı yeni Qt paket boyutlarına uygun biçimde yükseltildi.
+- SHA-256 dosya doğrulaması korunarak otomatik güncelleme güvenilirliği artırıldı.
+- Kurulum paketi gereksiz Qt bileşenlerinden arındırılarak otomatik güncellemeye uygun biçimde küçültüldü.
+- Kritik stoklardan otomatik hedef miktar hesaplayan Akıllı Sipariş Önerileri eklendi.
+- Sipariş önerilerini Excel uyumlu CSV dosyasına aktarma özelliği eklendi.
+- Kullanıcı aktif/pasif, parola yenileme ve kaldırma işlemlerindeki bağlantı hatası giderildi.
+- Yardım Merkezi yeni sipariş önerisi özelliğiyle güncellendi.
+
+Stok, kullanıcı ve işletme verileri kurulum sırasında korunur.
