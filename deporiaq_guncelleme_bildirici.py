@@ -12,8 +12,9 @@ import tkinter as tk
 import urllib.request
 from pathlib import Path
 
-MEVCUT_SURUM = "0.17.0"
+MEVCUT_SURUM = "0.18.0"
 PROGRAM_ADI = "DeporiaQ"
+AZAMI_GUNCELLEME_BOYUTU = 1024 * 1024 * 1024
 
 
 def uygulama_klasoru():
@@ -105,7 +106,7 @@ class Bildirim:
                         parca = cevap.read(1024 * 1024)
                         if not parca: break
                         toplam += len(parca)
-                        if toplam > 250 * 1024 * 1024: raise ValueError("Dosya beklenenden büyük.")
+                        if toplam > AZAMI_GUNCELLEME_BOYUTU: raise ValueError("Dosya güvenli indirme sınırını aşıyor.")
                         dosya.write(parca); ozet.update(parca)
                 if not secrets.compare_digest(ozet.hexdigest(), self.manifest["sha256"]):
                     raise ValueError("Güvenlik doğrulaması başarısız.")

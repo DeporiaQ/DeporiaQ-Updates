@@ -3187,7 +3187,7 @@ class TeknoStokUygulamasi:
             gecici = hedef.with_suffix(".indiriliyor")
             ozet = hashlib.sha256()
             toplam = 0
-            azami_boyut = 250 * 1024 * 1024
+            azami_boyut = 1024 * 1024 * 1024
             try:
                 istek = urllib.request.Request(
                     indirme_adresi,

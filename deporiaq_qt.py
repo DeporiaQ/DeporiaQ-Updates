@@ -1,4 +1,4 @@
-"""DeporiaQ 0.17.0 - Yardım Merkezi ve otomatik güncelleme altyapısı."""
+"""DeporiaQ 0.18.0 - Güvenilir güncelleme ve akıllı sipariş önerileri."""
 import csv
 import json
 import os
@@ -26,7 +26,7 @@ from stok_programi_v2 import (
     parola_guclu_mu, veritabani_yedegi_al, yerel_ayari_kaydet,
 )
 
-SURUM = "0.17.0"
+SURUM = "0.18.0"
 
 
 def kaynak_yolu(ad):
@@ -358,6 +358,27 @@ class KullaniciYonetimiPenceresi(QDialog):
         try:self.vt.kullanici_ekle(ad.text().strip(),pw.text(),self.ROLLER[rol.currentText()],kon.currentData())
         except ValueError as e:QMessageBox.warning(self,"Eklenemedi",str(e));return
         self.yenile()
+    def durum(self):
+        sec=self.secili()
+        if not sec or not self.onay():return
+        r,uid=sec
+        if uid==self.aktif['id']:QMessageBox.warning(self,"İşlem engellendi","Kendi aktif hesabınızı kapatamazsınız.");return
+        self.vt.kullanici_durumunu_degistir(uid,self.t.item(r,4).text()!="Aktif");self.yenile()
+    def parola(self):
+        sec=self.secili()
+        if not sec:return
+        pw,ok=QInputDialog.getText(self,"Parolayı yenile","Yeni güçlü parola:",QLineEdit.EchoMode.Password)
+        if not ok:return
+        guclu,hata=parola_guclu_mu(pw)
+        if not guclu:QMessageBox.warning(self,"Zayıf parola",hata);return
+        if not self.onay():return
+        self.vt.kullanici_parolasi_degistir(sec[1],pw);QMessageBox.information(self,"Tamamlandı","Kullanıcı parolası yenilendi.")
+    def sil(self):
+        sec=self.secili()
+        if not sec or not self.onay():return
+        try:self.vt.kullanici_sil(sec[1])
+        except ValueError as e:QMessageBox.warning(self,"Kaldırılamadı",str(e));return
+        self.yenile()
 
 
 class SubeSatisPenceresi(QDialog):
@@ -443,7 +464,7 @@ class YardimMerkezi(QDialog):
         "Hızlı Başlangıç":"""DeporiaQ'ya Hoş Geldiniz\n\n1. Ürün Yönetimi'nden ürün kartlarını oluşturun.\n2. Stok Girişi ile merkez depoya mal kabul edin.\n3. Depo ve Şubeler bölümünden çalışma noktalarını yönetin.\n4. Stok Transferi ile ürünleri konumlar arasında aktarın.\n5. Gösterge Paneli ve raporlardan işletmenizi takip edin.\n\nBarkod alanına tıklayıp USB okuyucu veya el terminaliyle barkodu okutabilirsiniz.""",
         "Stok İşlemleri":"""STOK GİRİŞİ\nMerkez depoya gelen ürünün barkodunu okutun ve miktarı girin.\n\nTRANSFER\nKaynak ve hedef konumu seçin. Ürün ve miktar doğrulandıktan sonra işlem hareket geçmişine kaydedilir.\n\nŞUBEDE SATIŞ\nSatış yapılan şubeyi seçin, barkodu okutun ve miktarı girin. Stok otomatik düşer ve ciro/kâr raporuna işlenir.\n\nSTOK SAYIMI\nProfesyonel Araçlar > Stok Sayımı ile sistem miktarını fiziksel sayımla eşitleyin.""",
         "Cloud ve Kullanıcılar":"""Cloud hesabı, yerel kullanıcı hesabından ayrıdır.\n\nCloud e-posta/parolası işletmenin bulut verilerine erişir. Yerel Kullanıcılar ekranındaki hesaplar ise bu bilgisayarda programa giriş ve yetki kontrolü içindir.\n\nAyarlar > Cloud ve Senkronizasyon bölümünden giriş yapabilirsiniz. Parola açık biçimde kaydedilmez. Durum göstergesindeki yeşil nokta verilerin güncel olduğunu belirtir.""",
-        "Raporlar ve Yazdır":"""Raporlar ve Yazdır bölümünde genel stok, kritik stok, kâr, denetim ve oturum kayıtları bulunur.\n\nYazdır düğmesi Windows yazıcı ekranını açar. CSV Dışa Aktar seçeneği raporu Excel ile açılabilecek biçimde kaydeder.""",
+        "Raporlar ve Yazdır":"""Raporlar ve Yazdır bölümünde genel stok, kritik stok, kâr, denetim ve oturum kayıtları bulunur.\n\nYazdır düğmesi Windows yazıcı ekranını açar. CSV Dışa Aktar seçeneği raporu Excel ile açılabilecek biçimde kaydeder.\n\nSipariş Önerileri, kritik seviyedeki ürünler için hedef stoğu kritik seviyenin iki katına tamamlayacak öneri üretir.""",
         "Kısayollar":"""F5 — Ekranı ve stokları yenile\nCtrl+T — Stok Transferi ekranını aç\nEnter — Barkod alanlarında ürünü sorgula veya sonraki adıma geç\nEsc — Açık pencereyi kapat""",
         "Sorun Giderme":"""ÜRÜN BULUNAMADI\nDoğru konumun seçili olduğunu ve ürünün o konumda stok kaydı bulunduğunu kontrol edin.\n\nCLOUD BAĞLI DEĞİL\nİnternet bağlantısını, Project URL'yi ve publishable/anon anahtarını kontrol edin. Cloud parolası güvenlik nedeniyle her zaman ekranda tutulmaz.\n\nGÜNCELLEME GELMİYOR\nAyarlar dosyasındaki manifest adresini, internet bağlantısını ve DeporiaQUpdate.exe dosyasının kurulum klasöründe bulunduğunu kontrol edin.\n\nVERİ SORUNU\nÖnce Veri ve Yedekleme ile yedek alın. Ardından VERITABANI_ONAR aracını kullanın.""",
     }
@@ -462,27 +483,33 @@ class YardimMerkezi(QDialog):
         try:no=self.vt.destek_talebi_olustur(self.tur.currentText(),self.konu.text(),self.mesaj.toPlainText(),self.iletisim.text())
         except ValueError as e:QMessageBox.warning(self,"Eksik bilgi",str(e));return
         QMessageBox.information(self,"Destek kaydı oluşturuldu",f"Takip numaranız: {no}\nKayıt bu bilgisayarda güvenle saklandı.");self.konu.clear();self.mesaj.clear()
-    def durum(self):
-        sec=self.secili()
-        if not sec or not self.onay():return
-        r,uid=sec
-        if uid==self.aktif['id']:QMessageBox.warning(self,"İşlem engellendi","Kendi aktif hesabınızı kapatamazsınız.");return
-        self.vt.kullanici_durumunu_degistir(uid,self.t.item(r,4).text()!="Aktif");self.yenile()
-    def parola(self):
-        sec=self.secili()
-        if not sec:return
-        pw,ok=QInputDialog.getText(self,"Parolayı yenile","Yeni güçlü parola:",QLineEdit.EchoMode.Password)
-        if not ok:return
-        guclu,hata=parola_guclu_mu(pw)
-        if not guclu:QMessageBox.warning(self,"Zayıf parola",hata);return
-        if not self.onay():return
-        self.vt.kullanici_parolasi_degistir(sec[1],pw);QMessageBox.information(self,"Tamamlandı","Kullanıcı parolası yenilendi.")
-    def sil(self):
-        sec=self.secili()
-        if not sec or not self.onay():return
-        try:self.vt.kullanici_sil(sec[1])
-        except ValueError as e:QMessageBox.warning(self,"Kaldırılamadı",str(e));return
-        self.yenile()
+
+
+class SiparisOnerileriPenceresi(QDialog):
+    def __init__(self, vt, parent=None):
+        super().__init__(parent); self.vt=vt
+        self.setWindowTitle("Akıllı Sipariş Önerileri"); self.resize(980,620)
+        d=QVBoxLayout(self); b=QLabel("Akıllı Sipariş Önerileri"); b.setObjectName("sayfaBaslik"); d.addWidget(b)
+        aciklama=QLabel("Kritik ürünler için hedef stok, kritik seviyenin iki katı olarak hesaplanır."); aciklama.setObjectName("soluk"); d.addWidget(aciklama)
+        self.t=QTableWidget(0,6); self.t.setHorizontalHeaderLabels(["Konum","Barkod","Ürün","Mevcut","Hedef","Önerilen Sipariş"]); tablo_standardi(self.t,36); d.addWidget(self.t,1)
+        a=QHBoxLayout(); yenile=QPushButton("Listeyi Yenile"); yenile.clicked.connect(self.yenile); aktar=QPushButton("CSV Dışa Aktar"); aktar.setObjectName("birincil"); aktar.clicked.connect(self.csv_aktar); kapat=QPushButton("Kapat"); kapat.clicked.connect(self.accept)
+        a.addWidget(yenile); a.addWidget(aktar); a.addStretch(); a.addWidget(kapat); d.addLayout(a); self.yenile()
+    def yenile(self):
+        self.satirlar=[]
+        for x in self.vt.kritik_stoklari_getir():
+            mevcut=int(x["miktar"] or 0); kritik=int(x["kritik_stok"] or 0); hedef=max(kritik*2,1); onerilen=max(hedef-mevcut,1)
+            self.satirlar.append((x["konum"],x["barkod"],x["urun"],mevcut,hedef,onerilen))
+        self.t.setRowCount(len(self.satirlar))
+        for r,satir in enumerate(self.satirlar):
+            for c,v in enumerate(satir):self.t.setItem(r,c,QTableWidgetItem(str(v)))
+    def csv_aktar(self):
+        yol,_=QFileDialog.getSaveFileName(self,"Sipariş önerilerini kaydet","DeporiaQ_Siparis_Onerileri.csv","CSV (*.csv)")
+        if not yol:return
+        with open(yol,"w",newline="",encoding="utf-8-sig") as f:
+            y=csv.writer(f,delimiter=";");y.writerow(["Konum","Barkod","Ürün","Mevcut","Hedef","Önerilen Sipariş"]);y.writerows(self.satirlar)
+        QMessageBox.information(self,"Dışa aktarıldı",f"Sipariş önerileri kaydedildi:\n{yol}")
+
+
 class AnaPencere(QMainWindow):
     def __init__(self, vt, kullanici, giris):
         super().__init__()
@@ -536,6 +563,7 @@ class AnaPencere(QMainWindow):
             ("Ürün Yönetimi", self.urun_yonetimi_ac), ("Şubede Satış", self.satis_ac),
             ("Stok Transferi", self.transfer_ac),
             ("Depo ve Şubeler", self.konum_yonetimi_ac), ("Kritik Stoklar", self.kritikleri_ac),
+            ("Sipariş Önerileri", self.siparis_onerileri_ac),
             ("Hareket Geçmişi", self.hareketleri_ac), ("Raporlar ve Yazdır", self.raporlar_ac),
             ("Profesyonel Araçlar", self.araclar_ac), ("Kullanıcılar", self.kullanicilar_ac),
             ("Veri ve Yedekleme", self.yedek_al), ("Ayarlar", self.ayarlar_ac),
@@ -685,6 +713,9 @@ class AnaPencere(QMainWindow):
 
     def kritikleri_ac(self):
         self.liste_dialog("Kritik Stoklar", ["Konum", "Barkod", "Ürün", "Mevcut", "Kritik"], self.vt.kritik_stoklari_getir(), ["konum","barkod","urun","miktar","kritik_stok"])
+
+    def siparis_onerileri_ac(self):
+        SiparisOnerileriPenceresi(self.vt,self).exec()
 
     def hareketleri_ac(self):
         satirlar = self.vt.baglanti.execute("""SELECT tarih_saat,hareket_turu,miktar,aciklama FROM stok_hareketleri ORDER BY id DESC LIMIT 250""").fetchall()
