@@ -1,0 +1,17 @@
+DEPORIAQ 0.19.0 - PROFESYONEL GÖSTERGE PANELİ
+
+YENİLİKLER
+- Ana ekran daha sade ve profesyonel bir işletme özetine dönüştürüldü.
+- Stokların sağlıklı/kritik dağılımını gösteren grafik eklendi.
+- Stok değeri en yüksek 5 ürün için karşılaştırma grafiği eklendi.
+- Son stok hareketleri ana ekranda özetlenmeye başladı.
+- TCMB resmi gösterge kurlarıyla USD, EUR ve GBP alış/satış bilgileri eklendi.
+- Altın, Borsa İstanbul, KAP ve finans haberlerine güvenli hızlı bağlantılar eklendi.
+- Stok girişi, ürünler, kritik stoklar, sipariş önerileri ve transfer işlemleri için hızlı erişim eklendi.
+
+GÜVENLİK VE KARARLILIK
+- Finans verileri arka planda alınır; bağlantı sorunu programın çalışmasını engellemez.
+- Kur bilgileri yalnızca bilgilendirme amaçlıdır ve yatırım tavsiyesi değildir.
+- Mevcut veritabanı, kullanıcılar ve stok kayıtları korunur.
+
+SÜRÜM: 0.19.0

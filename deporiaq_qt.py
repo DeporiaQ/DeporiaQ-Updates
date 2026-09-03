@@ -1,4 +1,4 @@
-"""DeporiaQ 0.18.0 - Güvenilir güncelleme ve akıllı sipariş önerileri."""
+"""DeporiaQ 0.19.0 - Profesyonel gösterge paneli ve finans merkezi."""
 import csv
 import json
 import os
@@ -7,11 +7,13 @@ import subprocess
 import sys
 import shutil
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt, QTimer, Signal
-from PySide6.QtGui import QFont, QIcon, QIntValidator, QKeySequence, QShortcut, QTextDocument
+from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF, QUrl
+from PySide6.QtGui import (QColor, QDesktopServices, QFont, QIcon, QIntValidator,
+                           QKeySequence, QPainter, QPen, QShortcut, QTextDocument)
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
     QFormLayout, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
@@ -26,7 +28,7 @@ from stok_programi_v2 import (
     parola_guclu_mu, veritabani_yedegi_al, yerel_ayari_kaydet,
 )
 
-SURUM = "0.18.0"
+SURUM = "0.19.0"
 
 
 def kaynak_yolu(ad):
@@ -64,6 +66,78 @@ class GuncellemeKontrolu(QThread):
             with urllib.request.urlopen(req,timeout=8) as cevap: veri=json.loads(cevap.read(65536).decode("utf-8"))
             self.tamamlandi.emit(veri)
         except Exception as e:self.hata.emit(str(e))
+
+
+class KurKontrolu(QThread):
+    tamamlandi = Signal(dict)
+    hata = Signal(str)
+
+    def run(self):
+        try:
+            istek = urllib.request.Request(
+                "https://www.tcmb.gov.tr/kurlar/today.xml",
+                headers={"User-Agent": f"DeporiaQ/{SURUM}"},
+            )
+            with urllib.request.urlopen(istek, timeout=8) as cevap:
+                kok = ET.fromstring(cevap.read(250_000))
+            sonuc = {"tarih": kok.attrib.get("Tarih", "")}
+            for kod in ("USD", "EUR", "GBP"):
+                para_birimi = kok.find(f"Currency[@CurrencyCode='{kod}']")
+                if para_birimi is not None:
+                    alis = para_birimi.findtext("ForexBuying", "").strip()
+                    satis = para_birimi.findtext("ForexSelling", "").strip()
+                    if alis and satis:
+                        sonuc[kod] = (float(alis), float(satis))
+            if len(sonuc) == 1:
+                raise ValueError("Kur bilgisi bulunamadı.")
+            self.tamamlandi.emit(sonuc)
+        except Exception as hata:
+            self.hata.emit(str(hata))
+
+
+class HalkaGrafik(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent); self.kritik = 0; self.saglikli = 0; self.setMinimumHeight(185)
+
+    def veri_ayarla(self, kritik, saglikli):
+        self.kritik, self.saglikli = max(0, int(kritik)), max(0, int(saglikli)); self.update()
+
+    def paintEvent(self, olay):
+        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        toplam = self.kritik + self.saglikli
+        alan = QRectF(18, 18, min(self.width() * .48, 150), min(self.height() - 36, 150))
+        kalem = QPen(QColor("#334155"), 18); kalem.setCapStyle(Qt.PenCapStyle.RoundCap); p.setPen(kalem)
+        p.drawArc(alan, 0, 360 * 16)
+        if toplam:
+            aci = int(360 * 16 * self.saglikli / toplam)
+            kalem.setColor(QColor("#10B981")); p.setPen(kalem); p.drawArc(alan, 90 * 16, -aci)
+            kalem.setColor(QColor("#F59E0B")); p.setPen(kalem); p.drawArc(alan, (90 * 16) - aci, -(360 * 16 - aci))
+        p.setPen(QColor("#F8FAFC")); p.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        p.drawText(alan, Qt.AlignmentFlag.AlignCenter, str(toplam))
+        x = int(alan.right() + 28); p.setFont(QFont("Segoe UI", 10))
+        p.setPen(QColor("#10B981")); p.drawText(x, 68, f"● Sağlıklı: {self.saglikli}")
+        p.setPen(QColor("#F59E0B")); p.drawText(x, 101, f"● Kritik: {self.kritik}")
+
+
+class CubukGrafik(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent); self.veriler = []; self.setMinimumHeight(185)
+
+    def veri_ayarla(self, veriler):
+        self.veriler = list(veriler)[:5]; self.update()
+
+    def paintEvent(self, olay):
+        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.veriler:
+            p.setPen(QColor("#94A3B8")); p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Henüz stok verisi yok")
+            return
+        en_buyuk = max(float(v) for _, v in self.veriler) or 1
+        sol, ust, gen = 105, 20, max(50, self.width() - 130)
+        for i, (ad, deger) in enumerate(self.veriler):
+            y = ust + i * 31; oran = float(deger) / en_buyuk
+            p.setPen(QColor("#CBD5E1")); p.drawText(QRectF(4, y, sol - 12, 22), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, str(ad)[:15])
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor("#263449")); p.drawRoundedRect(QRectF(sol, y + 3, gen, 16), 5, 5)
+            p.setBrush(QColor("#38BDF8")); p.drawRoundedRect(QRectF(sol, y + 3, max(4, gen * oran), 16), 5, 5)
 
 
 def para(deger):
@@ -587,9 +661,10 @@ class AnaPencere(QMainWindow):
         return alt
 
     def dashboard_kur(self):
-        d = QVBoxLayout(self.icerik); d.setContentsMargins(16, 12, 16, 12); d.setSpacing(9)
-        baslik = QLabel("İşletme Kontrol Paneli"); baslik.setObjectName("sayfaBaslik"); d.addWidget(baslik)
-        self.konum = QComboBox()
+        d = QVBoxLayout(self.icerik); d.setContentsMargins(14, 10, 14, 10); d.setSpacing(8)
+        ust = QHBoxLayout(); baslik = QLabel("İşletme Özeti"); baslik.setObjectName("sayfaBaslik"); ust.addWidget(baslik)
+        ust.addStretch(); yenile = QPushButton("↻ Yenile"); yenile.clicked.connect(self.yenile); ust.addWidget(yenile); d.addLayout(ust)
+        self.konum = QComboBox(); self.konum.setMaximumWidth(420)
         self.konum.currentIndexChanged.connect(self.yenile)
         d.addWidget(self.konum)
         kartlar = QHBoxLayout(); self.kartlar = []
@@ -598,16 +673,39 @@ class AnaPencere(QMainWindow):
             kd.addWidget(QLabel(bas)); deger = QLabel("0"); deger.setObjectName("kartDeger"); kd.addWidget(deger)
             kartlar.addWidget(k); self.kartlar.append(deger)
         d.addLayout(kartlar)
-        arama = QHBoxLayout(); self.ara = QLineEdit(); self.ara.setPlaceholderText("Ürün veya barkod ara")
-        self.ara.textChanged.connect(self.tablo_yenile); arama.addWidget(self.ara)
-        giris = QPushButton("Stok Girişi"); giris.clicked.connect(self.stok_girisi_ac); arama.addWidget(giris)
-        urunler = QPushButton("Ürünler"); urunler.clicked.connect(self.urun_yonetimi_ac); arama.addWidget(urunler)
-        transfer = QPushButton("Stok Transferi"); transfer.setObjectName("basari"); transfer.clicked.connect(self.transfer_ac)
-        arama.addWidget(transfer); d.addLayout(arama)
-        self.tablo = QTableWidget(0, 5)
-        self.tablo.setHorizontalHeaderLabels(["Barkod", "Ürün", "Stok", "Birim fiyat", "Stok değeri"])
-        tablo_standardi(self.tablo,34)
-        d.addWidget(self.tablo, 1)
+        grafikler = QHBoxLayout()
+        stok_karti = QFrame(); stok_karti.setObjectName("panel"); sk = QVBoxLayout(stok_karti)
+        sk.addWidget(QLabel("Stok Sağlığı")); self.halka_grafik = HalkaGrafik(); sk.addWidget(self.halka_grafik)
+        deger_karti = QFrame(); deger_karti.setObjectName("panel"); dk = QVBoxLayout(deger_karti)
+        dk.addWidget(QLabel("En Değerli 5 Ürün")); self.cubuk_grafik = CubukGrafik(); dk.addWidget(self.cubuk_grafik)
+        grafikler.addWidget(stok_karti, 1); grafikler.addWidget(deger_karti, 1); d.addLayout(grafikler)
+
+        alt = QHBoxLayout()
+        hareket_karti = QFrame(); hareket_karti.setObjectName("panel"); hk = QVBoxLayout(hareket_karti)
+        hk.addWidget(QLabel("Son Stok Hareketleri")); self.hareket_tablosu = QTableWidget(0, 3)
+        self.hareket_tablosu.setHorizontalHeaderLabels(["Tarih", "İşlem", "Miktar"]); tablo_standardi(self.hareket_tablosu, 27)
+        self.hareket_tablosu.setMaximumHeight(190); hk.addWidget(self.hareket_tablosu)
+        alt.addWidget(hareket_karti, 3)
+        finans = QFrame(); finans.setObjectName("panel"); fk = QVBoxLayout(finans)
+        fb = QHBoxLayout(); fb.addWidget(QLabel("Finans Merkezi")); fb.addStretch()
+        kur_yenile = QPushButton("Kurları Yenile"); kur_yenile.clicked.connect(self.kurlari_yenile); fb.addWidget(kur_yenile); fk.addLayout(fb)
+        self.kur_bilgileri = QLabel("TCMB kurları yükleniyor…"); self.kur_bilgileri.setObjectName("kurBilgisi"); fk.addWidget(self.kur_bilgileri)
+        self.kur_durumu = QLabel("Resmî TCMB gösterge kurları"); self.kur_durumu.setObjectName("soluk"); fk.addWidget(self.kur_durumu)
+        baglantilar = QHBoxLayout()
+        for ad, adres in (("Altın", "https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Istatistikler/Doviz+Kurlari"),
+                          ("Borsa İstanbul", "https://www.borsaistanbul.com/"),
+                          ("KAP", "https://www.kap.org.tr/"),
+                          ("Finans Haberleri", "https://www.bloomberght.com/")):
+            b = QPushButton(ad); b.clicked.connect(lambda _, a=adres: QDesktopServices.openUrl(QUrl(a))); baglantilar.addWidget(b)
+        fk.addLayout(baglantilar); fk.addStretch(); alt.addWidget(finans, 2); d.addLayout(alt)
+        hizli = QHBoxLayout()
+        for ad, komut in (("Stok Girişi", self.stok_girisi_ac), ("Ürünler", self.urun_yonetimi_ac),
+                          ("Kritik Stoklar", self.kritikleri_ac), ("Sipariş Önerileri", self.siparis_onerileri_ac),
+                          ("Stok Transferi", self.transfer_ac)):
+            b = QPushButton(ad); b.clicked.connect(komut); hizli.addWidget(b)
+        d.addLayout(hizli); d.addStretch()
+        self.ara = QLineEdit()
+        QTimer.singleShot(700, self.kurlari_yenile)
 
     def konumlari_yenile(self):
         onceki = self.konum.currentData(); self.konum.blockSignals(True); self.konum.clear()
@@ -632,14 +730,42 @@ class AnaPencere(QMainWindow):
     def tablo_yenile(self):
         konum = self.konum.currentData()
         if konum is None: return
-        urunler = self.vt.urunleri_getir(self.ara.text().strip(), konum)
-        self.tablo.setRowCount(len(urunler))
-        for r, u in enumerate(urunler):
-            vals = (u["barkod"], u["ad"], str(u["miktar"]), para(u["fiyat"]), para(u["miktar"] * u["fiyat"]))
-            for c, v in enumerate(vals): self.tablo.setItem(r, c, QTableWidgetItem(v))
+        urunler = self.vt.urunleri_getir("", konum)
         ozet = self.vt.ozet_getir(konum); kritik = len(self.vt.kritik_stoklari_getir())
         for w, v in zip(self.kartlar, (ozet["urun_sayisi"], ozet["toplam_stok"], para(ozet["toplam_deger"]), kritik)):
             w.setText(str(v))
+        kritik_konum = sum(1 for u in urunler if int(u["miktar"] or 0) <= int(u["kritik_stok"] or 0))
+        self.halka_grafik.veri_ayarla(kritik_konum, max(0, len(urunler) - kritik_konum))
+        en_degerli = sorted(((u["ad"], float(u["miktar"] or 0) * float(u["fiyat"] or 0)) for u in urunler), key=lambda x:x[1], reverse=True)[:5]
+        self.cubuk_grafik.veri_ayarla(en_degerli)
+        hareketler = self.vt.baglanti.execute(
+            "SELECT tarih_saat,hareket_turu,miktar FROM stok_hareketleri "
+            "WHERE kaynak_konum_id=? OR hedef_konum_id=? ORDER BY id DESC LIMIT 5", (konum, konum)
+        ).fetchall()
+        self.hareket_tablosu.setRowCount(len(hareketler))
+        for r, h in enumerate(hareketler):
+            for c, v in enumerate((h["tarih_saat"], str(h["hareket_turu"]).replace("_", " ").title(), h["miktar"])):
+                self.hareket_tablosu.setItem(r, c, QTableWidgetItem(str(v)))
+
+    def kurlari_yenile(self):
+        if hasattr(self, "kur_iscisi") and self.kur_iscisi.isRunning(): return
+        self.kur_bilgileri.setText("TCMB kurları yükleniyor…")
+        self.kur_iscisi = KurKontrolu(self)
+        self.kur_iscisi.tamamlandi.connect(self.kur_sonucu)
+        self.kur_iscisi.hata.connect(lambda _: self.kur_hatasi())
+        self.kur_iscisi.start()
+
+    def kur_sonucu(self, sonuc):
+        satirlar = []
+        for kod in ("USD", "EUR", "GBP"):
+            if kod in sonuc:
+                alis, satis = sonuc[kod]; satirlar.append(f"{kod}   Alış {alis:.4f}  •  Satış {satis:.4f}")
+        self.kur_bilgileri.setText("\n".join(satirlar))
+        self.kur_durumu.setText(f"TCMB gösterge kurları • {sonuc.get('tarih', 'güncel')}")
+
+    def kur_hatasi(self):
+        self.kur_bilgileri.setText("Kur bilgisi şu anda alınamadı.")
+        self.kur_durumu.setText("İnternet bağlantınızı kontrol edip yeniden deneyin.")
 
     def transfer_ac(self):
         if self.kullanici["rol"] not in ("ANA_YONETICI", "DEPO_PERSONELI"):
@@ -792,6 +918,9 @@ QLabel#durum { color:#8FA6BF; }
 QFrame#kart { background:#1E2635; border:1px solid #38516E; border-radius:7px; }
 QFrame#kart QLabel { background:transparent; border:0; }
 QLabel#kartDeger { font-size:22px; font-weight:800; color:#38BDF8; }
+QFrame#panel { background:#192334; border:1px solid #38516E; border-radius:8px; }
+QFrame#panel QLabel { background:transparent; border:0; font-weight:650; }
+QLabel#kurBilgisi { color:#E2E8F0; font-family:'Consolas'; font-size:13px; line-height:1.5; }
 QHeaderView::section { background:#314C6B; padding:8px; font-weight:700; }
 """
 
