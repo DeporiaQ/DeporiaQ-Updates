@@ -1,0 +1,18 @@
+DEPORIAQ 0.20.0 - KOMPAKT PANEL VE DAHİLİ FİNANS MERKEZİ
+
+YENİLİKLER
+- Ana ekrandaki gereksiz boşluklar kaldırıldı ve ekran alanı daha verimli kullanıldı.
+- İşletme özeti, depo seçimi ve yenileme düğmesi aynı satırda toplandı.
+- En Değerli 5 Ürün grafiği küçültüldü.
+- Stok işlem türlerini karşılaştıran Hareket Dağılımı grafiği eklendi.
+- Borsa İstanbul, KAP ve finans haberleri DeporiaQ içerisindeki sekmeli pencerede açılmaya başladı.
+- Dahili finans penceresine geri, ileri ve yenile kontrolleri eklendi.
+- DeporiaQ YouTube ve Instagram kanalları için Yakında düğmeleri eklendi.
+- Hızlı işlem düğmeleri ekranın alt bölümünde kompakt biçimde korundu.
+
+GÜVENLİK VE KARARLILIK
+- Dahili görüntüleyici kullanılamazsa sayfalar güvenli biçimde varsayılan tarayıcıya yönlendirilir.
+- Finans sitelerindeki bilgiler ilgili yayıncıların sorumluluğundadır ve yatırım tavsiyesi değildir.
+- Mevcut işletme, kullanıcı, stok ve veritabanı kayıtları korunur.
+
+SÜRÜM: 0.20.0

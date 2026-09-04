@@ -1,4 +1,4 @@
-"""DeporiaQ 0.19.0 - Profesyonel gösterge paneli ve finans merkezi."""
+"""DeporiaQ 0.20.0 - Kompakt panel, dahili finans tarayıcısı ve sosyal merkez."""
 import csv
 import json
 import os
@@ -22,13 +22,20 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 
+try:
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+    WEB_MOTORU_VAR = True
+except ImportError:
+    QWebEngineView = None
+    WEB_MOTORU_VAR = False
+
 from stok_programi_v2 import (
     PROGRAM_ADI, VERITABANI_YOLU, DeporiaQCloud, Veritabani, ayarlari_oku,
     eski_veritabanini_tasi, veritabani_butunlugunu_kurtar,
     parola_guclu_mu, veritabani_yedegi_al, yerel_ayari_kaydet,
 )
 
-SURUM = "0.19.0"
+SURUM = "0.20.0"
 
 
 def kaynak_yolu(ad):
@@ -97,7 +104,7 @@ class KurKontrolu(QThread):
 
 class HalkaGrafik(QWidget):
     def __init__(self, parent=None):
-        super().__init__(parent); self.kritik = 0; self.saglikli = 0; self.setMinimumHeight(185)
+        super().__init__(parent); self.kritik = 0; self.saglikli = 0; self.setMinimumHeight(145)
 
     def veri_ayarla(self, kritik, saglikli):
         self.kritik, self.saglikli = max(0, int(kritik)), max(0, int(saglikli)); self.update()
@@ -121,7 +128,7 @@ class HalkaGrafik(QWidget):
 
 class CubukGrafik(QWidget):
     def __init__(self, parent=None):
-        super().__init__(parent); self.veriler = []; self.setMinimumHeight(185)
+        super().__init__(parent); self.veriler = []; self.setMinimumHeight(145)
 
     def veri_ayarla(self, veriler):
         self.veriler = list(veriler)[:5]; self.update()
@@ -132,12 +139,48 @@ class CubukGrafik(QWidget):
             p.setPen(QColor("#94A3B8")); p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Henüz stok verisi yok")
             return
         en_buyuk = max(float(v) for _, v in self.veriler) or 1
-        sol, ust, gen = 105, 20, max(50, self.width() - 130)
+        sol, ust, gen = 100, 4, max(50, self.width() - 120)
         for i, (ad, deger) in enumerate(self.veriler):
-            y = ust + i * 31; oran = float(deger) / en_buyuk
+            y = ust + i * 27; oran = float(deger) / en_buyuk
             p.setPen(QColor("#CBD5E1")); p.drawText(QRectF(4, y, sol - 12, 22), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, str(ad)[:15])
             p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor("#263449")); p.drawRoundedRect(QRectF(sol, y + 3, gen, 16), 5, 5)
             p.setBrush(QColor("#38BDF8")); p.drawRoundedRect(QRectF(sol, y + 3, max(4, gen * oran), 16), 5, 5)
+
+
+class FinansTarayicisi(QDialog):
+    SAYFALAR = (
+        ("Borsa İstanbul", "https://www.borsaistanbul.com/"),
+        ("KAP", "https://www.kap.org.tr/"),
+        ("Finans Haberleri", "https://www.bloomberght.com/"),
+    )
+
+    def __init__(self, parent=None, secili=0):
+        super().__init__(parent); self.setWindowTitle("DeporiaQ Finans Merkezi"); self.resize(1250, 780)
+        ana = QVBoxLayout(self); araclar = QHBoxLayout()
+        geri = QPushButton("← Geri"); ileri = QPushButton("İleri →"); yenile = QPushButton("↻ Yenile")
+        self.adres = QLineEdit(); self.adres.setReadOnly(True)
+        araclar.addWidget(geri); araclar.addWidget(ileri); araclar.addWidget(yenile); araclar.addWidget(self.adres, 1)
+        ana.addLayout(araclar); self.sekmeler = QTabWidget(); ana.addWidget(self.sekmeler, 1); self.gorunumler = []
+        if not WEB_MOTORU_VAR:
+            bilgi = QLabel("Dahili internet görüntüleyicisi bu kurulumda bulunamadı.\nSayfaları varsayılan tarayıcıda açabilirsiniz.")
+            bilgi.setAlignment(Qt.AlignmentFlag.AlignCenter); ana.addWidget(bilgi)
+            for ad, url in self.SAYFALAR:
+                b = QPushButton(f"{ad} sayfasını aç"); b.clicked.connect(lambda _, u=url: QDesktopServices.openUrl(QUrl(u))); ana.addWidget(b)
+            return
+        for ad, url in self.SAYFALAR:
+            web = QWebEngineView(); web.setUrl(QUrl(url)); self.gorunumler.append(web); self.sekmeler.addTab(web, ad)
+            web.urlChanged.connect(lambda u, w=web: self.adres.setText(u.toString()) if w is self.aktif_web() else None)
+        self.sekmeler.currentChanged.connect(self.sekme_degisti); self.sekmeler.setCurrentIndex(max(0, min(secili, len(self.SAYFALAR)-1)))
+        geri.clicked.connect(lambda: self.aktif_web().back() if self.aktif_web() else None)
+        ileri.clicked.connect(lambda: self.aktif_web().forward() if self.aktif_web() else None)
+        yenile.clicked.connect(lambda: self.aktif_web().reload() if self.aktif_web() else None); self.sekme_degisti()
+
+    def aktif_web(self):
+        return self.gorunumler[self.sekmeler.currentIndex()] if self.gorunumler and self.sekmeler.currentIndex() >= 0 else None
+
+    def sekme_degisti(self, _=None):
+        web = self.aktif_web()
+        if web: self.adres.setText(web.url().toString())
 
 
 def para(deger):
@@ -663,47 +706,51 @@ class AnaPencere(QMainWindow):
     def dashboard_kur(self):
         d = QVBoxLayout(self.icerik); d.setContentsMargins(14, 10, 14, 10); d.setSpacing(8)
         ust = QHBoxLayout(); baslik = QLabel("İşletme Özeti"); baslik.setObjectName("sayfaBaslik"); ust.addWidget(baslik)
-        ust.addStretch(); yenile = QPushButton("↻ Yenile"); yenile.clicked.connect(self.yenile); ust.addWidget(yenile); d.addLayout(ust)
-        self.konum = QComboBox(); self.konum.setMaximumWidth(420)
-        self.konum.currentIndexChanged.connect(self.yenile)
-        d.addWidget(self.konum)
+        ust.addSpacing(18); self.konum = QComboBox(); self.konum.setMinimumWidth(320); self.konum.setMaximumWidth(460)
+        self.konum.currentIndexChanged.connect(self.yenile); ust.addWidget(self.konum)
+        yenile = QPushButton("↻ Yenile"); yenile.clicked.connect(self.yenile); ust.addWidget(yenile); ust.addStretch(); d.addLayout(ust)
         kartlar = QHBoxLayout(); self.kartlar = []
         for bas in ("Ürün çeşidi", "Seçili konum stoğu", "Toplam stok değeri", "Kritik stok"):
             k = QFrame(); k.setObjectName("kart"); kd = QVBoxLayout(k); kd.setContentsMargins(10,6,10,7); kd.setSpacing(2)
             kd.addWidget(QLabel(bas)); deger = QLabel("0"); deger.setObjectName("kartDeger"); kd.addWidget(deger)
             kartlar.addWidget(k); self.kartlar.append(deger)
         d.addLayout(kartlar)
-        grafikler = QHBoxLayout()
+        grafikler = QHBoxLayout(); grafikler.setSpacing(8)
         stok_karti = QFrame(); stok_karti.setObjectName("panel"); sk = QVBoxLayout(stok_karti)
         sk.addWidget(QLabel("Stok Sağlığı")); self.halka_grafik = HalkaGrafik(); sk.addWidget(self.halka_grafik)
         deger_karti = QFrame(); deger_karti.setObjectName("panel"); dk = QVBoxLayout(deger_karti)
         dk.addWidget(QLabel("En Değerli 5 Ürün")); self.cubuk_grafik = CubukGrafik(); dk.addWidget(self.cubuk_grafik)
-        grafikler.addWidget(stok_karti, 1); grafikler.addWidget(deger_karti, 1); d.addLayout(grafikler)
+        hareket_grafik_karti = QFrame(); hareket_grafik_karti.setObjectName("panel"); hg = QVBoxLayout(hareket_grafik_karti)
+        hg.addWidget(QLabel("Hareket Dağılımı")); self.hareket_grafik = CubukGrafik(); hg.addWidget(self.hareket_grafik)
+        grafikler.addWidget(stok_karti, 1); grafikler.addWidget(deger_karti, 1); grafikler.addWidget(hareket_grafik_karti, 1); d.addLayout(grafikler)
 
         alt = QHBoxLayout()
         hareket_karti = QFrame(); hareket_karti.setObjectName("panel"); hk = QVBoxLayout(hareket_karti)
         hk.addWidget(QLabel("Son Stok Hareketleri")); self.hareket_tablosu = QTableWidget(0, 3)
         self.hareket_tablosu.setHorizontalHeaderLabels(["Tarih", "İşlem", "Miktar"]); tablo_standardi(self.hareket_tablosu, 27)
         self.hareket_tablosu.setMaximumHeight(190); hk.addWidget(self.hareket_tablosu)
-        alt.addWidget(hareket_karti, 3)
+        alt.addWidget(hareket_karti, 2)
         finans = QFrame(); finans.setObjectName("panel"); fk = QVBoxLayout(finans)
         fb = QHBoxLayout(); fb.addWidget(QLabel("Finans Merkezi")); fb.addStretch()
         kur_yenile = QPushButton("Kurları Yenile"); kur_yenile.clicked.connect(self.kurlari_yenile); fb.addWidget(kur_yenile); fk.addLayout(fb)
         self.kur_bilgileri = QLabel("TCMB kurları yükleniyor…"); self.kur_bilgileri.setObjectName("kurBilgisi"); fk.addWidget(self.kur_bilgileri)
         self.kur_durumu = QLabel("Resmî TCMB gösterge kurları"); self.kur_durumu.setObjectName("soluk"); fk.addWidget(self.kur_durumu)
         baglantilar = QHBoxLayout()
-        for ad, adres in (("Altın", "https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Istatistikler/Doviz+Kurlari"),
-                          ("Borsa İstanbul", "https://www.borsaistanbul.com/"),
-                          ("KAP", "https://www.kap.org.tr/"),
-                          ("Finans Haberleri", "https://www.bloomberght.com/")):
-            b = QPushButton(ad); b.clicked.connect(lambda _, a=adres: QDesktopServices.openUrl(QUrl(a))); baglantilar.addWidget(b)
-        fk.addLayout(baglantilar); fk.addStretch(); alt.addWidget(finans, 2); d.addLayout(alt)
+        altin = QPushButton("Altın ve Kurlar"); altin.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Istatistikler/Doviz+Kurlari"))); baglantilar.addWidget(altin)
+        for sira, ad in enumerate(("Borsa İstanbul", "KAP", "Finans Haberleri")):
+            b = QPushButton(ad); b.clicked.connect(lambda _, i=sira: self.finans_merkezi_ac(i)); baglantilar.addWidget(b)
+        fk.addLayout(baglantilar); alt.addWidget(finans, 2)
+        sosyal = QFrame(); sosyal.setObjectName("panel"); sd = QVBoxLayout(sosyal); sd.addWidget(QLabel("DeporiaQ Sosyal"))
+        sosyal_bilgi = QLabel("Yeni özellikler, eğitim videoları ve duyurular yakında."); sosyal_bilgi.setWordWrap(True); sosyal_bilgi.setObjectName("soluk"); sd.addWidget(sosyal_bilgi)
+        youtube = QPushButton("▶ YouTube  •  Yakında"); instagram = QPushButton("◎ Instagram  •  Yakında")
+        youtube.clicked.connect(lambda: self.sosyal_yakinda("YouTube")); instagram.clicked.connect(lambda: self.sosyal_yakinda("Instagram"))
+        sd.addWidget(youtube); sd.addWidget(instagram); sd.addStretch(); alt.addWidget(sosyal, 1); d.addLayout(alt)
         hizli = QHBoxLayout()
         for ad, komut in (("Stok Girişi", self.stok_girisi_ac), ("Ürünler", self.urun_yonetimi_ac),
                           ("Kritik Stoklar", self.kritikleri_ac), ("Sipariş Önerileri", self.siparis_onerileri_ac),
                           ("Stok Transferi", self.transfer_ac)):
             b = QPushButton(ad); b.clicked.connect(komut); hizli.addWidget(b)
-        d.addLayout(hizli); d.addStretch()
+        d.addLayout(hizli)
         self.ara = QLineEdit()
         QTimer.singleShot(700, self.kurlari_yenile)
 
@@ -738,6 +785,11 @@ class AnaPencere(QMainWindow):
         self.halka_grafik.veri_ayarla(kritik_konum, max(0, len(urunler) - kritik_konum))
         en_degerli = sorted(((u["ad"], float(u["miktar"] or 0) * float(u["fiyat"] or 0)) for u in urunler), key=lambda x:x[1], reverse=True)[:5]
         self.cubuk_grafik.veri_ayarla(en_degerli)
+        hareket_ozeti = self.vt.baglanti.execute(
+            "SELECT hareket_turu,COUNT(*) adet FROM stok_hareketleri "
+            "WHERE kaynak_konum_id=? OR hedef_konum_id=? GROUP BY hareket_turu ORDER BY adet DESC LIMIT 5", (konum, konum)
+        ).fetchall()
+        self.hareket_grafik.veri_ayarla([(str(h["hareket_turu"]).replace("_", " ").title(), h["adet"]) for h in hareket_ozeti])
         hareketler = self.vt.baglanti.execute(
             "SELECT tarih_saat,hareket_turu,miktar FROM stok_hareketleri "
             "WHERE kaynak_konum_id=? OR hedef_konum_id=? ORDER BY id DESC LIMIT 5", (konum, konum)
@@ -766,6 +818,12 @@ class AnaPencere(QMainWindow):
     def kur_hatasi(self):
         self.kur_bilgileri.setText("Kur bilgisi şu anda alınamadı.")
         self.kur_durumu.setText("İnternet bağlantınızı kontrol edip yeniden deneyin.")
+
+    def finans_merkezi_ac(self, secili=0):
+        FinansTarayicisi(self, secili).exec()
+
+    def sosyal_yakinda(self, platform):
+        QMessageBox.information(self, f"DeporiaQ {platform}", f"DeporiaQ {platform} hesabı henüz açılmadı.\nHesap açıldığında bağlantı bu düğmeye eklenecek.")
 
     def transfer_ac(self):
         if self.kullanici["rol"] not in ("ANA_YONETICI", "DEPO_PERSONELI"):
