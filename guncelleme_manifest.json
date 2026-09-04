@@ -1,6 +1,6 @@
 {
-  "version": "0.19.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.19.0/DeporiaQ_Setup_0.19.0.exe",
-  "sha256": "bcb0e1de30c204d9b2176698a407176a5fd52ab448adf7859227672522f7cb31",
-  "notes": "Profesyonel grafik gösterge paneli, TCMB döviz kurları ve güvenli finans bağlantıları eklendi."
+  "version": "0.20.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.20.0/DeporiaQ_Setup_0.20.0.exe",
+  "sha256": "934c6ad07f2bfeeecf9b0035091f846279c8ae7b458a5ba43dad6bf04ea4c28d",
+  "notes": "Kompakt gösterge paneli, dahili finans tarayıcısı, hareket grafiği ve DeporiaQ sosyal merkezi eklendi."
 }
