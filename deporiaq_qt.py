@@ -1,4 +1,4 @@
-"""DeporiaQ 0.21.0 - Canlı işletme paneli, onaylı ürün düzenleme ve sessiz güncelleme."""
+"""DeporiaQ 0.21.1 - Canlı işletme paneli ve düzeltilmiş sessiz güncelleme."""
 import csv
 import json
 import os
@@ -30,7 +30,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.21.0"
+SURUM = "0.21.1"
 
 
 def kaynak_yolu(ad):

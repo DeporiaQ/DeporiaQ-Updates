@@ -1,0 +1,6 @@
+DeporiaQ 0.21.1
+
+- 0.21.0 kurulumunda Windows'un geçici .tmp dosyası için uygulama seçmesini istemesine neden olan hata düzeltildi.
+- Sessiz kurulum artık Inno Setup'ın geçici çalışma dosyası yerine özgün kurulum EXE dosyasını kullanır.
+- DeporiaQ kurulum sırasında otomatik kapatılır, güncelleme sessizce tamamlanır ve uygulama yeniden açılır.
+- 0.21.0 ile hazırlanan canlı panel, aktif kullanıcılar ve ürün özelleştirme özellikleri korunur.

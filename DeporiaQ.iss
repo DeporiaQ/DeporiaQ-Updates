@@ -1,5 +1,5 @@
 #define MyAppName "DeporiaQ"
-#define MyAppVersion "0.21.0"
+#define MyAppVersion "0.21.1"
 #define MyAppPublisher "DeporiaQ"
 #define MyAppExeName "DeporiaQ.exe"
 
@@ -64,7 +64,7 @@ begin
   { 0.20 ve daha eski güncelleyiciler parametre vermese bile kurulumu sessiz sürdür. }
   if (not WizardSilent) and (not ParametreVar('/DEPORIAQ_SILENT')) then
   begin
-    ShellExec('', ParamStr(0), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /DEPORIAQ_SILENT', '', SW_SHOW, ewNoWait, Kod);
+    ShellExec('', ExpandConstant('{srcexe}'), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /DEPORIAQ_SILENT', '', SW_SHOW, ewNoWait, Kod);
     Result := False;
   end;
 end;
