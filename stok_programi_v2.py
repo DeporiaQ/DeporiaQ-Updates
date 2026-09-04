@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.13.4"
+PROGRAM_SURUMU = "0.21.0"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -398,6 +398,21 @@ class Veritabani:
                 durum TEXT NOT NULL DEFAULT 'BEKLIYOR',
                 tarih_saat TEXT NOT NULL,
                 kullanici_id INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS urun_ozellestirme_talepleri (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                urun_id INTEGER NOT NULL,
+                eski_ad TEXT NOT NULL,
+                eski_barkod TEXT NOT NULL,
+                yeni_ad TEXT NOT NULL,
+                yeni_barkod TEXT NOT NULL,
+                talep_eden_id INTEGER,
+                durum TEXT NOT NULL DEFAULT 'BEKLIYOR',
+                tarih_saat TEXT NOT NULL,
+                karar_tarihi TEXT,
+                karar_veren_id INTEGER,
+                FOREIGN KEY (urun_id) REFERENCES urunler(id)
             );
 
             CREATE TABLE IF NOT EXISTS senkron_kuyrugu (
@@ -1734,6 +1749,8 @@ class DeporiaQCloud:
         self.company_id = ""
         self.company_name = ""
         self.role = ""
+        self.local_username = ""
+        self.location_name = ""
 
     @property
     def bagli(self):
@@ -1843,11 +1860,22 @@ class DeporiaQCloud:
             "app_version": PROGRAM_SURUMU,
             "last_seen_at": datetime.now().astimezone().isoformat(),
             "active": True,
+            "local_username": self.local_username or os.getenv("USERNAME", "DeporiaQ Kullanıcısı"),
+            "location_name": self.location_name or "Atanmamış",
         }]
-        self._istek(
-            "/rest/v1/cloud_devices?on_conflict=company_id,device_code",
-            "POST", veri, "resolution=merge-duplicates,return=minimal"
-        )
+        try:
+            self._istek(
+                "/rest/v1/cloud_devices?on_conflict=company_id,device_code",
+                "POST", veri, "resolution=merge-duplicates,return=minimal"
+            )
+        except RuntimeError as hata:
+            if "local_username" not in str(hata) and "location_name" not in str(hata):
+                raise
+            veri[0].pop("local_username", None); veri[0].pop("location_name", None)
+            self._istek(
+                "/rest/v1/cloud_devices?on_conflict=company_id,device_code",
+                "POST", veri, "resolution=merge-duplicates,return=minimal"
+            )
 
     def _liste(self, tablo, select="*"):
         secim = urllib.parse.quote(select, safe="*,()")
@@ -2033,7 +2061,10 @@ class DeporiaQCloud:
         self.senkron_baslangic_noktasi_kaydet()
 
     def cihazlari_getir(self):
-        return self._liste("cloud_devices", "id,device_code,device_name,app_version,last_seen_at,active,user_id")
+        try:
+            return self._liste("cloud_devices", "id,device_code,device_name,app_version,last_seen_at,active,user_id,local_username,location_name")
+        except RuntimeError:
+            return self._liste("cloud_devices", "id,device_code,device_name,app_version,last_seen_at,active,user_id")
 
     def uyeleri_getir(self):
         """Oturum açmış kullanıcının görebildiği işletme üyeliklerini getirir."""
@@ -2048,6 +2079,19 @@ class DeporiaQCloud:
             f"/rest/v1/cloud_devices?id=eq.{cihaz_id}", "PATCH",
             {"active": bool(aktif)}, "return=minimal"
         )
+
+    def urun_talebi_gonder(self,veri):
+        if not self.bagli:return
+        kayit=dict(veri);kayit.update({"company_id":self.company_id,"requested_by":self.user_id})
+        self._istek("/rest/v1/product_change_requests","POST",[kayit],"return=minimal")
+
+    def urun_talepleri_getir(self):
+        if not self.bagli:return []
+        return self._istek(f"/rest/v1/product_change_requests?select=*&company_id=eq.{self.company_id}&order=created_at.desc&limit=100") or []
+
+    def urun_talebi_karar(self,talep_id,durum):
+        if self.role not in ("owner","admin","manager"):raise RuntimeError("Talep kararı için yönetici yetkisi gerekir.")
+        self._istek(f"/rest/v1/product_change_requests?id=eq.{talep_id}","PATCH",{"status":durum,"decided_by":self.user_id,"decided_at":datetime.now().astimezone().isoformat()},"return=minimal")
 
     def yereli_buluta_gonder(self):
         if not self.bagli:

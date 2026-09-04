@@ -1,5 +1,5 @@
 #define MyAppName "DeporiaQ"
-#define MyAppVersion "0.20.0"
+#define MyAppVersion "0.21.0"
 #define MyAppPublisher "DeporiaQ"
 #define MyAppExeName "DeporiaQ.exe"
 
@@ -19,6 +19,8 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
+CloseApplications=force
+RestartApplications=no
 SetupLogging=yes
 SetupIconFile=deporiaq_icon.ico
 
@@ -32,16 +34,37 @@ Name: "desktopicon"; Description: "Masaüstü kısayolu oluştur"; GroupDescript
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\DeporiaQUpdate.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "guncelleme_ayarlari.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "BILDIRICI_GOREV_KUR.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\BILDIRICI_GOREV_KUR.bat"; Flags: runhidden waituntilterminated
-Filename: "{app}\DeporiaQUpdate.exe"; Flags: nowait runhidden skipifsilent
-Filename: "{app}\{#MyAppExeName}"; Description: "DeporiaQ'yu başlat"; Flags: nowait postinstall skipifsilent
+Filename: "{cmd}"; Parameters: "/C schtasks /Delete /F /TN ""DeporiaQ Update Check"" >nul 2>&1"; Flags: runhidden waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Description: "DeporiaQ'yu başlat"; Flags: nowait postinstall
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""DeporiaQ Update Check"""; Flags: runhidden waituntilterminated; RunOnceId: "DeporiaQUpdateTaskDelete"
+
+[Code]
+function ParametreVar(Aranan: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), Aranan) = 0 then begin Result := True; Exit; end;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  Kod: Integer;
+begin
+  Result := True;
+  { 0.20 ve daha eski güncelleyiciler parametre vermese bile kurulumu sessiz sürdür. }
+  if (not WizardSilent) and (not ParametreVar('/DEPORIAQ_SILENT')) then
+  begin
+    ShellExec('', ParamStr(0), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /DEPORIAQ_SILENT', '', SW_SHOW, ewNoWait, Kod);
+    Result := False;
+  end;
+end;

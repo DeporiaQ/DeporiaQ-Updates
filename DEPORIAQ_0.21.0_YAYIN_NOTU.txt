@@ -1,0 +1,13 @@
+DeporiaQ 0.21.0
+
+- Gösterge panelindeki boşluklar giderildi ve son hareket tablosu büyütüldü.
+- Stok Sağlığı alanına ikinci, farklı tipte grafik eklendi.
+- En Değerli 5 Ürün etiketlerinin sol tarafı görünür hale getirildi.
+- DeporiaQ YouTube ve Instagram bağlantıları üst alana taşındı.
+- Aktif Kullanıcılar listesi ve üst çubukta canlı online sayacı eklendi.
+- Döviz ve piyasa göstergeleri otomatik yenilenir hale getirildi; tarayıcı açan düğmeler kaldırıldı.
+- Ürün Özelleştirmeleri talep, yönetici onayı ve red akışı eklendi.
+- Cloud durumu artık gerçek oturumu gösteriyor; güvenli otomatik oturum yenileme eklendi.
+- Güncelleme düğmesi alt çubuğa taşındı.
+- Güncelleyici uygulamayı kapatır, kurulumu sessiz tamamlar ve DeporiaQ'yu yeniden açar.
+- Eski zamanlanmış çift güncelleme bildirimi kaldırıldı.

@@ -1,4 +1,4 @@
-"""DeporiaQ 0.20.0 - Kompakt panel, dahili finans tarayıcısı ve sosyal merkez."""
+"""DeporiaQ 0.21.0 - Canlı işletme paneli, onaylı ürün düzenleme ve sessiz güncelleme."""
 import csv
 import json
 import os
@@ -7,35 +7,30 @@ import subprocess
 import sys
 import shutil
 import urllib.request
+import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF, QUrl
-from PySide6.QtGui import (QColor, QDesktopServices, QFont, QIcon, QIntValidator,
+from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF
+from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QIntValidator,
                            QKeySequence, QPainter, QPen, QShortcut, QTextDocument)
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
     QFormLayout, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
-    QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox,
+    QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox, QCompleter,
     QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
-
-try:
-    from PySide6.QtWebEngineWidgets import QWebEngineView
-    WEB_MOTORU_VAR = True
-except ImportError:
-    QWebEngineView = None
-    WEB_MOTORU_VAR = False
 
 from stok_programi_v2 import (
     PROGRAM_ADI, VERITABANI_YOLU, DeporiaQCloud, Veritabani, ayarlari_oku,
     eski_veritabanini_tasi, veritabani_butunlugunu_kurtar,
     parola_guclu_mu, veritabani_yedegi_al, yerel_ayari_kaydet,
+    windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.20.0"
+SURUM = "0.21.0"
 
 
 def kaynak_yolu(ad):
@@ -95,11 +90,45 @@ class KurKontrolu(QThread):
                     satis = para_birimi.findtext("ForexSelling", "").strip()
                     if alis and satis:
                         sonuc[kod] = (float(alis), float(satis))
+            try:
+                for sembol,anahtar in (("GC=F","ALTIN"),("SI=F","GUMUS"),("XU100.IS","BIST")):
+                    url=f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(sembol,safe='')}?range=2d&interval=1d"
+                    req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 DeporiaQ"})
+                    with urllib.request.urlopen(req,timeout=6) as cevap: piyasa=json.loads(cevap.read(300000).decode("utf-8"))
+                    sonuclar=piyasa["chart"]["result"][0]; meta=sonuclar["meta"]; simdiki=float(meta.get("regularMarketPrice") or 0); onceki=float(meta.get("chartPreviousClose") or meta.get("previousClose") or simdiki)
+                    sonuc[anahtar]=(simdiki,((simdiki-onceki)/onceki*100) if onceki else 0)
+            except Exception:
+                pass
             if len(sonuc) == 1:
                 raise ValueError("Kur bilgisi bulunamadı.")
             self.tamamlandi.emit(sonuc)
         except Exception as hata:
             self.hata.emit(str(hata))
+
+
+class CloudKontrolu(QThread):
+    tamamlandi=Signal(object,str); hata=Signal(str)
+    def __init__(self,cloud,refresh_token="",parent=None): super().__init__(parent);self.cloud=cloud;self.refresh_token=refresh_token
+    def run(self):
+        try:
+            if self.refresh_token and not self.cloud.bagli:self.cloud.oturumu_yenile(self.refresh_token)
+            if not self.cloud.bagli:raise RuntimeError("Cloud oturumu gerekli")
+            self.cloud._cihazi_kaydet(); self.tamamlandi.emit(self.cloud.cihazlari_getir(),self.cloud.refresh_token)
+        except Exception as e:self.hata.emit(str(e))
+
+
+class CloudSenkronIsci(QThread):
+    tamamlandi=Signal(str); hata=Signal(str)
+    def __init__(self,cloud,parent=None):super().__init__(parent);self.cloud=cloud
+    def run(self):
+        yeni_vt=None
+        try:
+            yeni_vt=Veritabani(self.cloud.vt.yol); kopya=DeporiaQCloud(yeni_vt,self.cloud.cihaz_kimligi)
+            for alan in ("url","anahtar","access_token","refresh_token","user_id","company_id","company_name","role","local_username","location_name"):setattr(kopya,alan,getattr(self.cloud,alan,""))
+            durum,_=kopya.akilli_senkronize();self.tamamlandi.emit(durum)
+        except Exception as e:self.hata.emit(str(e))
+        finally:
+            if yeni_vt:yeni_vt.kapat()
 
 
 class HalkaGrafik(QWidget):
@@ -139,48 +168,31 @@ class CubukGrafik(QWidget):
             p.setPen(QColor("#94A3B8")); p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Henüz stok verisi yok")
             return
         en_buyuk = max(float(v) for _, v in self.veriler) or 1
-        sol, ust, gen = 100, 4, max(50, self.width() - 120)
+        sol, ust, gen = 122, 4, max(50, self.width() - 136)
+        olcer = QFontMetrics(p.font())
         for i, (ad, deger) in enumerate(self.veriler):
             y = ust + i * 27; oran = float(deger) / en_buyuk
-            p.setPen(QColor("#CBD5E1")); p.drawText(QRectF(4, y, sol - 12, 22), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, str(ad)[:15])
+            etiket = olcer.elidedText(str(ad), Qt.TextElideMode.ElideRight, sol - 12)
+            p.setPen(QColor("#CBD5E1")); p.drawText(QRectF(4, y, sol - 12, 22), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, etiket)
             p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor("#263449")); p.drawRoundedRect(QRectF(sol, y + 3, gen, 16), 5, 5)
             p.setBrush(QColor("#38BDF8")); p.drawRoundedRect(QRectF(sol, y + 3, max(4, gen * oran), 16), 5, 5)
 
 
-class FinansTarayicisi(QDialog):
-    SAYFALAR = (
-        ("Borsa İstanbul", "https://www.borsaistanbul.com/"),
-        ("KAP", "https://www.kap.org.tr/"),
-        ("Finans Haberleri", "https://www.bloomberght.com/"),
-    )
-
-    def __init__(self, parent=None, secili=0):
-        super().__init__(parent); self.setWindowTitle("DeporiaQ Finans Merkezi"); self.resize(1250, 780)
-        ana = QVBoxLayout(self); araclar = QHBoxLayout()
-        geri = QPushButton("← Geri"); ileri = QPushButton("İleri →"); yenile = QPushButton("↻ Yenile")
-        self.adres = QLineEdit(); self.adres.setReadOnly(True)
-        araclar.addWidget(geri); araclar.addWidget(ileri); araclar.addWidget(yenile); araclar.addWidget(self.adres, 1)
-        ana.addLayout(araclar); self.sekmeler = QTabWidget(); ana.addWidget(self.sekmeler, 1); self.gorunumler = []
-        if not WEB_MOTORU_VAR:
-            bilgi = QLabel("Dahili internet görüntüleyicisi bu kurulumda bulunamadı.\nSayfaları varsayılan tarayıcıda açabilirsiniz.")
-            bilgi.setAlignment(Qt.AlignmentFlag.AlignCenter); ana.addWidget(bilgi)
-            for ad, url in self.SAYFALAR:
-                b = QPushButton(f"{ad} sayfasını aç"); b.clicked.connect(lambda _, u=url: QDesktopServices.openUrl(QUrl(u))); ana.addWidget(b)
-            return
-        for ad, url in self.SAYFALAR:
-            web = QWebEngineView(); web.setUrl(QUrl(url)); self.gorunumler.append(web); self.sekmeler.addTab(web, ad)
-            web.urlChanged.connect(lambda u, w=web: self.adres.setText(u.toString()) if w is self.aktif_web() else None)
-        self.sekmeler.currentChanged.connect(self.sekme_degisti); self.sekmeler.setCurrentIndex(max(0, min(secili, len(self.SAYFALAR)-1)))
-        geri.clicked.connect(lambda: self.aktif_web().back() if self.aktif_web() else None)
-        ileri.clicked.connect(lambda: self.aktif_web().forward() if self.aktif_web() else None)
-        yenile.clicked.connect(lambda: self.aktif_web().reload() if self.aktif_web() else None); self.sekme_degisti()
-
-    def aktif_web(self):
-        return self.gorunumler[self.sekmeler.currentIndex()] if self.gorunumler and self.sekmeler.currentIndex() >= 0 else None
-
-    def sekme_degisti(self, _=None):
-        web = self.aktif_web()
-        if web: self.adres.setText(web.url().toString())
+class SutunGrafik(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent); self.veriler=[]; self.setMinimumHeight(145)
+    def veri_ayarla(self, veriler): self.veriler=list(veriler)[:4]; self.update()
+    def paintEvent(self, olay):
+        p=QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.veriler:
+            p.setPen(QColor("#94A3B8")); p.drawText(self.rect(),Qt.AlignmentFlag.AlignCenter,"Henüz hareket yok"); return
+        en_buyuk=max(float(v) for _,v in self.veriler) or 1; taban=self.height()-25
+        gen=max(24,(self.width()-30)//len(self.veriler)-14)
+        for i,(ad,deger) in enumerate(self.veriler):
+            x=18+i*(gen+14); h=max(5,(self.height()-62)*float(deger)/en_buyuk)
+            p.setPen(Qt.PenStyle.NoPen); p.setBrush(QColor(("#38BDF8","#10B981","#F59E0B","#A78BFA")[i%4]))
+            p.drawRoundedRect(QRectF(x,taban-h,gen,h),5,5); p.setPen(QColor("#CBD5E1"))
+            p.drawText(QRectF(x,taban+2,gen,20),Qt.AlignmentFlag.AlignCenter,str(ad)[:8])
 
 
 def para(deger):
@@ -572,8 +584,64 @@ class AyarlarPenceresi(QDialog):
         try:
             self.cloud.yapilandir(self.url.text(),self.key.text()); ad=self.cloud.giris_yap(self.email.text(),self.pw.text()); sonuc,_=self.cloud.akilli_senkronize()
             yerel_ayari_kaydet("cloud_url",self.url.text().strip());yerel_ayari_kaydet("cloud_publishable_key",self.key.text().strip());yerel_ayari_kaydet("cloud_email",self.email.text().strip())
+            if self.cloud.refresh_token: yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(self.cloud.refresh_token))
             self.vt.ayar_kaydet("cloud_etkin","1");self.vt.baglanti.commit();self.cloud_yenile();QMessageBox.information(self,"Cloud bağlı",f"{ad}\nSenkronizasyon: {sonuc}")
         except Exception as e:QMessageBox.warning(self,"Cloud bağlantısı kurulamadı",str(e))
+
+
+class UrunOzellestirmePenceresi(QDialog):
+    def __init__(self,vt,kullanici,cloud,yenile,parent=None):
+        super().__init__(parent); self.vt,self.kullanici,self.cloud,self.yenile=vt,kullanici,cloud,yenile; self.urunler=[]
+        self.setWindowTitle("Ürün Özelleştirmeleri"); self.resize(820,610); d=QVBoxLayout(self)
+        b=QLabel("Ürün Özelleştirmeleri"); b.setObjectName("sayfaBaslik"); d.addWidget(b)
+        self.arama=QLineEdit(); self.arama.setPlaceholderText("Ürün adı veya barkodun bir kısmını yazın")
+        self.urunler=[dict(x) for x in vt.tum_aktif_urunleri_getir()]
+        self.tamamlayici=QCompleter([f"{u['barkod']} • {u['ad']}" for u in self.urunler],self); self.tamamlayici.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive); self.tamamlayici.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.arama.setCompleter(self.tamamlayici); self.arama.textChanged.connect(self.urun_bul); d.addWidget(self.arama)
+        f=QFormLayout(); self.yeni_ad=QLineEdit(); self.yeni_barkod=QLineEdit(); f.addRow("Yeni ürün adı:",self.yeni_ad); f.addRow("Yeni barkod:",self.yeni_barkod); d.addLayout(f)
+        self.secili_id=None; gonder=QPushButton("Ürün Özelleştirme Talebi Gönder"); gonder.setObjectName("birincil"); gonder.clicked.connect(self.talep_gonder); d.addWidget(gonder)
+        self.durum=QLabel(""); self.durum.setObjectName("soluk"); d.addWidget(self.durum)
+        self.tablo=QTableWidget(0,5); self.tablo.setHorizontalHeaderLabels(["Ürün","Yeni ad","Yeni barkod","Talep eden","Durum"]); tablo_standardi(self.tablo,30); d.addWidget(self.tablo,1)
+        if kullanici["rol"]=="ANA_YONETICI":
+            a=QHBoxLayout(); kabul=QPushButton("Talebi Kabul Et"); kabul.setObjectName("basari"); kabul.clicked.connect(lambda:self.karar("KABUL")); red=QPushButton("Talebi Reddet"); red.setObjectName("tehlike"); red.clicked.connect(lambda:self.karar("RED")); a.addWidget(kabul);a.addWidget(red);d.addLayout(a)
+        self.liste_yenile()
+    def urun_bul(self,metin):
+        m=metin.casefold().strip()
+        if " • " in m:m=m.split(" • ",1)[0].strip()
+        eslesen=next((u for u in self.urunler if m and (m in str(u['ad']).casefold() or m in str(u['barkod']).casefold())),None)
+        if eslesen: self.secili_id=eslesen['id']; self.yeni_ad.setText(eslesen['ad']); self.yeni_barkod.setText(eslesen['barkod'])
+    def talep_gonder(self):
+        if not self.secili_id or not self.yeni_ad.text().strip() or not self.yeni_barkod.text().strip(): QMessageBox.warning(self,"Eksik bilgi","Listeden bir ürün seçip yeni ad ve barkodu doldurun.");return
+        u=next(x for x in self.urunler if x['id']==self.secili_id)
+        try:
+            self.vt.baglanti.execute("INSERT INTO urun_ozellestirme_talepleri(urun_id,eski_ad,eski_barkod,yeni_ad,yeni_barkod,talep_eden_id,tarih_saat) VALUES(?,?,?,?,?,?,?)",(u['id'],u['ad'],u['barkod'],self.yeni_ad.text().strip(),self.yeni_barkod.text().strip(),self.kullanici['id'],datetime.now().strftime('%d.%m.%Y %H:%M:%S')));self.vt.baglanti.commit()
+            if self.cloud.bagli:self.cloud.urun_talebi_gonder({"old_name":u['ad'],"old_barcode":u['barkod'],"new_name":self.yeni_ad.text().strip(),"new_barcode":self.yeni_barkod.text().strip(),"requester_name":self.kullanici['kullanici_adi']})
+            self.durum.setText("Talep ana yönetici onayına gönderildi.");self.liste_yenile()
+        except Exception as e: QMessageBox.warning(self,"Talep gönderilemedi",str(e))
+    def liste_yenile(self):
+        satirlar=[dict(x) for x in self.vt.baglanti.execute("SELECT t.*,COALESCE(k.kullanici_adi,'—') talep_eden FROM urun_ozellestirme_talepleri t LEFT JOIN kullanicilar k ON k.id=t.talep_eden_id ORDER BY t.id DESC LIMIT 100").fetchall()]
+        if self.cloud.bagli:
+            try:
+                satirlar=[{"id":x['id'],"remote":True,"urun_id":None,"eski_ad":x['old_name'],"eski_barkod":x['old_barcode'],"yeni_ad":x['new_name'],"yeni_barkod":x['new_barcode'],"talep_eden":x.get('requester_name','—'),"durum":{'approved':'KABUL','rejected':'RED','pending':'BEKLIYOR'}.get(x.get('status'),x.get('status'))} for x in self.cloud.urun_talepleri_getir()]
+            except Exception:pass
+        self.tablo.setRowCount(len(satirlar));self.kayitlar=[]
+        for r,x in enumerate(satirlar):
+            self.kayitlar.append(dict(x)); durum={'KABUL':'Talep kabul edildi.','RED':'Talep reddedildi!','BEKLIYOR':'Onay bekliyor'}.get(x['durum'],x['durum'])
+            for c,v in enumerate((x['eski_ad'],x['yeni_ad'],x['yeni_barkod'],x['talep_eden'],durum)):self.tablo.setItem(r,c,QTableWidgetItem(str(v)))
+    def karar(self,karar):
+        r=self.tablo.currentRow()
+        if r<0: QMessageBox.warning(self,"Seçim gerekli","Bir talep seçin.");return
+        x=self.kayitlar[r]
+        if x['durum']!='BEKLIYOR': QMessageBox.information(self,"İşlem yapılmış","Bu talep daha önce karara bağlanmış.");return
+        try:
+            urun_id=x.get('urun_id')
+            if not urun_id: 
+                urun=self.vt.baglanti.execute("SELECT id FROM urunler WHERE barkod=?",(x['eski_barkod'],)).fetchone();urun_id=urun['id'] if urun else None
+            if karar=='KABUL' and urun_id:self.vt.baglanti.execute("UPDATE urunler SET ad=?,barkod=? WHERE id=?",(x['yeni_ad'],x['yeni_barkod'],urun_id))
+            if x.get('remote'):self.cloud.urun_talebi_karar(x['id'],'approved' if karar=='KABUL' else 'rejected')
+            else:self.vt.baglanti.execute("UPDATE urun_ozellestirme_talepleri SET durum=?,karar_tarihi=?,karar_veren_id=? WHERE id=?",(karar,datetime.now().strftime('%d.%m.%Y %H:%M:%S'),self.kullanici['id'],x['id']))
+            self.vt.baglanti.commit();self.durum.setText("Talep kabul edildi." if karar=='KABUL' else "Talep reddedildi!");self.liste_yenile();self.yenile()
+        except Exception as e:self.vt.baglanti.rollback();QMessageBox.warning(self,"İşlem başarısız",str(e))
 
 
 class YardimMerkezi(QDialog):
@@ -635,6 +703,11 @@ class AnaPencere(QMainWindow):
         if not cihaz:
             cihaz="DPQ-"+secrets.token_hex(6).upper(); yerel_ayari_kaydet("cihaz_kimligi",cihaz)
         self.cloud_client=DeporiaQCloud(vt,cihaz)
+        self.cloud_client.local_username=str(kullanici["kullanici_adi"])
+        try:
+            konum=vt.baglanti.execute("SELECT ad FROM konumlar WHERE id=?",(kullanici["konum_id"],)).fetchone()
+            self.cloud_client.location_name=konum["ad"] if konum else "Merkez"
+        except Exception:self.cloud_client.location_name="Merkez"
         self.setWindowTitle(f"{PROGRAM_ADI} {SURUM}")
         self.setMinimumSize(900, 650)
         govde = QWidget(); self.setCentralWidget(govde)
@@ -651,6 +724,10 @@ class AnaPencere(QMainWindow):
         QShortcut(QKeySequence("Ctrl+T"), self, activated=self.transfer_ac)
         QShortcut(QKeySequence("F5"), self, activated=self.yenile)
         QTimer.singleShot(50, self.yenile)
+        self.canli_zamanlayici=QTimer(self);self.canli_zamanlayici.timeout.connect(self.canli_yenile);self.canli_zamanlayici.start(15000)
+        self.senkron_zamanlayici=QTimer(self);self.senkron_zamanlayici.timeout.connect(self.cloud_senkronize);self.senkron_zamanlayici.start(30000)
+        self.kur_zamanlayici=QTimer(self);self.kur_zamanlayici.timeout.connect(self.kurlari_yenile);self.kur_zamanlayici.start(300000)
+        QTimer.singleShot(900,self.cloud_oturumunu_yenile)
         QTimer.singleShot(4000, lambda:self.guncelleme_denetle(True))
 
     def ust_cubuk(self):
@@ -666,6 +743,7 @@ class AnaPencere(QMainWindow):
         kullanici.setObjectName("profil")
         profil.addWidget(isletme); profil.addWidget(kullanici); d.addLayout(profil)
         d.addStretch()
+        self.online = QLabel("0 online"); self.online.setObjectName("online"); d.addWidget(self.online)
         self.cloud = QLabel('<span style="color:#94A3B8">●</span> <span style="color:#FFFFFF">Yerel çalışma</span>')
         self.cloud.setObjectName("cloud")
         d.addWidget(self.cloud)
@@ -684,7 +762,7 @@ class AnaPencere(QMainWindow):
             ("Hareket Geçmişi", self.hareketleri_ac), ("Raporlar ve Yazdır", self.raporlar_ac),
             ("Profesyonel Araçlar", self.araclar_ac), ("Kullanıcılar", self.kullanicilar_ac),
             ("Veri ve Yedekleme", self.yedek_al), ("Ayarlar", self.ayarlar_ac),
-            ("Güncellemeleri Denetle", lambda:self.guncelleme_denetle(False)), ("Yardım Merkezi", self.yardim_ac),
+            ("Yardım Merkezi", self.yardim_ac),
         ):
             b = QPushButton(ad); b.clicked.connect(komut); d.addWidget(b)
         d.addStretch()
@@ -698,6 +776,7 @@ class AnaPencere(QMainWindow):
         d = QHBoxLayout(alt); d.setContentsMargins(18, 8, 18, 8)
         durum = QLabel("Sistem hazır"); durum.setObjectName("durum")
         d.addWidget(durum); d.addStretch()
+        guncelle=QPushButton("Güncellemeleri Denetle");guncelle.clicked.connect(lambda:self.guncelleme_denetle(False));d.addWidget(guncelle)
         cikis = QPushButton("Çıkış Yap"); cikis.clicked.connect(self.cikis_yap)
         kapat = QPushButton("Programı Kapat"); kapat.setObjectName("tehlike"); kapat.clicked.connect(QApplication.quit)
         d.addWidget(cikis); d.addWidget(kapat)
@@ -708,7 +787,12 @@ class AnaPencere(QMainWindow):
         ust = QHBoxLayout(); baslik = QLabel("İşletme Özeti"); baslik.setObjectName("sayfaBaslik"); ust.addWidget(baslik)
         ust.addSpacing(18); self.konum = QComboBox(); self.konum.setMinimumWidth(320); self.konum.setMaximumWidth(460)
         self.konum.currentIndexChanged.connect(self.yenile); ust.addWidget(self.konum)
-        yenile = QPushButton("↻ Yenile"); yenile.clicked.connect(self.yenile); ust.addWidget(yenile); ust.addStretch(); d.addLayout(ust)
+        yenile = QPushButton("Yenile"); yenile.clicked.connect(self.yenile); ust.addWidget(yenile); ust.addStretch()
+        sosyal_yazi=QLabel("DeporiaQ Sosyal"); sosyal_yazi.setObjectName("soluk"); ust.addWidget(sosyal_yazi)
+        youtube=QPushButton(QIcon(kaynak_yolu("youtube_icon.svg")),"DeporiaQ"); youtube.setToolTip("DeporiaQ YouTube • Yakında")
+        instagram=QPushButton(QIcon(kaynak_yolu("instagram_icon.svg")),"DeporiaQ"); instagram.setToolTip("DeporiaQ Instagram • Yakında")
+        youtube.clicked.connect(lambda:self.sosyal_yakinda("YouTube")); instagram.clicked.connect(lambda:self.sosyal_yakinda("Instagram"))
+        ust.addWidget(youtube); ust.addWidget(instagram); d.addLayout(ust)
         kartlar = QHBoxLayout(); self.kartlar = []
         for bas in ("Ürün çeşidi", "Seçili konum stoğu", "Toplam stok değeri", "Kritik stok"):
             k = QFrame(); k.setObjectName("kart"); kd = QVBoxLayout(k); kd.setContentsMargins(10,6,10,7); kd.setSpacing(2)
@@ -717,7 +801,8 @@ class AnaPencere(QMainWindow):
         d.addLayout(kartlar)
         grafikler = QHBoxLayout(); grafikler.setSpacing(8)
         stok_karti = QFrame(); stok_karti.setObjectName("panel"); sk = QVBoxLayout(stok_karti)
-        sk.addWidget(QLabel("Stok Sağlığı")); self.halka_grafik = HalkaGrafik(); sk.addWidget(self.halka_grafik)
+        sk.addWidget(QLabel("Stok Sağlığı")); stok_grafikleri=QHBoxLayout(); self.halka_grafik = HalkaGrafik(); self.stok_sutun_grafik=SutunGrafik()
+        stok_grafikleri.addWidget(self.halka_grafik,1); stok_grafikleri.addWidget(self.stok_sutun_grafik,1); sk.addLayout(stok_grafikleri)
         deger_karti = QFrame(); deger_karti.setObjectName("panel"); dk = QVBoxLayout(deger_karti)
         dk.addWidget(QLabel("En Değerli 5 Ürün")); self.cubuk_grafik = CubukGrafik(); dk.addWidget(self.cubuk_grafik)
         hareket_grafik_karti = QFrame(); hareket_grafik_karti.setObjectName("panel"); hg = QVBoxLayout(hareket_grafik_karti)
@@ -728,25 +813,19 @@ class AnaPencere(QMainWindow):
         hareket_karti = QFrame(); hareket_karti.setObjectName("panel"); hk = QVBoxLayout(hareket_karti)
         hk.addWidget(QLabel("Son Stok Hareketleri")); self.hareket_tablosu = QTableWidget(0, 3)
         self.hareket_tablosu.setHorizontalHeaderLabels(["Tarih", "İşlem", "Miktar"]); tablo_standardi(self.hareket_tablosu, 27)
-        self.hareket_tablosu.setMaximumHeight(190); hk.addWidget(self.hareket_tablosu)
+        self.hareket_tablosu.setMinimumHeight(245); hk.addWidget(self.hareket_tablosu,1)
         alt.addWidget(hareket_karti, 2)
         finans = QFrame(); finans.setObjectName("panel"); fk = QVBoxLayout(finans)
-        fb = QHBoxLayout(); fb.addWidget(QLabel("Finans Merkezi")); fb.addStretch()
-        kur_yenile = QPushButton("Kurları Yenile"); kur_yenile.clicked.connect(self.kurlari_yenile); fb.addWidget(kur_yenile); fk.addLayout(fb)
+        fb = QHBoxLayout(); fb.addWidget(QLabel("Finans Merkezi")); fb.addStretch(); fk.addLayout(fb)
         self.kur_bilgileri = QLabel("TCMB kurları yükleniyor…"); self.kur_bilgileri.setObjectName("kurBilgisi"); fk.addWidget(self.kur_bilgileri)
+        self.piyasa_bilgileri=QLabel("ALTIN  —     GÜMÜŞ  —\nBİST ARTAN  —     BİST AZALAN  —"); self.piyasa_bilgileri.setObjectName("kurBilgisi"); self.piyasa_bilgileri.setAlignment(Qt.AlignmentFlag.AlignCenter); fk.addWidget(self.piyasa_bilgileri,1)
         self.kur_durumu = QLabel("Resmî TCMB gösterge kurları"); self.kur_durumu.setObjectName("soluk"); fk.addWidget(self.kur_durumu)
-        baglantilar = QHBoxLayout()
-        altin = QPushButton("Altın ve Kurlar"); altin.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Istatistikler/Doviz+Kurlari"))); baglantilar.addWidget(altin)
-        for sira, ad in enumerate(("Borsa İstanbul", "KAP", "Finans Haberleri")):
-            b = QPushButton(ad); b.clicked.connect(lambda _, i=sira: self.finans_merkezi_ac(i)); baglantilar.addWidget(b)
-        fk.addLayout(baglantilar); alt.addWidget(finans, 2)
-        sosyal = QFrame(); sosyal.setObjectName("panel"); sd = QVBoxLayout(sosyal); sd.addWidget(QLabel("DeporiaQ Sosyal"))
-        sosyal_bilgi = QLabel("Yeni özellikler, eğitim videoları ve duyurular yakında."); sosyal_bilgi.setWordWrap(True); sosyal_bilgi.setObjectName("soluk"); sd.addWidget(sosyal_bilgi)
-        youtube = QPushButton("▶ YouTube  •  Yakında"); instagram = QPushButton("◎ Instagram  •  Yakında")
-        youtube.clicked.connect(lambda: self.sosyal_yakinda("YouTube")); instagram.clicked.connect(lambda: self.sosyal_yakinda("Instagram"))
-        sd.addWidget(youtube); sd.addWidget(instagram); sd.addStretch(); alt.addWidget(sosyal, 1); d.addLayout(alt)
+        alt.addWidget(finans, 2)
+        aktif = QFrame(); aktif.setObjectName("panel"); ad = QVBoxLayout(aktif); ad.addWidget(QLabel("Aktif Kullanıcılar"))
+        self.aktif_kullanicilar=QLabel("Cloud bağlantısı bekleniyor…"); self.aktif_kullanicilar.setObjectName("soluk"); self.aktif_kullanicilar.setAlignment(Qt.AlignmentFlag.AlignTop); self.aktif_kullanicilar.setWordWrap(True)
+        ad.addWidget(self.aktif_kullanicilar,1); alt.addWidget(aktif,1); d.addLayout(alt)
         hizli = QHBoxLayout()
-        for ad, komut in (("Stok Girişi", self.stok_girisi_ac), ("Ürünler", self.urun_yonetimi_ac),
+        for ad, komut in (("Ürün Özelleştirmeleri", self.urun_ozellestirmeleri_ac), ("Ürünler", self.urun_yonetimi_ac),
                           ("Kritik Stoklar", self.kritikleri_ac), ("Sipariş Önerileri", self.siparis_onerileri_ac),
                           ("Stok Transferi", self.transfer_ac)):
             b = QPushButton(ad); b.clicked.connect(komut); hizli.addWidget(b)
@@ -764,7 +843,7 @@ class AnaPencere(QMainWindow):
 
     def yenile(self):
         self.konumlari_yenile(); self.tablo_yenile()
-        etkin = self.vt.ayar_getir("cloud_etkin", "0") == "1"
+        etkin = self.cloud_client.bagli
         bekleyen = self.vt.baglanti.execute("SELECT COUNT(*) FROM senkron_kuyrugu WHERE gonderildi=0").fetchone()[0]
         if etkin and bekleyen:
             nokta, metin = "#FBBF24", f"{bekleyen} işlem bekliyor"
@@ -773,6 +852,42 @@ class AnaPencere(QMainWindow):
         else:
             nokta, metin = "#94A3B8", "Yerel çalışma"
         self.cloud.setText(f'<span style="color:{nokta}">●</span> <span style="color:#FFFFFF">{metin}</span>')
+
+    def canli_yenile(self):
+        self.tablo_yenile(); self.cloud_oturumunu_yenile()
+
+    def cloud_oturumunu_yenile(self):
+        if hasattr(self,"cloud_iscisi") and self.cloud_iscisi.isRunning():return
+        a=ayarlari_oku(); url=str(a.get("cloud_url","")).strip(); key=str(a.get("cloud_publishable_key","")).strip()
+        if not url or not key:
+            self.online.setText("0 online");self.cloud.setText('<span style="color:#F45B76">●</span> <span style="color:#FFFFFF">Cloud çevrimdışı</span>');return
+        try:self.cloud_client.yapilandir(url,key)
+        except Exception:return
+        token=""
+        try:token=windows_sifre_coz(str(a.get("cloud_refresh_token_dpapi","")).strip())
+        except Exception:pass
+        self.cloud_iscisi=CloudKontrolu(self.cloud_client,token,self);self.cloud_iscisi.tamamlandi.connect(self.cloud_sonucu);self.cloud_iscisi.hata.connect(self.cloud_hatasi);self.cloud_iscisi.start()
+
+    def cloud_sonucu(self,cihazlar,yeni_token):
+        if yeni_token:yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(yeni_token))
+        simdi=datetime.now().astimezone(); aktif=[]
+        for c in cihazlar:
+            try:
+                son=datetime.fromisoformat(str(c.get("last_seen_at","")).replace("Z","+00:00"));
+                if c.get("active",True) and abs((simdi-son).total_seconds())<=90:aktif.append(c)
+            except (ValueError,TypeError):pass
+        self.online.setText(f"{len(aktif)} online")
+        adlar=[f"{c.get('local_username') or c.get('device_name') or 'DeporiaQ Kullanıcısı'} • {c.get('location_name') or 'Konum belirtilmedi'}" for c in aktif]
+        self.aktif_kullanicilar.setText("\n".join(f"{i}. {ad}" for i,ad in enumerate(adlar,1)) or "Aktif kullanıcı yok")
+        self.cloud.setText('<span style="color:#4ADE80">●</span> <span style="color:#FFFFFF">Cloud güncel</span>')
+
+    def cloud_hatasi(self,hata):
+        self.online.setText("0 online");self.aktif_kullanicilar.setText("Cloud bağlantısı yok")
+        self.cloud.setText('<span style="color:#F45B76">●</span> <span style="color:#FFFFFF">Cloud çevrimdışı</span>')
+
+    def cloud_senkronize(self):
+        if not self.cloud_client.bagli or (hasattr(self,"senkron_iscisi") and self.senkron_iscisi.isRunning()):return
+        self.senkron_iscisi=CloudSenkronIsci(self.cloud_client,self);self.senkron_iscisi.tamamlandi.connect(lambda _:self.tablo_yenile());self.senkron_iscisi.hata.connect(self.cloud_hatasi);self.senkron_iscisi.start()
 
     def tablo_yenile(self):
         konum = self.konum.currentData()
@@ -790,9 +905,10 @@ class AnaPencere(QMainWindow):
             "WHERE kaynak_konum_id=? OR hedef_konum_id=? GROUP BY hareket_turu ORDER BY adet DESC LIMIT 5", (konum, konum)
         ).fetchall()
         self.hareket_grafik.veri_ayarla([(str(h["hareket_turu"]).replace("_", " ").title(), h["adet"]) for h in hareket_ozeti])
+        self.stok_sutun_grafik.veri_ayarla([("Kritik",kritik_konum),("Sağlıklı",max(0,len(urunler)-kritik_konum)),("Stok",sum(int(u["miktar"] or 0) for u in urunler))])
         hareketler = self.vt.baglanti.execute(
             "SELECT tarih_saat,hareket_turu,miktar FROM stok_hareketleri "
-            "WHERE kaynak_konum_id=? OR hedef_konum_id=? ORDER BY id DESC LIMIT 5", (konum, konum)
+            "WHERE kaynak_konum_id=? OR hedef_konum_id=? ORDER BY id DESC LIMIT 9", (konum, konum)
         ).fetchall()
         self.hareket_tablosu.setRowCount(len(hareketler))
         for r, h in enumerate(hareketler):
@@ -813,14 +929,15 @@ class AnaPencere(QMainWindow):
             if kod in sonuc:
                 alis, satis = sonuc[kod]; satirlar.append(f"{kod}   Alış {alis:.4f}  •  Satış {satis:.4f}")
         self.kur_bilgileri.setText("\n".join(satirlar))
+        altin=sonuc.get("ALTIN");gumus=sonuc.get("GUMUS");bist=sonuc.get("BIST")
+        def piyasa_satiri(ad,deger):return f"{ad}  {deger[0]:,.2f}  ({deger[1]:+.2f}%)" if deger else f"{ad}  veri bekleniyor"
+        artan=bist if bist and bist[1]>=0 else None;azalan=bist if bist and bist[1]<0 else None
+        self.piyasa_bilgileri.setText(f"{piyasa_satiri('ALTIN',altin)}     {piyasa_satiri('GÜMÜŞ',gumus)}\n{piyasa_satiri('BİST ARTAN',artan)}     {piyasa_satiri('BİST AZALAN',azalan)}")
         self.kur_durumu.setText(f"TCMB gösterge kurları • {sonuc.get('tarih', 'güncel')}")
 
     def kur_hatasi(self):
         self.kur_bilgileri.setText("Kur bilgisi şu anda alınamadı.")
         self.kur_durumu.setText("İnternet bağlantınızı kontrol edip yeniden deneyin.")
-
-    def finans_merkezi_ac(self, secili=0):
-        FinansTarayicisi(self, secili).exec()
 
     def sosyal_yakinda(self, platform):
         QMessageBox.information(self, f"DeporiaQ {platform}", f"DeporiaQ {platform} hesabı henüz açılmadı.\nHesap açıldığında bağlantı bu düğmeye eklenecek.")
@@ -840,6 +957,9 @@ class AnaPencere(QMainWindow):
         if self.kullanici["rol"] != "ANA_YONETICI":
             QMessageBox.warning(self,"Yetki gerekli","Bu işlem için Ana Yönetici yetkisi gerekir.");return
         UrunYonetimiPenceresi(self.vt,self.yenile,self).exec()
+
+    def urun_ozellestirmeleri_ac(self):
+        UrunOzellestirmePenceresi(self.vt,self.kullanici,self.cloud_client,self.yenile,self).exec()
 
     def konum_yonetimi_ac(self):
         if self.kullanici["rol"] != "ANA_YONETICI":
@@ -878,7 +998,8 @@ class AnaPencere(QMainWindow):
         if QMessageBox.question(self,"Yeni güncelleme hazır",mesaj)!=QMessageBox.StandardButton.Yes:return
         arac=Path(sys.executable).resolve().parent/"DeporiaQUpdate.exe" if getattr(sys,"frozen",False) else Path(__file__).resolve().parent/"DeporiaQUpdate.exe"
         if not arac.exists():QMessageBox.warning(self,"Güncelleme aracı bulunamadı","DeporiaQUpdate.exe kurulum klasöründe bulunamadı.");return
-        subprocess.Popen([str(arac)],close_fds=True)
+        subprocess.Popen([str(arac),"--install-now"],close_fds=True)
+        QTimer.singleShot(350,QApplication.quit)
 
     def yedek_al(self):
         if self.kullanici["rol"] != "ANA_YONETICI":
@@ -972,6 +1093,7 @@ QLabel#isletme { color:#FFFFFF; font-size:14px; font-weight:650; }
 QLabel#profil { color:#B7C7DA; font-size:12px; }
 QLabel#sayfaBaslik { font-size:24px; font-weight:750; } QLabel#soluk { color:#94A3B8; }
 QLabel#cloud { color:#FFFFFF; background:#17243A; border:1px solid #31537A; border-radius:14px; padding:7px 12px; font-weight:700; }
+QLabel#online { color:#FFFFFF; background:transparent; border:0; padding:7px 5px; font-weight:700; }
 QLabel#durum { color:#8FA6BF; }
 QFrame#kart { background:#1E2635; border:1px solid #38516E; border-radius:7px; }
 QFrame#kart QLabel { background:transparent; border:0; }

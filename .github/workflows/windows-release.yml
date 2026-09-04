@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Yayın sürümü (örnek: 0.20.0)"
+        description: "Yayın sürümü (örnek: 0.21.0)"
         required: true
-        default: "0.20.0"
+        default: "0.21.0"
 
 permissions:
   contents: write
@@ -16,10 +16,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Kaynakları al
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Python 3.12 hazırla
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -41,7 +41,7 @@ jobs:
       - name: Windows uygulamalarını oluştur
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeporiaQUpdate deporiaq_guncelleme_bildirici.py
 
       - name: Kurulum dosyasını oluştur
@@ -59,7 +59,7 @@ jobs:
             version = $version
             download_url = "https://github.com/${{ github.repository }}/releases/download/v$version/DeporiaQ_Setup_$version.exe"
             sha256 = $sha
-            notes = "Kompakt gösterge paneli, dahili finans tarayıcısı, hareket grafiği ve DeporiaQ sosyal merkezi eklendi."
+            notes = "Canlı gösterge paneli, aktif kullanıcılar, onaylı ürün özelleştirme talepleri ve sessiz otomatik güncelleme eklendi."
           }
           $manifest | ConvertTo-Json | Set-Content guncelleme_manifest.json -Encoding utf8
 
@@ -69,7 +69,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ inputs.version }}"
-          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.20.0_YAYIN_NOTU.txt
+          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.21.0_YAYIN_NOTU.txt
 
       - name: Manifesti ana dala gönder
         shell: pwsh

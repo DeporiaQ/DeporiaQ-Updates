@@ -1,4 +1,4 @@
-"""DeporiaQ kapalıyken güvenli güncelleme bildirimi gösterir."""
+"""DeporiaQ 0.21.0 güvenli ve sessiz güncelleme yardımcısı."""
 import ctypes
 import hashlib
 import json
@@ -8,11 +8,12 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import tkinter as tk
 import urllib.request
 from pathlib import Path
 
-MEVCUT_SURUM = "0.20.0"
+MEVCUT_SURUM = "0.21.0"
 PROGRAM_ADI = "DeporiaQ"
 AZAMI_GUNCELLEME_BOYUTU = 1024 * 1024 * 1024
 
@@ -131,9 +132,35 @@ class Bildirim:
         self.root.mainloop()
 
 
+def sessiz_indir_ve_kur(manifest):
+    """Kurulumu doğrular, DeporiaQ'yu kapatır, görünmeden kurar ve yeniden açar."""
+    uygulama = uygulama_klasoru() / "DeporiaQ.exe"
+    hedef = Path(tempfile.gettempdir()) / f"DeporiaQ_Setup_{manifest['version']}.exe"
+    gecici = hedef.with_suffix(".indiriliyor"); ozet=hashlib.sha256(); toplam=0
+    req=urllib.request.Request(manifest["url"],headers={"User-Agent":f"DeporiaQ-Updater/{MEVCUT_SURUM}"})
+    with urllib.request.urlopen(req,timeout=60) as cevap,open(gecici,"wb") as dosya:
+        while True:
+            parca=cevap.read(1024*1024)
+            if not parca:break
+            toplam+=len(parca)
+            if toplam>AZAMI_GUNCELLEME_BOYUTU:raise ValueError("Dosya güvenli indirme sınırını aşıyor.")
+            dosya.write(parca);ozet.update(parca)
+    if not secrets.compare_digest(ozet.hexdigest(),manifest["sha256"]):
+        gecici.unlink(missing_ok=True);raise ValueError("Güncelleme güvenlik doğrulaması başarısız.")
+    os.replace(gecici,hedef);time.sleep(2)
+    if os.name=="nt":
+        subprocess.run(["taskkill","/F","/IM","DeporiaQ.exe"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+    ortam=os.environ.copy()
+    for anahtar in ("_MEIPASS2","_PYI_APPLICATION_HOME_DIR","PYINSTALLER_RESET_ENVIRONMENT"):ortam.pop(anahtar,None)
+    ortam["PYINSTALLER_RESET_ENVIRONMENT"]="1"
+    sonuc=subprocess.run([str(hedef),"/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CLOSEAPPLICATIONS","/FORCECLOSEAPPLICATIONS"],env=ortam,close_fds=True)
+    if sonuc.returncode != 0:raise RuntimeError(f"Kurulum tamamlanamadı (kod {sonuc.returncode}).")
+
+
 if __name__ == "__main__" and tek_ornek_calissin():
     try:
         bilgi = manifest_getir()
-        if bilgi: Bildirim(bilgi).calistir()
+        if bilgi and "--install-now" in sys.argv:sessiz_indir_ve_kur(bilgi)
+        elif bilgi and "--notify" in sys.argv:Bildirim(bilgi).calistir()
     except Exception:
         pass
