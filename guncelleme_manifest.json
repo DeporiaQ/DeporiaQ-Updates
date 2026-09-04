@@ -1,6 +1,6 @@
 {
-  "version": "0.20.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.20.0/DeporiaQ_Setup_0.20.0.exe",
-  "sha256": "934c6ad07f2bfeeecf9b0035091f846279c8ae7b458a5ba43dad6bf04ea4c28d",
-  "notes": "Kompakt gösterge paneli, dahili finans tarayıcısı, hareket grafiği ve DeporiaQ sosyal merkezi eklendi."
+  "version": "0.21.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.21.0/DeporiaQ_Setup_0.21.0.exe",
+  "sha256": "b8654757f7b6255cce93e5be52d0b344acd26a293a14191bfce21f90691b74c5",
+  "notes": "Canlı gösterge paneli, aktif kullanıcılar, onaylı ürün özelleştirme talepleri ve sessiz otomatik güncelleme eklendi."
 }
