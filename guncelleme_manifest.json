@@ -1,6 +1,6 @@
 {
-  "version": "0.18.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.18.0/DeporiaQ_Setup_0.18.0.exe",
-  "sha256": "dfbfe5497b7822656446cbbf585a860eb99b578068c6f62a6a58eddfdd8354b9",
-  "notes": "Güncelleme indirme sınırı düzeltildi; akıllı sipariş önerileri ve kullanıcı yönetimi güvenilirliği geliştirildi."
+  "version": "0.19.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.19.0/DeporiaQ_Setup_0.19.0.exe",
+  "sha256": "bcb0e1de30c204d9b2176698a407176a5fd52ab448adf7859227672522f7cb31",
+  "notes": "Profesyonel grafik gösterge paneli, TCMB döviz kurları ve güvenli finans bağlantıları eklendi."
 }
