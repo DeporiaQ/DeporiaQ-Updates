@@ -1,6 +1,6 @@
 {
-  "version": "0.21.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.21.0/DeporiaQ_Setup_0.21.0.exe",
-  "sha256": "b8654757f7b6255cce93e5be52d0b344acd26a293a14191bfce21f90691b74c5",
+  "version": "0.21.1",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.21.1/DeporiaQ_Setup_0.21.1.exe",
+  "sha256": "db86ce91c0ab489df81995dadffc24f75e5d86c6502a2ea340b1d8dd97db157c",
   "notes": "Canlı gösterge paneli, aktif kullanıcılar, onaylı ürün özelleştirme talepleri ve sessiz otomatik güncelleme eklendi."
 }
