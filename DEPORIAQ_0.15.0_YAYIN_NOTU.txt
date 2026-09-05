@@ -1,0 +1,13 @@
+DEPORIAQ 0.15.0 - TEMEL FONKSİYONLARIN QT'YE TAŞINMASI
+
+- Ana çalışma alanı, KPI kartları ve stok tablosu daha kompakt hale getirildi.
+- Cloud durum metni beyaz; yalnızca durum noktası renkli olacak şekilde düzeltildi.
+- Ürün ekleme, fiyat güncelleme ve güvenli ürün kaldırma Qt'ye taşındı.
+- Barkodla merkez depo stok girişi eklendi.
+- Depo ve şube ekleme, ad güncelleme ve güvenli kaldırma eklendi.
+- Kullanıcı oluşturma, aktif/pasif yapma, parola yenileme ve kaldırma eklendi.
+- Kullanıcı işlemlerinde mevcut Ana Yönetici parolasıyla yeniden onay zorunlu hale getirildi.
+- Veritabanı yedeğini kullanıcı tarafından seçilen klasöre kaydetme eklendi.
+- Stok transferi, kritik stok ve hareket geçmişi Qt ekranlarında korunmuştur.
+
+© 2026 DeporiaQ. Tüm hakları saklıdır.

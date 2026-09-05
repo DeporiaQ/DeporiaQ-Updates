@@ -1,0 +1,16 @@
+DEPORIAQ 0.13.0 - MODERN PANEL GÜNCELLEMESİ
+
+- Ana ekran modern işletme kontrol paneline dönüştürüldü.
+- Canlı renkli üst başlık ve Cloud durum kartı eklendi.
+- Ürün, stok, değer ve kritik stok için dört KPI kartı hazırlandı.
+- Stok tablosu büyütüldü ve dönüşümlü satır renkleri eklendi.
+- Kalıcı Açık ve Koyu tema seçimi eklendi.
+- Ayarlar Merkezi beş ayrı bölüme ayrıldı:
+  1. Genel ve Görünüm
+  2. Cloud ve Senkronizasyon
+  3. Kullanıcılar ve Güvenlik
+  4. Veri, Yedekleme ve Kurtarma
+  5. Bildirimler ve Güncellemeler
+- İşletme profili ayrı ve sade bir yönetim alanına taşındı.
+- Cloud bağlantı ekranındaki 0.12.1 düzeltmeleri korunuyor.
+- 0.12.x müşteri ve Supabase verileri korunur; yeni SQL çalıştırılmaz.

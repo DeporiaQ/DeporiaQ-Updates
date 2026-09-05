@@ -1,0 +1,23 @@
+DEPORIAQ 0.21.2 - IKINCI CIHAZ TEST SIRASI
+==========================================
+
+ON HAZIRLIK (ANA YONETICI)
+1. Supabase SQL Editor'da DEPORIAQ_CLOUD_0.21.2_MIGRATION.sql dosyasini calistirin.
+2. Supabase Authentication > Users bolumunde kuzeniniz icin ayri bir e-posta/parola hesabi olusturun.
+3. Olusan kullanicinin UUID bilgisini kopyalayin.
+4. Table Editor > company_members tablosunda yeni satir olusturun:
+   - company_id: mevcut Izmir Kitap Dunyasi company_id degeri
+   - user_id: kuzeninizin Authentication UUID degeri
+   - role: sadece test/goruntuleme icin viewer; stok islemleri icin employee
+   - active: true
+
+KUZENIN BILGISAYARI
+1. DeporiaQ 0.21.2'yi kurun ve acin.
+2. Mevcut isletmeye baglan sekmesini secin.
+3. Project URL ve publishable/anon key bilgilerini girin.
+4. Kuzeniniz icin olusturulan Cloud e-posta/parolasini girin.
+5. Kuzeninizin kullanacagi DeporiaQ kullanici adini ve guclu yerel parolayi belirleyin.
+6. Mevcut Isletmeye Baglan ve Verileri Indir dugmesine basin.
+7. Program giris ekraninda yeni yerel kullanici adi/parolasi ile oturum acin.
+
+Ana yoneticinin DeporiaQ veya Cloud parolasini kuzeninizle paylasmayin.

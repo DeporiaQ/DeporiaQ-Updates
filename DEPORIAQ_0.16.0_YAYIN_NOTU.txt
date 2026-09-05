@@ -1,0 +1,19 @@
+DeporiaQ 0.16.0 - Kapsamlı Qt Geçişi
+
+- Barkodlu stok girişindeki gereksiz miktar okları kaldırıldı.
+- Ürün, kritik stok ve hareket tablolarındaki satır kırpılması düzeltildi.
+- Ham sıra numarası sütunları ve boş tablo köşeleri kaldırıldı.
+- DeporiaQ uygulama simgesi pencereye, EXE'ye ve kuruluma eklendi.
+- Şubede Satış ekranı Qt arayüzüne taşındı.
+- Raporlar ve Yazdır merkezi; genel stok, kritik stok, kâr, denetim ve oturum raporlarıyla eklendi.
+- Rapor yazdırma ve CSV dışa aktarma eklendi.
+- Ayarlar Merkezi; Genel, Cloud, Güvenlik ve Bildirimler bölümleriyle eklendi.
+- Profesyonel Araçlar; kategori, tedarikçi ve fiziksel stok sayımı işlevleriyle eklendi.
+- Cloud durumunda yalnızca nokta renkli, durum metni beyaz gösterilir.
+- Çıkış Yap ve Programı Kapat düğmeleri sabit alt çubukta korunur.
+
+Kurulum:
+1. ZIP'i proje klasörüne çıkarın.
+2. EXE_OLUSTUR.bat dosyasını çalıştırın.
+3. KURULUM_OLUSTUR.bat dosyasını çalıştırın.
+4. kurulum\DeporiaQ_Setup_0.16.0.exe dosyasını kurun.

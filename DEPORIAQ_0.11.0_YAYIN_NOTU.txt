@@ -1,0 +1,37 @@
+DEPORIAQ 0.11.0 - CLOUD TEST SURUMU
+==================================
+
+Bu sürüm DeporiaQ 0.10.0 üzerine güvenli Supabase Cloud test bağlantısını ekler.
+
+YENILIKLER
+- E-posta/parola ile Supabase Auth oturumu
+- RLS ile işletme bazlı veri ayrımı
+- Project URL ve publishable/anon key ayar ekranı
+- Yerel ürün, konum ve stokları buluta gönderme
+- Buluttaki ürün, konum ve stokları başka bilgisayara indirme
+- Her indirmeden önce otomatik yerel veritabanı yedeği
+- Cloud cihaz kimliği ve uygulama sürümü kaydı
+- Cloud parolası diske kaydedilmez
+- service_role anahtarı uygulamada kullanılmaz
+
+ONEMLI TEST SIRASI
+1. Ayarlar > DeporiaQ Cloud Test bölümünü açın.
+2. Project URL ve publishable/anon key girin.
+3. Supabase'te oluşturduğunuz e-posta ve parola ile Cloud Giriş yapın.
+4. Yalnızca ana bilgisayarda "Yerel Veriyi Buluta Gönder" seçeneğini kullanın.
+5. İkinci ve üçüncü bilgisayarda aynı Cloud hesabıyla giriş yapın.
+6. Bu bilgisayarlarda "Buluttan Yenile" seçeneğini kullanın.
+
+UYARI
+0.11.0 kontrollü test sürümüdür. Aynı anda birden fazla bilgisayarda değişiklik
+yapıp iki taraftan da buluta gönderme yapılmamalıdır. Gerçek zamanlı hareket
+senkronizasyonu ve çakışma çözümü sonraki aşamada etkinleştirilecektir.
+
+YAYIN
+1. EXE_OLUSTUR.bat
+2. KURULUM_OLUSTUR.bat
+3. kurulum\DeporiaQ_Setup_0.11.0.exe dosyasını kurup test edin.
+4. GUNCELLEME_YAYINA_HAZIRLA.bat
+5. GitHub Releases içinde v0.11.0 etiketiyle DeporiaQ 0.11.0 oluşturun.
+6. yayin\DeporiaQ_Setup_0.11.0.exe dosyasını Release'e yükleyin.
+7. yayin\guncelleme_manifest.json dosyasını GitHub ana deposunda güncelleyin.

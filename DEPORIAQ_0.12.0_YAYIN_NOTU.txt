@@ -1,0 +1,17 @@
+DEPORIAQ 0.12.0 - AKILLI CLOUD GÜNCELLEMESİ
+
+1. 15 saniyelik otomatik Cloud eşitleme.
+2. Tek işlemde, negatif stoğu engelleyen atomik stok hareketleri.
+3. Bağlantı kesildiğinde yerel çalışma ve yeniden bağlanınca gönderim.
+4. İki bilgisayarda değişen veriler için çakışma algılama ve seçimli çözüm.
+5. Ana ekranda canlı Cloud durum göstergesi.
+6. Windows DPAPI ile şifrelenmiş “Bu cihazı hatırla” oturumu.
+7. Yönetici için bağlı cihazları görme ve erişimi açıp kapatma.
+8. Gerçek .xlsx stok dışa ve içe aktarma.
+9. Son eşitleme, bekleyen işlem ve hata/çakışma merkezi.
+10. Excel içe alma ve riskli işlemler öncesi geri alma noktası.
+
+ÖNEMLİ KURULUM SIRASI
+Önce Supabase SQL Editor içinde DEPORIAQ_CLOUD_0.12.0_MIGRATION.sql dosyasını
+bir kez çalıştırın. Success sonucu alındıktan sonra 0.12.0 kurulumu hazırlanabilir.
+Mevcut yerel müşteri verileri ve 0.11 Cloud verileri korunur.

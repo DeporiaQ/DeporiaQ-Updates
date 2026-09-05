@@ -1,0 +1,12 @@
+DEPORIAQ 0.13.3 - KARARLILIK VE DUYARLI YERLEŞİM
+
+- Son kullanıcıya uygun olmayan manuel tema renk düzenleyicisi kaldırıldı.
+- Profesyonel, sabit Açık ve Koyu tema seçenekleri korundu.
+- Programı Kapat ve Çıkış Yap düğmeleri sağ alt çubuğa sabitlendi.
+- Ana içerik dikey ve yatay kaydırılabilir çalışma alanına taşındı.
+- Pencere küçültüldüğünde içeriklerin ekran dışında kaybolması önlendi.
+- Üst çubuktaki tekrarlanan düğmeler azaltılarak dar ekran uyumu iyileştirildi.
+- Dashboard, stok tablosu ve barkod alanı küçük pencerede erişilebilir kaldı.
+- DeporiaQ marka/sürüm ayrımı ve sade Cloud göstergesi korundu.
+
+© 2026 DeporiaQ. Tüm hakları saklıdır.

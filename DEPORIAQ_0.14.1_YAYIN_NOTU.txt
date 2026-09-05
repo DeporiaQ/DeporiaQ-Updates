@@ -1,0 +1,11 @@
+DEPORIAQ 0.14.1 - QT ARAYÜZ DÜZELTMESİ
+
+- Giriş ekranına Beni Hatırla, Parolayı Göster, Şifremi Unuttum ve Programı Kapat eklendi.
+- Beni Hatırla yalnızca kullanıcı adını saklar; parola açık biçimde kaydedilmez.
+- Üst çubuktaki kutulu ve parçalı görünüm kaldırıldı.
+- İşletme, kullanıcı, rol, sürüm ve Cloud durumu profesyonel bir bilgi hiyerarşisine taşındı.
+- Stok tablosundaki gereksiz sıra numarası ve boş sol üst hücre kaldırıldı.
+- Alt çubuktaki geliştirici kısayol metni kaldırılarak sade durum bilgisi eklendi.
+- Kart, düğme, kenarlık ve Cloud rozeti görsel olarak iyileştirildi.
+
+© 2026 DeporiaQ. Tüm hakları saklıdır.

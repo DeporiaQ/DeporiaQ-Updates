@@ -1,4 +1,4 @@
-"""DeporiaQ 0.21.1 güvenli ve sessiz güncelleme yardımcısı."""
+"""DeporiaQ 0.21.2 güvenli ve sessiz güncelleme yardımcısı."""
 import ctypes
 import hashlib
 import json
@@ -13,7 +13,7 @@ import tkinter as tk
 import urllib.request
 from pathlib import Path
 
-MEVCUT_SURUM = "0.21.1"
+MEVCUT_SURUM = "0.21.2"
 PROGRAM_ADI = "DeporiaQ"
 AZAMI_GUNCELLEME_BOYUTU = 1024 * 1024 * 1024
 

@@ -1,0 +1,11 @@
+DEPORIAQ 0.13.1 - DASHBOARD VE CLOUD KULLANICI GÜNCELLEMESİ
+
+- Koyu temadaki Ayarlar Merkezi açıklamalarının kontrastı düzeltildi.
+- Cloud durumu, dolu renkli düğme yerine renkli nokta ve sade metin olarak yenilendi.
+- Ana menüye © 2026 DeporiaQ telif ve hak bildirimi eklendi.
+- Kullanıcı ekranında yerel hesaplar ile Cloud işletme üyeleri güvenli biçimde ayrıldı.
+- Cloud üyeleri bağlantı kurulduğunda otomatik listelenir; otomatik yerel parola veya yetki verilmez.
+- Dashboard'a konumlara göre stok grafiği, stok sağlığı grafiği ve son hareketler tablosu eklendi.
+- Büyük boş alanlar azaltıldı; kullanıcı ve yönetim panelleri daha bilgi yoğun hale getirildi.
+
+© 2026 DeporiaQ. Tüm hakları saklıdır.

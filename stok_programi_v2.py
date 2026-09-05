@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.21.1"
+PROGRAM_SURUMU = "0.21.2"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -2196,6 +2196,50 @@ class DeporiaQCloud:
             raise
         self._cihazi_kaydet()
         return len(urunler), len(konumlar), len(stoklar)
+
+    def mevcut_isletmeyi_bu_cihaza_kur(self, kullanici_adi, yerel_parola):
+        """Temiz bir bilgisayarı doğrulanmış Cloud işletmesine bağlar."""
+        if not self.bagli:
+            raise RuntimeError("Önce Cloud hesabıyla oturum açın.")
+        if not self.vt.ilk_kurulum_gerekli():
+            raise RuntimeError("Bu bilgisayarda DeporiaQ kurulumu zaten tamamlanmış.")
+        konumlar = self._liste("locations")
+        if not konumlar:
+            raise RuntimeError("Cloud işletmesinde etkin bir merkez/depo/şube bulunamadı.")
+        merkez = next((k for k in konumlar if k.get("location_type") == "center"), konumlar[0])
+        yerel_rol = {
+            "owner": "ANA_YONETICI", "admin": "ANA_YONETICI", "manager": "ANA_YONETICI",
+            "employee": "DEPO_PERSONELI", "warehouse": "DEPO_PERSONELI",
+            "branch": "SUBE_PERSONELI", "viewer": "GORUNTULEYICI",
+        }.get(str(self.role).lower(), "GORUNTULEYICI")
+        try:
+            self.vt.ilk_kurulumu_tamamla(
+                self.company_name, "Cloud işletmesi", merkez["name"], "TL",
+                kullanici_adi.strip(), yerel_parola,
+            )
+            sonuc = self.buluttan_yere_indir()
+            konum = self.vt.baglanti.execute(
+                "SELECT id FROM konumlar WHERE ad=? LIMIT 1", (merkez["name"],)
+            ).fetchone()
+            self.vt.baglanti.execute(
+                "UPDATE kullanicilar SET rol=?, konum_id=? WHERE kullanici_adi=?",
+                (yerel_rol, konum["id"] if konum else None, kullanici_adi.strip()),
+            )
+            self.vt.ayar_kaydet("cloud_etkin", "1")
+            self.vt.baglanti.commit()
+            self.local_username = kullanici_adi.strip()
+            self.location_name = merkez["name"]
+            self._cihazi_kaydet()
+            return sonuc
+        except Exception:
+            # Yarım kalan ilk bağlantı bir sonraki denemeyi engellemesin.
+            with self.vt.baglanti:
+                self.vt.baglanti.execute("DELETE FROM kullanicilar")
+                self.vt.baglanti.execute("DELETE FROM stoklar")
+                self.vt.baglanti.execute("DELETE FROM urunler")
+                self.vt.baglanti.execute("DELETE FROM konumlar")
+                self.vt.baglanti.execute("DELETE FROM ayarlar")
+            raise
 
 
 class TeknoStokUygulamasi:

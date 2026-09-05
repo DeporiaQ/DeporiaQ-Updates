@@ -1,0 +1,11 @@
+DEPORIAQ 0.14.0 - PYSIDE6/QT GEÇİŞİNİN İLK ÇALIŞIR SÜRÜMÜ
+
+- Giriş ekranı ve ana Dashboard PySide6/Qt ile yeniden yazıldı.
+- Yeniden boyutlandırılabilir, kaydırılabilir modern masaüstü yerleşimi eklendi.
+- KPI kartları, konum seçimi, ürün arama ve stok tablosu Qt bileşenlerine taşındı.
+- Barkodlu stok transferi ve kritik stok listesi Qt ekranlarında çalışır hale getirildi.
+- Programı Kapat ve Çıkış Yap düğmeleri sabit alt çubuğa yerleştirildi.
+- Mevcut DeporiaQ veritabanı korunur; yeni bir veritabanı oluşturulmaz.
+- Bu sürüm kontrollü geçiş sürümüdür. Kalan yönetim ekranları sonraki adımlarda Qt'ye taşınacaktır.
+
+© 2026 DeporiaQ. Tüm hakları saklıdır.

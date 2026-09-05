@@ -1,0 +1,431 @@
+DEPORIAQ - KURULUM VE İLK TEST
+==============================
+
+1. Bu ZIP içindeki iki dosyayı oluşturduğunuz stok_programi_v2 klasörüne çıkarın.
+
+2. stok_programi_v2.py dosyasını Visual Studio Code ile açın.
+
+3. Sağ üstteki Python çalıştırma düğmesine basın.
+
+4. İlk çalıştırmada aynı klasörde deporiaq.db oluşur.
+   Bu dosya ürünleri, konumları, stokları ve hareketleri tutan SQLite veritabanıdır.
+
+5. Programda 30 teknoloji ürünü ve Merkez Depo hazır gelir.
+   Ürünlerin başlangıç stokları 0'dır.
+
+İLK BARKOD TESTİ
+----------------
+
+Telefon test barkodu: 8691000000019
+
+- Barkod alanına 8691000000019 yazın ve Enter'a basın.
+- Seçilen ürünün Telefon olduğunu kontrol edin.
+- Miktar alanına 1000 yazın ve Enter'a basın.
+- Telefon merkez stoğunun 1.000 olduğunu doğrulayın.
+- Hareket Geçmişi ekranında işlemi kontrol edin.
+
+NOTLAR
+------
+
+- Barkodlar test amaçlı geçerli EAN-13 yapısındadır.
+- Gerçek kullanımda ürün ambalajlarındaki üretici barkodları tanımlanmalıdır.
+- deporiaq.db dosyasını silerseniz veritabanı yeniden kurulur ve V2 verileri sıfırlanır.
+- Eski stoklar.txt ve satislar.txt dosyaları bu sürüm tarafından değiştirilmez.
+
+DEPO, ŞUBE VE TRANSFER TESTİ
+---------------------------
+
+1. Depo / Şube Ekle ekranını açın.
+2. Türü Depo seçerek İzmir Depo ekleyin.
+3. Türü Şube seçerek Konak Şube ekleyin.
+4. Stok Transferi ekranını açın.
+5. Hedef olarak İzmir Depo seçin.
+6. Telefon barkodu 8691000000019 yazıp Enter'a basın.
+7. Miktar olarak 300 yazıp Enter'a basın.
+8. Merkez Telefon stoğunun 1.000'den 700'e düştüğünü kontrol edin.
+9. Hareket Geçmişinde Merkez Depo → İzmir Depo transferini kontrol edin.
+
+Mevcut veritabanındaki İstanbul Merkez Depo adı program açılırken otomatik
+olarak Merkez Depo adına çevrilir. Kayıtlı stoklar ve hareketler silinmez.
+
+KONUM STOKLARINI GÖRÜNTÜLEME
+----------------------------
+
+Ana ekrandaki Görüntülenecek stok konumu listesinden Merkez Depo, herhangi
+bir depo veya şube seçilebilir. Ürün tablosu, seçili konumun stok miktarını;
+özet kartları ise seçili konumun toplam stok ve stok değerini gösterir.
+
+Eski teknostok_v2.db dosyası varsa ilk açılışta deporiaq.db adıyla güvenli
+biçimde kopyalanır. Eski dosya ayrıca korunur.
+
+EXE OLUŞTURMA
+-------------
+
+py -m PyInstaller --noconfirm --clean --onefile --windowed --collect-all ttkbootstrap --name DeporiaQ stok_programi_v2.py
+
+Yeni program dist klasöründe DeporiaQ.exe adıyla oluşur.
+
+TOPLU YÖNETİM SÜRÜMÜ
+--------------------
+
+Ürün Yönetimi ekranı:
+- Barkod, ürün adı ve fiyatla yeni ürün ekler.
+- Yeni ürün bütün aktif konumlara 0 stokla eklenir.
+- Seçili ürünün fiyatını günceller.
+- Toplam stoğu 0 olan ürünü aktif listeden kaldırır; geçmiş hareketler silinmez.
+
+Depo / Şube Yönetimi ekranı:
+- Yeni depo ve şube ekler.
+- Listeden seçilen konumun adını günceller.
+- Stoğu 0 olan depo veya şubeyi aktif listeden kaldırır.
+- Merkez Depo kaldırılamaz.
+
+Stok Transferi ekranı:
+- Merkez Depo → Depo transferi yapar.
+- Depo → Şube transferi yapar.
+- Kaynak stok otomatik azalır, hedef stok otomatik artar.
+- Yetersiz stokta iki taraf da değiştirilmez.
+
+Şubede Satış ekranı:
+- Şube, barkod ve adet seçilerek satış yapılır.
+- Şube stoğu otomatik azalır.
+- Birim fiyat ve toplam satış tutarı hareket kaydında saklanır.
+
+Genel Yönetici Raporu:
+- Bütün aktif depo ve şubelerin toplam stok ve stok değerlerini karşılaştırır.
+- Şirket genelindeki toplam ürün adedini ve stok değerini gösterir.
+
+ÖNERİLEN UÇTAN UCA TEST
+-----------------------
+
+1. Telefonu Merkez Depoya 1.000 adet girin.
+2. Merkez Depo → İzmir Depo 300 adet transfer edin.
+3. İzmir Depo → Konak Şube 100 adet transfer edin.
+4. Konak Şubede 2 adet Telefon satın.
+5. Beklenen sonuçlar:
+   Merkez Depo: 700
+   İzmir Depo: 200
+   Konak Şube: 98
+6. Hareket Geçmişinde mal kabul, iki transfer ve satış kayıtlarını kontrol edin.
+
+BİLDİRİM VE KONUM LİSTESİ GÜNCELLEMESİ
+--------------------------------------
+
+- Başarılı işlemler artık ortada Tamam düğmeli pencere açmaz.
+- Hatalı işlemler de ortada Tamam düğmeli pencere açmaz.
+- İşlemin yapıldığı pencerenin sağ altında yeşil veya kırmızı, kısa süreli
+  ve yumuşak geçişli bildirim gösterilir.
+- Merkez Depo, depolar ve şubeler konum listesinde farklı renklerle görünür.
+- Daha önce kaldırılmış pasif bir konum aynı adla eklenirse yeniden etkinleşir.
+
+YAZDIKÇA ARAMA
+--------------
+
+- Ana ekrandaki Konum seç kutusu artık yazılabilir durumdadır.
+- "diyar" yazıldığında Diyarbakır, "ank" yazıldığında Ankara ile ilgili
+  depo ve şubeler açılır listede gösterilir.
+- Enter tuşu filtrelenen ilk konumu seçer ve o konumun stoklarını açar.
+- Ürün veya barkod ara kutusu yazdıkça tabloyu ve açılır önerileri filtreler.
+- "ma" veya "mause" yazımı Mouse ürünlerini de bulur.
+- Ürün Ekle, Ürün Sil ve Fiyat Güncelle düğmeleri ana ekrana geri eklenmiştir.
+- Ürün Yönetimi ekranına ayrı bir Ürün veya barkod ara kutusu eklenmiştir.
+  Bu kutuda "kla" yazıldığında Klavye satırı görüntülenir.
+- Depo ve Şube Yönetimi ekranına ayrı bir Depo veya şube ara kutusu eklenmiştir.
+  "diyar" ve "ank" gibi parçalarla ilgili konumlar filtrelenir.
+- Stok Transferi ekranındaki kaynak ve hedef konum listeleri yazdıkça aranır.
+- Şubede Satış ekranındaki şube listesi yazdıkça aranır.
+- Eski merkezden depoya transfer ekranındaki hedef depo listesi de aynı sistemi kullanır.
+- Barkod ve miktar alanları işlem girişi oldukları için arama kutusuna dönüştürülmemiştir.
+- Arama sırasında ilk harfte açılır liste zorla açılmaz; klavye odağı yazı
+  alanında kalır. Böylece "s", "sa", "saa" biçiminde kesintisiz yazılabilir.
+- Her yeni harfte tablo ve açılır listenin içeriği daha ayrıntılı filtrelenir.
+- Eşleşmeleri görmek için kutunun sağındaki oka, ilk eşleşmeyi seçmek için
+  Enter tuşuna basılabilir.
+
+GÜNCELLEMEDE VERİLERİ KORUMA
+----------------------------
+
+- Güncelleme sırasında yalnızca stok_programi_v2.py dosyasını değiştirin.
+- deporiaq.db dosyanızı silmeyin veya başka bir veritabanıyla değiştirmeyin.
+- Böylece ürün, stok, depo, şube, satış ve hareket kayıtları aynen korunur.
+
+DEPORIAQ 0.3.2 - VERİ GÜVENLİĞİ VE PROFESYONEL KURULUM
+------------------------------------
+
+- Programın sürümü pencere başlığında ve ana ekranda gösterilir.
+- Veritabanı artık Windows'ta şu klasörde tutulur:
+  %LOCALAPPDATA%\DeporiaQ\deporiaq.db
+- Otomatik yedekler şu klasörde tutulur:
+  %LOCALAPPDATA%\DeporiaQ\yedekler
+- Günde en fazla bir otomatik yedek alınır ve en yeni 30 yedek korunur.
+- İlk açılışta EXE/Python dosyasının yanındaki mevcut deporiaq.db veya
+  teknostok_v2.db, LocalAppData klasörüne KOPYALANIR. Eski dosya silinmez.
+- Program güncellense veya kaldırılsa bile LocalAppData'daki kullanıcı
+  verileri normal şartlarda korunur.
+
+0.3.2 İLK ÇALIŞTIRMA VE VERİ GÜVENLİĞİ TESTİ
+--------------------------
+
+1. Mevcut deporiaq.db dosyanızı silmeyin ve ayrıca yedekleyin.
+2. Yeni stok_programi_v2.py dosyasını eski veritabanının bulunduğu klasörde
+   ilk kez çalıştırın.
+3. Ana ekranda eski ürün, depo, şube ve stoklarınızı kontrol edin.
+4. Windows Gezgini adres çubuğuna %LOCALAPPDATA%\DeporiaQ yazın.
+5. Bu klasörde deporiaq.db bulunduğunu doğrulayın.
+6. Programı kapatıp yeniden açın; verilerin değişmediğini kontrol edin.
+7. LocalAppData'da daha önce boş bir veritabanı oluşmuşsa 0.3.1, program
+   klasöründeki veritabanıyla kayıt sayılarını karşılaştırır.
+8. Eski dosya daha doluysa LocalAppData'daki boş dosyayı önce yedekler,
+   ardından eski dolu veritabanını otomatik kopyalar.
+9. Bu karşılaştırma bir taşıma işaretiyle yalnızca bir kez gerçekleştirilir.
+
+EXE VE PROFESYONEL KURULUM OLUŞTURMA
+-----------------------------------
+
+1. EXE_OLUSTUR.bat dosyasına çift tıklayın.
+2. İşlem sonunda dist\DeporiaQ.exe oluşur.
+3. Bilgisayarınıza ücretsiz Inno Setup 6 programını kurun.
+4. KURULUM_OLUSTUR.bat dosyasına çift tıklayın.
+5. Müşteriye verilecek dosya şurada oluşur:
+   kurulum\DeporiaQ_Setup_0.3.2.exe
+
+VERİ VE YEDEKLEME MERKEZİ
+-------------------------
+
+- Ana ekrandaki Veri ve Yedekleme düğmesi kullanılan gerçek veritabanı
+  yolunu açıkça gösterir.
+- Ürün, konum, toplam stok ve hareket sayıları görüntülenir.
+- Şimdi Yedekle düğmesi açık SQLite veritabanının tutarlı bir kopyasını alır.
+- Yedekler tarih, boyut, konum, stok ve hareket sayılarıyla listelenir.
+- Veri Klasörünü Aç düğmesi %LOCALAPPDATA%\DeporiaQ klasörünü açar.
+- Seçili Yedeği Geri Yükle işlemi kullanıcıdan onay ister.
+- Geri yüklemeden önce mevcut veritabanı geri_yukleme_oncesi adıyla ayrıca
+  yedeklenir.
+- Seçilen yedek geçerli değilse geri yükleme başlatılmaz.
+- Geri yükleme tamamlandığında ana ekrandaki konumlar, stoklar ve özet
+  kartları otomatik yenilenir.
+
+ÖNERİLEN 0.3.2 TESTİ
+-------------------
+
+1. DeporiaQ 0.3.2'yi açın ve depo/şube/stokların doğru olduğunu kontrol edin.
+2. Veri ve Yedekleme ekranını açın.
+3. Gösterilen yolun %LOCALAPPDATA%\DeporiaQ\deporiaq.db olduğunu doğrulayın.
+4. Ekrandaki ürün, konum ve stok sayılarını ana ekranla karşılaştırın.
+5. Şimdi Yedekle düğmesine basın ve yeşil bildirimi kontrol edin.
+6. Yeni yedeğin listede en üstte göründüğünü kontrol edin.
+7. Veri Klasörünü Aç düğmesini test edin.
+8. Geri yükleme testini yalnızca yeni aldığınız yedeği seçerek gerçekleştirin.
+
+DEPORIAQ 0.4.0 - TİCARİ MÜŞTERİ BAŞLANGICI
+------------------------------------------
+
+- Temiz müşteri bilgisayarında teknoloji ürünleri otomatik oluşturulmaz.
+- Yeni veritabanı ürün, stok, depo ve şube bakımından tamamen boş başlar.
+- İlk çalıştırmada DeporiaQ İlk Kurulum sihirbazı açılır.
+- İşletme adı, işletme türü, merkez depo adı ve para birimi kaydedilir.
+- İlk ana yönetici kullanıcı adı ve parolası oluşturulur.
+- Parola düz metin olarak değil PBKDF2-SHA256 özetiyle saklanır.
+- Mevcut DeporiaQ kullanıcılarının dolu veritabanları otomatik tanınır;
+  ürün, stok, depo ve şubeleri değiştirilmez ve sihirbaz açılmaz.
+- Kurulum paketine hiçbir müşterinin deporiaq.db dosyası eklenmez.
+
+TEMİZ MÜŞTERİ TESTİ
+-------------------
+
+Bu testi kendi gerçek AppData veritabanınızı silerek yapmayın. En güvenli test,
+DeporiaQ'nun daha önce kurulmadığı farklı bir Windows kullanıcı hesabında veya
+başka bir bilgisayarda DeporiaQ_Setup_0.4.0.exe dosyasını kurmaktır.
+
+DEPORIAQ 0.4.1 - TEMİZ İLK KURULUM VE PAROLA GÜVENLİĞİ
+
+- İşletme türü kutusu kapsamlıdır ve yazdıkça filtrelenir.
+- İlk kurulum; eski ürün, stok, hareket, konum ve kullanıcı kalıntılarını temizler.
+- Yönetici parolası en az 10 karakter, büyük/küçük harf, rakam ve sembol ister.
+- Hatalar işlem penceresinin sağ alt köşesinde animasyonlu bildirimle gösterilir.
+
+Temiz müşteri testi:
+1. DeporiaQ'yu kapatın.
+2. YENI_MUSTERI_TESTI.bat dosyasını çalıştırın.
+3. DeporiaQ 0.4.1'i açın ve ilk kurulum sihirbazını tamamlayın.
+4. İşletme türüne k yazın; Kasap, Kırtasiye ve Kitabevi sonuçlarını denetleyin.
+5. 191435 parolasının reddedildiğini doğrulayın.
+6. Güçlü bir deneme parolasıyla kurulumu tamamlayın.
+7. Ürün çeşidinin 0 ve ürün tablosunun boş olduğunu doğrulayın.
+
+DEPORIAQ 0.4.2 - PAROLA EKRANI İYİLEŞTİRMESİ
+
+- Yönetici parolası en az 14 karakter olmalıdır.
+- Büyük harf, küçük harf, rakam ve özel sembol zorunludur.
+- Bütün parola şartları hatada tek ve açıklayıcı bildirimde gösterilir.
+- İlk kurulum ekranına Parolayı göster seçeneği eklenmiştir.
+
+DEPORIAQ 0.5.1 - YENİDEN KURULAN GÜVENLİ OTURUM
+
+- 0.4.2 çalışan sürümü temel alınmıştır; bozuk 0.5.0 kodu kullanılmamıştır.
+- Giriş ekranı ana pencerenin içinde oluşturulur ve görünmez kalmaz.
+- Program her açılışta kullanıcı adı ve parola ister.
+- Çıkış Yap düğmesi verileri kapatmadan giriş ekranına döndürür.
+- Parolayı göster ve Şifremi Unuttum seçenekleri eklenmiştir.
+- 15 dakika hareketsizlikte oturum otomatik kilitlenir.
+- Mevcut deporiaq.db dosyası korunur; müşteri sıfırlaması gerekmez.
+
+DEPORIAQ 0.6.0 - KULLANICI, YETKİ VE GÜVENLİK AYARLARI
+
+- Ana yönetici yeni kullanıcı oluşturabilir.
+- Kullanıcıya Ana Yönetici, Depo Personeli, Şube Personeli veya Görüntüleyici rolü verilebilir.
+- Depo ve şube personeline görev konumu atanır.
+- Kullanıcı aktif/pasif yapılabilir, rolü/konumu ve parolası güncellenebilir.
+- Kritik kullanıcı işlemlerinde mevcut ana yönetici parolası zorunludur.
+- Ayarlar ekranından 0, 5, 10, 15, 30 veya 60 dakikalık otomatik kilit seçilebilir.
+- Ana yönetici kendi parolasını güçlü parola kurallarıyla değiştirebilir.
+- Yetkisiz değişiklik girişiminde modern uyarı gösterilir.
+- Şube personeli yalnız atandığı şubede satış, depo personeli yalnız atandığı depodan transfer yapabilir.
+
+1. Program ilk açılışta işletme sihirbazını göstermelidir.
+2. Örneğin işletme adı Kitap Dünyası, tür Kitapçı girilebilir.
+3. Merkez depo ve ana yönetici bilgileri doldurulmalıdır.
+4. Kurulum tamamlandığında ürün çeşidi 0 ve toplam stok 0 görünmelidir.
+5. Konum listesinde yalnızca müşterinin yazdığı merkez depo bulunmalıdır.
+6. Müşteri kendi ürünlerini Ürün Ekle ekranından tanımlayabilmelidir.
+
+Mevcut geliştirici bilgisayarında eski stokların görünmesi normaldir; çünkü
+%LOCALAPPDATA%\DeporiaQ\deporiaq.db dosyası o Windows kullanıcısına aittir.
+
+Müşterinin bilgisayarında Python veya Visual Studio Code gerekmez.
+
+İNTERNETTEN GÜNCELLEME KONTROLÜ
+-------------------------------
+
+- Program açıldıktan sonra güncelleme adresi ayarlıysa sessizce sürüm kontrolü yapar.
+- İnternet yoksa program kapanmaz; yerel stok işlemleri çalışmaya devam eder.
+- Ana ekrandaki Güncellemeleri Kontrol Et düğmesi elle kontrol sağlar.
+- Önce guncelleme_manifest_ornek.json dosyasını kendi HTTPS sitenize yükleyin.
+- guncelleme_ayarlari.json içindeki boş guncelleme_manifest_url değerine bu
+  JSON dosyasının tam HTTPS adresini yazın.
+- Yeni sürüm yayınlarken manifest içindeki version, download_url ve notes
+  alanlarını güncelleyin.
+- download_url mutlaka HTTPS üzerinden yayınlanan yeni Setup EXE'sine gitmelidir.
+
+ÖNEMLİ: Bu paket gerçek bir internet alanı/hosting hesabı uydurmaz. Güncelleme
+özelliğinin canlı çalışması için size ait bir HTTPS web adresi veya güvenilir
+dosya yayınlama alanı gerekir.
+============================================================
+DEPORIAQ 0.7.0 - BENI HATIRLA, KULLANICI SILME VE GUNCELLEME
+============================================================
+
+- Giris ekranindaki "Beni hatirla" yalnizca kullanici adini bu
+  bilgisayarda saklar. Parola kesinlikle kaydedilmez.
+- Ana yonetici, Kullanicilar ekraninda bir hesabi kalici olarak
+  kaldirabilir. Acik hesap ve son aktif ana yonetici korunur.
+- Kullanici hesabi silinse bile stoklar ve hareket gecmisi korunur.
+- Uygulama, HTTPS uzerinden kurulum dosyasini indirir ve SHA-256
+  dogrulamasi basariliysa kurulumu baslatir.
+- Musteri bilgisayarinda EXE olusturulmaz. Musteri uygulamadaki
+  "Guncellemeleri Kontrol Et" dugmesine basar.
+
+GUNCELLEMEYI ILK KEZ YAYINA ALMA:
+
+1. EXE_OLUSTUR.bat dosyasini calistirin.
+2. KURULUM_OLUSTUR.bat dosyasini calistirin.
+3. GUNCELLEME_YAYINA_HAZIRLA.bat dosyasini calistirin ve kurulum
+   dosyasinin gercek HTTPS adresini yazin.
+4. "yayin" klasorundeki kurulum EXE'sini ve
+   guncelleme_manifest.json dosyasini web sunucunuza yukleyin.
+5. guncelleme_ayarlari.json icindeki guncelleme_manifest_url alanina
+   manifest dosyasinin gercek HTTPS adresini yazin ve ana kurulum
+   paketinizi bir kez bu ayarla yayinlayin.
+
+NOT: Sunucuda gercek bir HTTPS adresi tanimlanmadan otomatik guncelleme
+canli calismaz. Bu durumdayken program cevrimdisi normal calismaya devam eder.
+============================================================
+DEPORIAQ 0.7.1 - MODERN ONAY VE CANLI GUNCELLEME ADRESI
+============================================================
+
+- Klasik Windows Evet/Hayir kutulari yerine DeporiaQ icinde acilan
+  modern onay kartlari kullanilir.
+- Giris ekraninda secenek artik yalnizca "Beni Hatirla" olarak gorunur.
+- Guncelleme adresi cagatayhurcan.com/deporiaq-updates konumuna baglandi.
+- Web dosyalari icin DeporiaQ_Web_Guncelleme_Alani.zip paketindeki
+  WORDPRESS_CPANEL_KURULUM.txt belgesini izleyin.
+============================================================
+DEPORIAQ 0.7.2 - PAROLA GORUNURLUGU VE ISLETME ADI
+============================================================
+
+- Kullanici ve Yetki Yonetimi ekraninda gecici ve yonetici parolalari
+  "Parolalari Goster" secenegiyle kontrol edilebilir.
+- Guvenlik Ayarlari ekranindaki parola kutularina ayni secenek eklendi.
+- Ayarlar ekranindan isletme adi degistirilebilir. Islem mevcut ana
+  yonetici parolasi ile dogrulanir ve ana baslik aninda yenilenir.
+============================================================
+DEPORIAQ 0.7.2 - GITHUB GUNCELLEME KANALI
+============================================================
+
+- Web hosting guncelleme sisteminden tamamen cikarildi.
+- Manifest adresi:
+  https://raw.githubusercontent.com/DeporiaQ/DeporiaQ-Updates/main/guncelleme_manifest.json
+- Kurulum dosyalari DeporiaQ/DeporiaQ-Updates deposunun Releases
+  bolumunde yayinlanir.
+- GUNCELLEME_YAYINA_HAZIRLA.bat indirme adresini otomatik belirler;
+  kullanicinin URL yazmasi gerekmez.
+
+DEPORIAQ 0.8.0 - PROFESYONEL ISLETME ARACLARI
+
+- Kullanici rolune gore kullanilamayacak ekranlar gizlenir.
+- Stok islemleri ile kullanici giris/cikislari denetim kaydina yazilir.
+- Urunlere alis fiyati ve kritik stok seviyesi eklenmistir.
+- Bugun, bu ay ve tum zamanlar icin satis/ciro/brut kar raporu vardir.
+- Stok tablosu Excel uyumlu CSV dosyasina aktarilabilir.
+- EAN-13 barkod etiketi ve son satis fisi yazdirilabilir.
+- Veritabani bozulursa bozuk kopya korunur ve en yeni saglam yedek geri yuklenir.
+
+YAYIN ADIMLARI
+
+1. EXE_OLUSTUR.bat dosyasini calistirin.
+2. KURULUM_OLUSTUR.bat dosyasini calistirin.
+3. GUNCELLEME_YAYINA_HAZIRLA.bat dosyasini calistirin.
+4. GitHub Releases icinde v0.8.0 etiketiyle yeni Release olusturun.
+5. yayin\DeporiaQ_Setup_0.8.0.exe dosyasini Release'e yukleyin.
+6. yayin\guncelleme_manifest.json dosyasini deponun ana sayfasindaki eski manifest ile degistirin.
+7. Kurulu 0.7.2 uygulamasinda Guncellemeleri Kontrol Et dugmesine basin.
+DEPORIAQ 0.8.1 - UYGULAMA ICI GEZINME VE GUNCELLEME DUZELTMESI
+
+- Ana ekran Windows gorev cubugunu kapatmadan buyutulur.
+- Yonetim, transfer, satis, rapor, ayar ve kullanici ekranlari ana uygulamanin icinde acilir.
+- Sol ustteki Geri dugmesi, Esc ve uygun alanlarda Backspace ile onceki sayfaya donulur.
+- Yazma kutusunda Backspace normal silme islevini korur.
+- PyInstaller kurulum EXE'si temiz alt surec ortamiyla baslatilir; parent process hatasi giderilir.
+
+YAYIN: v0.8.1 etiketiyle DeporiaQ_Setup_0.8.1.exe dosyasini yukleyin ve yeni manifesti ana depoya koyun.
+DEPORIAQ 0.8.2 - MODERN GORSEL KIMLIK VE HIZLI GEZINME
+
+- Windows baslik cubugu uygulamanin koyu rengiyle butunlesir.
+- Mavi marka kutusu yerine golgeli/kabartmali DeporiaQ markasi kullanilir.
+- Surum numarasi marka basliginda tek yerde ve belirgin gorunur.
+- Uygulama genelinde Segoe UI Variable tabanli tutarli yazi sistemi kullanilir.
+- Geri dugmesi cercevesiz tek ok olarak gorunur; genis tiklama alani vardir.
+- Alt+Sol onceki sayfaya doner, Ctrl+F urun aramasina gider, F5 stok ekranini yeniler.
+
+YAYIN: v0.8.2 etiketiyle DeporiaQ_Setup_0.8.2.exe dosyasini yukleyin ve yeni manifesti ana depoya koyun.
+
+DEPORIAQ 0.9.0 - OPERASYON MERKEZI
+
+- Kategori olusturma ve urunlere kategori atama eklendi.
+- Tedarikci kartlari; unvan, telefon ve e-posta bilgileriyle yonetilebilir.
+- Mal kabul ekrani irsaliye/fatura numarasi, miktar ve birim maliyetle stogu artirir.
+- Fiziksel stok sayimi eski miktari, yeni miktari ve farki denetim kaydiyla saklar.
+- Kritik stok sayisi ana ekranda canli gorunur; ayrintilar Operasyon Merkezi'nde listelenir.
+- Surum guncellemesi mevcut urun, stok, sube, depo ve kullanici verilerini korur.
+
+YAYIN: v0.9.0 etiketiyle DeporiaQ_Setup_0.9.0.exe dosyasini yukleyin ve yeni manifesti ana depoya koyun.
+
+DEPORIAQ 0.10.0 - DIL, YAZDIRMA, DESTEK VE MASAUSTU BILDIRIMI
+
+- Turkce ve Ingilizce arayuz secimi eklendi.
+- Genel stok, kritik stok, satis/kar ve hareket raporlari yazdirilabilir.
+- SSS, ticket ve canli destek talebi bolumlerinden olusan Yardim Merkezi eklendi.
+- DeporiaQ kapaliyken yeni surumu bildiren ve SHA-256 dogrulamali kurulum yapan
+  DeporiaQUpdate yardimcisi eklendi.
+- Cloud icin cihaz kimligi ve kosullu senkronizasyon kuyrugu hazirlandi.
+
+YAYIN: v0.10.0 etiketiyle DeporiaQ_Setup_0.10.0.exe dosyasini yukleyin ve yeni manifesti ana depoya koyun.

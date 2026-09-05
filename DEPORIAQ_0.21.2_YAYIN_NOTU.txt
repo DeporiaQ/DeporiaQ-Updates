@@ -1,0 +1,11 @@
+DeporiaQ 0.21.2 - Güvenli İkinci Cihaz Kurulumu
+
+- Temiz bilgisayarlara "Yeni işletme oluştur" ve "Mevcut işletmeye bağlan" seçenekleri eklendi.
+- Mevcut işletmeye bağlanan cihaz Cloud üyeliğini doğrulayıp konum, ürün ve stokları indirir.
+- İkinci cihaz için bağımsız DeporiaQ kullanıcı adı ve yerel parola oluşturulur.
+- Cloud ekranına "Beni hatırla" ve "Cloud parolasını göster" seçenekleri eklendi.
+- Yeni kullanıcı ekranına "Geçici parolayı göster" seçeneği eklendi.
+- Ürün özelleştirme taleplerindeki Supabase 403 tablo izni düzeltildi.
+- Yarım kalan ikinci cihaz kurulumu güvenli biçimde geri alınarak yeniden denemeye izin verir.
+
+Kurulumdan önce DEPORIAQ_CLOUD_0.21.2_MIGRATION.sql dosyasını Supabase SQL Editor'da bir kez çalıştırın.

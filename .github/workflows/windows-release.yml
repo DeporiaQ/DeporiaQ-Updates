@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Yayın sürümü (örnek: 0.21.1)"
+        description: "Yayın sürümü (örnek: 0.21.2)"
         required: true
-        default: "0.21.1"
+        default: "0.21.2"
 
 permissions:
   contents: write
@@ -59,7 +59,7 @@ jobs:
             version = $version
             download_url = "https://github.com/${{ github.repository }}/releases/download/v$version/DeporiaQ_Setup_$version.exe"
             sha256 = $sha
-            notes = "Canlı gösterge paneli, aktif kullanıcılar, onaylı ürün özelleştirme talepleri ve sessiz otomatik güncelleme eklendi."
+            notes = "Güvenli ikinci cihaz kurulumu, mevcut işletmeye Cloud ile bağlanma ve parola seçenekleri eklendi."
           }
           $manifest | ConvertTo-Json | Set-Content guncelleme_manifest.json -Encoding utf8
 
@@ -69,7 +69,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ inputs.version }}"
-          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.21.1_YAYIN_NOTU.txt
+          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.21.2_YAYIN_NOTU.txt
 
       - name: Manifesti ana dala gönder
         shell: pwsh

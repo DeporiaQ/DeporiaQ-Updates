@@ -1,0 +1,12 @@
+DEPORIAQ 0.13.4 - STOK TRANSFERİ DÜZELTMESİ
+
+- Stok Transferi sol menüye kalıcı olarak yeniden eklendi.
+- Transfer ekranı Ctrl+T klavye kısayoluyla da açılabilir.
+- Merkezden depoya, merkezden şubeye, depodan depoya ve depodan şubeye aktarım desteklendi.
+- Hedef konumda ürünün daha önce stok kaydı yoksa kayıt otomatik oluşturulur.
+- Transfer sonrasında oluşabilen satış değişkeni hatası giderildi.
+- Transfer tamamlanınca stok tablosu, Dashboard ve kritik stok sayacı anında yenilenir.
+- Kaynak stok yetersizliği ve geçersiz hedef kontrolleri korundu.
+- Transfer işlemleri hareket ve denetim geçmişine kaydedilir.
+
+© 2026 DeporiaQ. Tüm hakları saklıdır.

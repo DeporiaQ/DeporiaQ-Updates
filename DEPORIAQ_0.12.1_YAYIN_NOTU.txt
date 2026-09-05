@@ -1,0 +1,15 @@
+DEPORIAQ 0.12.1 - CLOUD ARAYÜZ DÜZELTMESİ
+
+- Ayarlar ekranındaki yanlış “Bağlı değil” durumu düzeltildi.
+- Cloud bağlıyken parola ve bağlantı alanları kilitlenerek tekrar parola istenmesi önlendi.
+- Bağlı işletme, kullanıcı e-postası ve Cloud rolü görünür hale getirildi.
+- Güvenli “Hesap Değiştir / Cloud'dan Çık” işlemi eklendi.
+- Ana ekrandaki Cloud durumu yeşil, mavi, sarı ve kırmızı renklerle ayrıldı.
+- 0.12.0 verileri ve Supabase şeması aynen korunur; yeni SQL çalıştırmak gerekmez.
+
+0.13.0 için planlanan Ayarlar bölümleri:
+1. Genel ve Görünüm
+2. Cloud ve Senkronizasyon
+3. Kullanıcılar ve Güvenlik
+4. Veri, Yedekleme ve Kurtarma
+5. Bildirimler, Güncellemeler ve Destek

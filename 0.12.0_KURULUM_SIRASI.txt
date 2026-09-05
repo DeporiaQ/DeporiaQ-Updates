@@ -1,0 +1,17 @@
+DEPORIAQ 0.12.0 KURULUM SIRASI
+
+Henüz GitHub yayını yapmayın. Önce aşağıdaki test sırasını uygulayın:
+
+1. Supabase Dashboard > SQL Editor > New query ekranını açın.
+2. DEPORIAQ_CLOUD_0.12.0_MIGRATION.sql içeriğinin tamamını yapıştırın.
+3. Run düğmesine basın. Sonuçta “migration tamamlandı” yazısını görün.
+4. EXE_OLUSTUR.bat dosyasını çalıştırın.
+5. KURULUM_OLUSTUR.bat dosyasını çalıştırın.
+6. Oluşan kurulum\DeporiaQ_Setup_0.12.0.exe ile ana bilgisayarda güncelleyin.
+7. Cloud girişini açın; ana ekrandaki Cloud göstergesinin “güncel” olmasını bekleyin.
+8. Bir test ürünü/stok hareketi yapın. İkinci bilgisayarda en geç 15 saniye sonra doğrulayın.
+9. İki bilgisayarı çevrimdışı değiştirip yeniden bağlayarak çakışma merkezini deneyin.
+10. Profesyonel Araçlar içinde Excel dışa/içe aktarımı ve geri alma noktasını deneyin.
+
+Bu testler geçince GUNCELLEME_YAYINA_HAZIRLA.bat çalıştırılır ve GitHub v0.12.0
+Release yayını hazırlanır. Mevcut müşteri verileri korunur.

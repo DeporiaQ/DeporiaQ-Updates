@@ -1,0 +1,52 @@
+DEPORIAQ 0.10.0 - DIL, RAPOR, DESTEK VE MASAUSTU BILDIRIMI
+
+YENILIKLER
+
+1. TURKCE / INGILIZCE
+   - Ayarlar ekranina uygulama dili secimi eklendi.
+   - Dil tercihi bu bilgisayarda saklanir ve sonraki giris ekraninda da uygulanir.
+   - Isletme, urun, kullanici ve stok verileri ceviri sirasinda degistirilmez.
+
+2. YAZDIRILABILIR RAPORLAR
+   - Genel yonetici stok raporu yazdirilabilir.
+   - Kritik stok raporu yazdirilabilir.
+   - Satis ve brut kar raporu yazdirilabilir.
+   - Stok hareket gecmisi yazdirilabilir.
+   - Sistem yazdirma penceresinden istenen yazici veya PDF secilebilir.
+
+3. YARDIM MERKEZI
+   - Sikca Sorulanlar
+   - Ticket At
+   - Canli Destek Talebi
+   - Her talep takip numarasiyla yerel veritabanina kaydedilir.
+   - Gercek destek sunucusu tanimlanana kadar musteri bilgisi internete gonderilmez.
+
+4. UYGULAMA KAPALIYKEN GUNCELLEME BILDIRIMI
+   - DeporiaQUpdate.exe Windows tarafindan 30 dakikada bir sessizce calistirilir.
+   - Yeni surum varsa sag alt kosede DeporiaQ bildirimi acilir.
+   - Simdi Indir ve Kur secenegi dosyayi indirir ve SHA-256 ile dogrular.
+   - Uygulamanin acik olmasi gerekmez.
+
+5. DEPORIAQ CLOUD TEMELI
+   - Her bilgisayara benzersiz cihaz kimligi verilir.
+   - Cloud etkinlestirildiginde degisiklikleri yakalayacak senkron kuyrugu hazirdir.
+   - Ortak veri kullaniminin canli hale gelmesi icin ayri Cloud API sunucusu,
+     isletme lisansi ve kimlik dogrulama servisi kurulmalidir.
+   - Sunucu hazir olmadan Cloud etkinlestirilmez; SQLite dosyasi ag klasorunde paylastirilmaz.
+
+YAYIN ADIMLARI
+
+1. EXE_OLUSTUR.bat dosyasini calistirin.
+2. dist klasorunde DeporiaQ.exe ve DeporiaQUpdate.exe olustugunu kontrol edin.
+3. KURULUM_OLUSTUR.bat dosyasini calistirin.
+4. kurulum\DeporiaQ_Setup_0.10.0.exe dosyasini kurup test edin.
+5. GUNCELLEME_YAYINA_HAZIRLA.bat dosyasini calistirin.
+6. GitHub Releases icinde v0.10.0 etiketiyle DeporiaQ 0.10.0 olusturun.
+7. yayin\DeporiaQ_Setup_0.10.0.exe dosyasini Release'e yukleyin.
+8. yayin\guncelleme_manifest.json dosyasini GitHub deposundaki manifest ile degistirin.
+
+VERI GUVENLIGI
+
+- Normal kurulum mevcut urun, stok, depo, sube, kullanici ve ayarlari korur.
+- Dagitim paketine hicbir musteri veritabani eklenmez.
+- Guncelleme kurulumlari SHA-256 ozetine gore dogrulanir.

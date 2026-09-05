@@ -1,0 +1,13 @@
+DEPORIAQ 0.13.2 - TEMA DÜZENLEYİCİ VE MARKA DÜZELTMESİ
+
+- DeporiaQ marka adı ile sürüm numarası birbirinden ayrıldı.
+- Sürüm bilgisi küçük ve ikincil tipografiyle gösteriliyor.
+- Cloud göstergesinin kutu ve dolgu zemini kaldırıldı.
+- Cloud durumu renkli nokta ve açık renkli metin olarak gösteriliyor.
+- Ana panelde koyu temada kaybolan başlık ve açıklama kontrastları düzeltildi.
+- Açık ve koyu tema renkleri ayrı ayrı saklanıyor.
+- Ayarlar > Genel ve Görünüm bölümüne manuel Tema Düzenleyici eklendi.
+- Zemin, panel, ana yazı, açıklama ve vurgu renkleri renk seçiciden değiştirilebilir.
+- Varsayılan renk paletini geri yükleme seçeneği eklendi.
+
+© 2026 DeporiaQ. Tüm hakları saklıdır.

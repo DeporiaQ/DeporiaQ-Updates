@@ -1,0 +1,39 @@
+DEPORIAQ 0.9.0 - OPERASYON MERKEZI
+
+BU SURUMDE GELENLER
+
+1. Kategori Yonetimi
+   - Yeni kategoriler olusturulur.
+   - Mevcut urunler bir kategoriye atanir.
+
+2. Tedarikci Yonetimi
+   - Tedarikci unvani, telefonu ve e-posta bilgisi kaydedilir.
+
+3. Mal Kabul
+   - Tedarikci, urun, teslim alan konum, miktar, maliyet ve belge numarasi kaydedilir.
+   - Kabul edilen miktar secilen depo veya subenin stoklarina otomatik eklenir.
+   - Urunun son alis maliyeti guncellenir ve hareket gecmisi olusur.
+
+4. Fiziksel Stok Sayimi
+   - Rafta sayilan gercek miktar sisteme uygulanir.
+   - Onceki miktar, yeni miktar ve fark geriye donuk kaydedilir.
+
+5. Gelismis Kritik Stok
+   - Ana ekrandaki dugmede canli kritik kayit sayisi gorunur.
+   - Operasyon Merkezi ayrintili olarak konum, barkod, urun ve kritik seviyeyi listeler.
+
+KURULUM DOSYALARINI OLUSTURMA
+
+1. EXE_OLUSTUR.bat dosyasini calistirin.
+2. KURULUM_OLUSTUR.bat dosyasini calistirin.
+3. Olusan kurulum\DeporiaQ_Setup_0.9.0.exe dosyasini test edin.
+4. GUNCELLEME_YAYINA_HAZIRLA.bat dosyasini calistirin.
+5. GitHub'da v0.9.0 etiketiyle DeporiaQ 0.9.0 Release olusturun.
+6. yayin\DeporiaQ_Setup_0.9.0.exe dosyasini Release'e yukleyin.
+7. yayin\guncelleme_manifest.json dosyasini deponuzdaki manifest ile degistirin.
+
+ONEMLI
+
+- Normal 0.9.0 kurulumu mevcut urun, stok, depo, sube, kullanici ve ayarlari silmez.
+- Pakette deporiaq.db veya baska bir musteri veritabani bulunmaz.
+- DEPORIAQ_MUSTERI_SIFIRLA araci yalnizca bilerek calistirilirsa yerel veriyi sifirlar.

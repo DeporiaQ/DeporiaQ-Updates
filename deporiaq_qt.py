@@ -1,4 +1,4 @@
-"""DeporiaQ 0.21.1 - Canlı işletme paneli ve düzeltilmiş sessiz güncelleme."""
+"""DeporiaQ 0.21.2 - Güvenli ikinci cihaz kurulumu ve Cloud üyelik akışı."""
 import csv
 import json
 import os
@@ -30,7 +30,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.21.1"
+SURUM = "0.21.2"
 
 
 def kaynak_yolu(ad):
@@ -197,6 +197,89 @@ class SutunGrafik(QWidget):
 
 def para(deger):
     return f"{float(deger):,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+class IlkKurulumPenceresi(QDialog):
+    """Yeni işletme veya mevcut Cloud işletmesine katılma sihirbazı."""
+    def __init__(self, vt, parent=None):
+        super().__init__(parent)
+        self.vt = vt
+        self.setWindowTitle(f"{PROGRAM_ADI} {SURUM} • İlk Kurulum")
+        self.resize(720, 610)
+        ana = QVBoxLayout(self)
+        baslik = QLabel("DeporiaQ İlk Kurulum")
+        baslik.setObjectName("sayfaBaslik")
+        ana.addWidget(baslik)
+        aciklama = QLabel(
+            "Bu bilgisayarda yeni ve boş bir işletme oluşturabilir veya yöneticinizin "
+            "Cloud'a eklediği hesabınızla mevcut işletmeye bağlanabilirsiniz."
+        )
+        aciklama.setWordWrap(True); aciklama.setObjectName("soluk"); ana.addWidget(aciklama)
+        sekmeler = QTabWidget(); ana.addWidget(sekmeler, 1)
+
+        yeni = QWidget(); yf = QFormLayout(yeni)
+        self.y_isletme = QLineEdit(); self.y_merkez = QLineEdit("Merkez Depo")
+        self.y_kullanici = QLineEdit("admin"); self.y_parola = QLineEdit(); self.y_tekrar = QLineEdit()
+        self.y_parola.setEchoMode(QLineEdit.EchoMode.Password); self.y_tekrar.setEchoMode(QLineEdit.EchoMode.Password)
+        y_goster = QCheckBox("Parolayı göster")
+        y_goster.toggled.connect(lambda acik: [x.setEchoMode(QLineEdit.EchoMode.Normal if acik else QLineEdit.EchoMode.Password) for x in (self.y_parola,self.y_tekrar)])
+        for etiket,alan in (("İşletme adı:",self.y_isletme),("Merkez depo adı:",self.y_merkez),("Ana yönetici kullanıcı adı:",self.y_kullanici),("Yönetici parolası:",self.y_parola),("Parola tekrarı:",self.y_tekrar)):
+            yf.addRow(etiket,alan)
+        yf.addRow(y_goster)
+        y_tamam = QPushButton("Yeni İşletmeyi Oluştur"); y_tamam.setObjectName("basari"); y_tamam.clicked.connect(self.yeni_isletme)
+        yf.addRow(y_tamam); sekmeler.addTab(yeni,"Yeni işletme oluştur")
+
+        mevcut = QWidget(); mf = QFormLayout(mevcut); a = ayarlari_oku()
+        self.m_url = QLineEdit(str(a.get("cloud_url", ""))); self.m_key = QLineEdit(str(a.get("cloud_publishable_key", "")))
+        self.m_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.m_email = QLineEdit(str(a.get("cloud_email", ""))); self.m_cloud_pw = QLineEdit(); self.m_cloud_pw.setEchoMode(QLineEdit.EchoMode.Password)
+        self.m_kullanici = QLineEdit(); self.m_kullanici.setPlaceholderText("Örn. KORAYDEMIRKAN")
+        self.m_yerel_pw = QLineEdit(); self.m_yerel_pw.setEchoMode(QLineEdit.EchoMode.Password)
+        self.m_tekrar = QLineEdit(); self.m_tekrar.setEchoMode(QLineEdit.EchoMode.Password)
+        self.m_hatirla = QCheckBox("Bu cihazdaki Cloud oturumunu hatırla"); self.m_hatirla.setChecked(True)
+        m_goster = QCheckBox("Parolaları göster")
+        m_goster.toggled.connect(lambda acik: [x.setEchoMode(QLineEdit.EchoMode.Normal if acik else QLineEdit.EchoMode.Password) for x in (self.m_cloud_pw,self.m_yerel_pw,self.m_tekrar)])
+        for etiket,alan in (("Project URL:",self.m_url),("Publishable / anon key:",self.m_key),("Cloud e-posta:",self.m_email),("Cloud parolası:",self.m_cloud_pw),("DeporiaQ kullanıcı adı:",self.m_kullanici),("Yerel giriş parolası:",self.m_yerel_pw),("Parola tekrarı:",self.m_tekrar)):
+            mf.addRow(etiket,alan)
+        mf.addRow(self.m_hatirla); mf.addRow(m_goster)
+        bilgi = QLabel("Cloud hesabınızın işletme yöneticisi tarafından şirket üyeliğine eklenmiş olması gerekir.")
+        bilgi.setWordWrap(True); bilgi.setObjectName("soluk"); mf.addRow(bilgi)
+        m_tamam = QPushButton("Mevcut İşletmeye Bağlan ve Verileri İndir"); m_tamam.setObjectName("birincil"); m_tamam.clicked.connect(self.mevcut_isletme)
+        mf.addRow(m_tamam); sekmeler.addTab(mevcut,"Mevcut işletmeye bağlan")
+
+    def yeni_isletme(self):
+        if not self.y_isletme.text().strip() or not self.y_merkez.text().strip() or not self.y_kullanici.text().strip():
+            QMessageBox.warning(self,"Eksik bilgi","İşletme, merkez depo ve kullanıcı adını doldurun."); return
+        if self.y_parola.text() != self.y_tekrar.text():
+            QMessageBox.warning(self,"Parola uyuşmuyor","Parola ve tekrarı aynı olmalıdır."); return
+        guclu,hata = parola_guclu_mu(self.y_parola.text())
+        if not guclu: QMessageBox.warning(self,"Zayıf parola",hata); return
+        try:
+            self.vt.ilk_kurulumu_tamamla(self.y_isletme.text().strip(),"Diğer",self.y_merkez.text().strip(),"TL",self.y_kullanici.text().strip(),self.y_parola.text())
+        except Exception as e: QMessageBox.warning(self,"Kurulum tamamlanamadı",str(e)); return
+        QMessageBox.information(self,"Kurulum tamamlandı","Yeni işletme oluşturuldu. Şimdi giriş yapabilirsiniz."); self.accept()
+
+    def mevcut_isletme(self):
+        if not all(x.text().strip() for x in (self.m_url,self.m_key,self.m_email,self.m_cloud_pw,self.m_kullanici,self.m_yerel_pw,self.m_tekrar)):
+            QMessageBox.warning(self,"Eksik bilgi","Mevcut işletmeye bağlanmak için bütün alanları doldurun."); return
+        if self.m_yerel_pw.text() != self.m_tekrar.text():
+            QMessageBox.warning(self,"Parola uyuşmuyor","Yerel parola ve tekrarı aynı olmalıdır."); return
+        guclu,hata = parola_guclu_mu(self.m_yerel_pw.text())
+        if not guclu: QMessageBox.warning(self,"Zayıf parola",hata); return
+        a=ayarlari_oku(); cihaz=str(a.get("cihaz_kimligi","")).strip()
+        if not cihaz:
+            cihaz="DPQ-"+secrets.token_hex(6).upper(); yerel_ayari_kaydet("cihaz_kimligi",cihaz)
+        cloud=DeporiaQCloud(self.vt,cihaz); cloud.local_username=self.m_kullanici.text().strip()
+        try:
+            cloud.yapilandir(self.m_url.text(),self.m_key.text())
+            sirket=cloud.giris_yap(self.m_email.text(),self.m_cloud_pw.text())
+            urun,konum,stok=cloud.mevcut_isletmeyi_bu_cihaza_kur(self.m_kullanici.text(),self.m_yerel_pw.text())
+            yerel_ayari_kaydet("cloud_url",self.m_url.text().strip()); yerel_ayari_kaydet("cloud_publishable_key",self.m_key.text().strip()); yerel_ayari_kaydet("cloud_email",self.m_email.text().strip())
+            yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(cloud.refresh_token) if self.m_hatirla.isChecked() else "")
+        except Exception as e:
+            QMessageBox.warning(self,"İşletmeye bağlanılamadı",str(e)); return
+        QMessageBox.information(self,"Bağlantı tamamlandı",f"{sirket} bu bilgisayara bağlandı.\n{konum} konum, {urun} ürün ve {stok} stok kaydı indirildi.")
+        self.accept()
 
 
 class GirisPenceresi(QWidget):
@@ -477,8 +560,9 @@ class KullaniciYonetimiPenceresi(QDialog):
     def ekle(self):
         p=QDialog(self);p.setWindowTitle("Yeni Kullanıcı");f=QFormLayout(p)
         ad=QLineEdit();pw=QLineEdit();pw.setEchoMode(QLineEdit.EchoMode.Password);rol=QComboBox();rol.addItems(self.ROLLER);kon=QComboBox();kon.addItem("Atanmamış",None)
+        pw_goster=QCheckBox("Geçici parolayı göster"); pw_goster.toggled.connect(lambda acik:pw.setEchoMode(QLineEdit.EchoMode.Normal if acik else QLineEdit.EchoMode.Password))
         for k in self.vt.konumlari_getir():kon.addItem(f"{k['ad']} ({k['tur']})",k['id'])
-        f.addRow("Kullanıcı adı:",ad);f.addRow("Geçici parola:",pw);f.addRow("Rol:",rol);f.addRow("Konum:",kon)
+        f.addRow("Kullanıcı adı:",ad);f.addRow("Geçici parola:",pw);f.addRow(pw_goster);f.addRow("Rol:",rol);f.addRow("Konum:",kon)
         okb=QPushButton("Kullanıcıyı Kaydet");okb.setObjectName("basari");okb.clicked.connect(p.accept);f.addRow(okb)
         if not p.exec():return
         guclu,hata=parola_guclu_mu(pw.text())
@@ -573,8 +657,10 @@ class AyarlarPenceresi(QDialog):
         sek=QTabWidget(); d.addWidget(sek)
         genel=QWidget(); g=QFormLayout(genel); self.isletme=QLineEdit(vt.ayar_getir("isletme_adi","")); gb=QPushButton("İşletme Bilgisini Kaydet"); gb.clicked.connect(self.genel_kaydet); g.addRow("İşletme adı:",self.isletme); g.addRow(gb); sek.addTab(genel,"Genel")
         bulut=QWidget(); c=QFormLayout(bulut); a=ayarlari_oku(); self.url=QLineEdit(a.get("cloud_url","")); self.key=QLineEdit(a.get("cloud_publishable_key","")); self.key.setEchoMode(QLineEdit.EchoMode.Password); self.email=QLineEdit(a.get("cloud_email","")); self.pw=QLineEdit(); self.pw.setEchoMode(QLineEdit.EchoMode.Password)
+        self.cloud_hatirla=QCheckBox("Bu cihazdaki Cloud oturumunu hatırla"); self.cloud_hatirla.setChecked(bool(a.get("cloud_refresh_token_dpapi","")))
+        self.cloud_goster=QCheckBox("Cloud parolasını göster"); self.cloud_goster.toggled.connect(lambda acik:self.pw.setEchoMode(QLineEdit.EchoMode.Normal if acik else QLineEdit.EchoMode.Password))
         cb=QPushButton("Cloud Giriş ve Senkronizasyon"); cb.setObjectName("birincil"); cb.clicked.connect(self.cloud_giris)
-        c.addRow("Project URL:",self.url); c.addRow("Publishable / anon key:",self.key); c.addRow("Cloud e-posta:",self.email); c.addRow("Cloud parola:",self.pw); c.addRow(cb); sek.addTab(bulut,"Cloud ve Senkronizasyon")
+        c.addRow("Project URL:",self.url); c.addRow("Publishable / anon key:",self.key); c.addRow("Cloud e-posta:",self.email); c.addRow("Cloud parola:",self.pw); c.addRow(self.cloud_goster); c.addRow(self.cloud_hatirla); c.addRow(cb); sek.addTab(bulut,"Cloud ve Senkronizasyon")
         guv=QWidget(); q=QFormLayout(guv); self.kilit=QComboBox(); self.kilit.addItems(["0","5","10","15","30","60"]); self.kilit.setCurrentText(vt.ayar_getir("otomatik_kilit_dakika","30")); qb=QPushButton("Güvenlik Ayarını Kaydet"); qb.clicked.connect(self.guvenlik_kaydet); q.addRow("Otomatik kilit (dakika):",self.kilit);q.addRow(qb);sek.addTab(guv,"Güvenlik")
         bild=QWidget(); n=QFormLayout(bild); self.kritik=QCheckBox("Kritik stok uyarılarını göster"); self.kritik.setChecked(vt.ayar_getir("kritik_bildirim","1")=="1"); nb=QPushButton("Bildirim Ayarını Kaydet"); nb.clicked.connect(self.bildirim_kaydet); n.addRow(self.kritik);n.addRow(nb);sek.addTab(bild,"Bildirimler")
     def genel_kaydet(self):self.vt.ayar_kaydet("isletme_adi",self.isletme.text().strip());self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","İşletme bilgisi kaydedildi.")
@@ -584,7 +670,8 @@ class AyarlarPenceresi(QDialog):
         try:
             self.cloud.yapilandir(self.url.text(),self.key.text()); ad=self.cloud.giris_yap(self.email.text(),self.pw.text()); sonuc,_=self.cloud.akilli_senkronize()
             yerel_ayari_kaydet("cloud_url",self.url.text().strip());yerel_ayari_kaydet("cloud_publishable_key",self.key.text().strip());yerel_ayari_kaydet("cloud_email",self.email.text().strip())
-            if self.cloud.refresh_token: yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(self.cloud.refresh_token))
+            if self.cloud.refresh_token and self.cloud_hatirla.isChecked(): yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(self.cloud.refresh_token))
+            else: yerel_ayari_kaydet("cloud_refresh_token_dpapi","")
             self.vt.ayar_kaydet("cloud_etkin","1");self.vt.baglanti.commit();self.cloud_yenile();QMessageBox.information(self,"Cloud bağlı",f"{ad}\nSenkronizasyon: {sonuc}")
         except Exception as e:QMessageBox.warning(self,"Cloud bağlantısı kurulamadı",str(e))
 
@@ -1111,8 +1198,9 @@ def main():
     app = QApplication(sys.argv); app.setApplicationName(PROGRAM_ADI); app.setApplicationVersion(SURUM)
     app.setWindowIcon(QIcon(kaynak_yolu("deporiaq_icon.svg"))); app.setStyleSheet(STIL); app.setFont(QFont("Segoe UI", 10))
     if vt.ilk_kurulum_gerekli():
-        QMessageBox.critical(None, "Kurulum gerekli", "Önce DeporiaQ 0.13.4 ile ilk işletme kurulumunu tamamlayın.")
-        return 1
+        kurulum = IlkKurulumPenceresi(vt)
+        if not kurulum.exec():
+            vt.kapat(); return 0
     giris = GirisPenceresi(vt); giris.show()
     sonuc = app.exec(); vt.kapat(); return sonuc
 
