@@ -1,4 +1,4 @@
-"""DeporiaQ 0.21.3 - Küçük ekranlar için duyarlı ana panel."""
+"""DeporiaQ 0.21.4 - Modern kaydırma ve görünür güncelleme ilerlemesi."""
 import csv
 import json
 import os
@@ -30,7 +30,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.21.3"
+SURUM = "0.21.4"
 
 
 def kaynak_yolu(ad):
@@ -1136,14 +1136,9 @@ class AnaPencere(QMainWindow):
             if not self.guncelleme_sessiz:QMessageBox.information(self,"DeporiaQ güncel",f"En güncel sürümü kullanıyorsunuz: {SURUM}")
             return
         notlar=str(manifest.get("notes","")).strip();mesaj=f"DeporiaQ {yeni} hazır.\n\n{notlar[:500]}\n\nGüvenli güncelleme aracını şimdi açalım mı?"
-        soru=QMessageBox(QMessageBox.Icon.Question,"Yeni güncelleme hazır",mesaj,parent=self)
-        simdi=soru.addButton("Şimdi Güncelle",QMessageBox.ButtonRole.AcceptRole)
-        soru.addButton("Daha Sonra",QMessageBox.ButtonRole.RejectRole);soru.exec()
-        if soru.clickedButton() is not simdi:return
         arac=Path(sys.executable).resolve().parent/"DeporiaQUpdate.exe" if getattr(sys,"frozen",False) else Path(__file__).resolve().parent/"DeporiaQUpdate.exe"
         if not arac.exists():QMessageBox.warning(self,"Güncelleme aracı bulunamadı","DeporiaQUpdate.exe kurulum klasöründe bulunamadı.");return
-        subprocess.Popen([str(arac),"--install-now"],close_fds=True)
-        QTimer.singleShot(350,QApplication.quit)
+        subprocess.Popen([str(arac),"--notify"],close_fds=True)
 
     def yedek_al(self):
         if self.kullanici["rol"] != "ANA_YONETICI":
@@ -1246,6 +1241,16 @@ QFrame#panel { background:#192334; border:1px solid #38516E; border-radius:8px; 
 QFrame#panel QLabel { background:transparent; border:0; font-weight:650; }
 QLabel#kurBilgisi { color:#E2E8F0; font-family:'Consolas'; font-size:13px; line-height:1.5; }
 QHeaderView::section { background:#314C6B; padding:8px; font-weight:700; }
+QScrollBar:vertical { background:#111827; width:10px; margin:3px 2px; border:0; border-radius:5px; }
+QScrollBar::handle:vertical { background:#46617F; min-height:38px; border-radius:4px; }
+QScrollBar::handle:vertical:hover { background:#38BDF8; }
+QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height:0; background:transparent; border:0; }
+QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical { background:transparent; }
+QScrollBar:horizontal { background:#111827; height:10px; margin:2px 3px; border:0; border-radius:5px; }
+QScrollBar::handle:horizontal { background:#46617F; min-width:38px; border-radius:4px; }
+QScrollBar::handle:horizontal:hover { background:#38BDF8; }
+QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal { width:0; background:transparent; border:0; }
+QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal { background:transparent; }
 """
 
 

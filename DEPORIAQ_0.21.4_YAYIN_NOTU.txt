@@ -1,0 +1,9 @@
+DeporiaQ 0.21.4 - Modern Kaydırma ve Görünür Güncelleme
+
+- Klasik kaydırma çubukları ince, yuvarlatılmış ve tema uyumlu hale getirildi.
+- Güncelleme bildirimi yeniden masaüstünün sağ alt köşesine taşındı.
+- Güncelleme indirilirken gerçek indirme yüzdesi gösterilir.
+- Dosya doğrulama, uygulamayı kapatma ve kurulum aşamaları kullanıcıya açıklanır.
+- Güncelleme tamamlandığında DeporiaQ otomatik olarak yeniden açılır.
+
+Bu sürüm veritabanı değişikliği içermez. Supabase SQL çalıştırılması gerekmez.
