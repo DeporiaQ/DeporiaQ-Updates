@@ -1,4 +1,4 @@
-"""DeporiaQ 0.21.2 güvenli ve sessiz güncelleme yardımcısı."""
+"""DeporiaQ 0.21.3 güvenli ve sessiz güncelleme yardımcısı."""
 import ctypes
 import hashlib
 import json
@@ -13,7 +13,7 @@ import tkinter as tk
 import urllib.request
 from pathlib import Path
 
-MEVCUT_SURUM = "0.21.2"
+MEVCUT_SURUM = "0.21.3"
 PROGRAM_ADI = "DeporiaQ"
 AZAMI_GUNCELLEME_BOYUTU = 1024 * 1024 * 1024
 
@@ -84,7 +84,7 @@ class Bildirim:
         y = self.pencere.winfo_screenheight() - yukseklik - 62
         self.pencere.geometry(f"{genislik}x{yukseklik}+{x}+{y}")
         govde = tk.Frame(self.pencere, bg="#111827", padx=20, pady=17); govde.pack(fill="both", expand=True)
-        tk.Label(govde, text="◆  DeporiaQ Update Available" if self.en else "◆  DeporiaQ Güncellendi", fg="#f8fafc", bg="#111827", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        tk.Label(govde, text="◆  DeporiaQ Update Available" if self.en else "◆  DeporiaQ Güncellemesi Hazır", fg="#f8fafc", bg="#111827", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         aciklama = f"Version {manifest['version']} is ready. Install now?" if self.en else f"Yeni sürüm {manifest['version']} hazır. Şimdi kurmak ister misiniz?"
         tk.Label(govde, text=aciklama, fg="#cbd5e1", bg="#111827", font=("Segoe UI", 10), wraplength=365, justify="left").pack(anchor="w", pady=(12, 5))
         self.durum = tk.StringVar(value=manifest["notes"][:150] or "Stok ve işletme verileriniz korunacaktır.")

@@ -1,0 +1,12 @@
+DEPORIAQ GELİŞTİRME PLANI
+
+1. Duyarlı ekran sistemi: tüm ana ekran ve pencereler küçük ekranlarda yeniden yerleşecek.
+2. Cloud senkron dayanıklılığı: çevrimdışı kuyruk, yeniden deneme ve çakışma ekranı güçlendirilecek.
+3. Rol ve izin matrisi: owner, manager, employee ve viewer yetkileri tek merkezden yönetilecek.
+4. Güncelleme güvenilirliği: ilerleme, zaman aşımı, hata kaydı ve otomatik geri dönüş eklenecek.
+5. Otomatik yedekleme: günlük, haftalık ve güncelleme öncesi geri yükleme noktaları sağlanacak.
+6. Denetim merkezi: kritik işlemler kullanıcı, cihaz, konum ve zaman bilgisiyle izlenecek.
+7. Akıllı stok uyarıları: satış hızı, tükenme tahmini ve şubeler arası dengeleme önerilecek.
+8. Performans: büyük ürün ve hareket listelerinde sayfalama, önbellek ve gecikmeli arama kullanılacak.
+9. Kullanıcı deneyimi: Türkçe ileti kutuları, tutarlı ikonlar, klavye kullanımı ve erişilebilirlik geliştirilecek.
+10. Test ve hata raporlama: otomatik testler, tanılama paketi ve gizlilik korumalı hata raporu eklenecek.

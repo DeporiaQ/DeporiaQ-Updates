@@ -1,0 +1,9 @@
+DeporiaQ 0.21.3 - Duyarlı Ekran Düzeni
+
+- Program küçültüldüğünde ana panel artık ekran genişliğine göre yeniden yerleşir.
+- Özet kartları, grafikler ve alt paneller 4, 2 veya 1 sütunlu düzene geçer.
+- Sol menü küçük ekranlarda dikey olarak kaydırılabilir.
+- Ana içerikte gereksiz yatay taşma kaldırıldı.
+- Hızlı işlem düğmeleri küçük ekranlarda alt satırlara düzenli biçimde geçer.
+
+Bu sürüm veritabanı değişikliği içermez. Supabase tarafında ek SQL çalıştırılması gerekmez.

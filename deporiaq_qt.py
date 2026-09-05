@@ -1,4 +1,4 @@
-"""DeporiaQ 0.21.2 - Güvenli ikinci cihaz kurulumu ve Cloud üyelik akışı."""
+"""DeporiaQ 0.21.3 - Küçük ekranlar için duyarlı ana panel."""
 import csv
 import json
 import os
@@ -17,7 +17,7 @@ from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QIntValidator,
                            QKeySequence, QPainter, QPen, QShortcut, QTextDocument)
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
+    QFormLayout, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox, QCompleter,
     QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
@@ -30,7 +30,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.21.2"
+SURUM = "0.21.3"
 
 
 def kaynak_yolu(ad):
@@ -796,15 +796,16 @@ class AnaPencere(QMainWindow):
             self.cloud_client.location_name=konum["ad"] if konum else "Merkez"
         except Exception:self.cloud_client.location_name="Merkez"
         self.setWindowTitle(f"{PROGRAM_ADI} {SURUM}")
-        self.setMinimumSize(900, 650)
+        self.setMinimumSize(760, 560)
         govde = QWidget(); self.setCentralWidget(govde)
         ana = QVBoxLayout(govde); ana.setContentsMargins(0, 0, 0, 0); ana.setSpacing(0)
         ana.addWidget(self.ust_cubuk())
         orta = QHBoxLayout(); orta.setContentsMargins(0, 0, 0, 0); orta.setSpacing(0)
         orta.addWidget(self.yan_menu())
-        kaydir = QScrollArea(); kaydir.setWidgetResizable(True)
-        self.icerik = QWidget(); self.icerik.setMinimumWidth(720)
-        kaydir.setWidget(self.icerik); orta.addWidget(kaydir, 1)
+        self.kaydir = QScrollArea(); self.kaydir.setWidgetResizable(True)
+        self.kaydir.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.icerik = QWidget(); self.icerik.setMinimumWidth(0)
+        self.kaydir.setWidget(self.icerik); orta.addWidget(self.kaydir, 1)
         ana.addLayout(orta, 1)
         ana.addWidget(self.alt_cubuk())
         self.dashboard_kur()
@@ -816,6 +817,7 @@ class AnaPencere(QMainWindow):
         self.kur_zamanlayici=QTimer(self);self.kur_zamanlayici.timeout.connect(self.kurlari_yenile);self.kur_zamanlayici.start(300000)
         QTimer.singleShot(900,self.cloud_oturumunu_yenile)
         QTimer.singleShot(4000, lambda:self.guncelleme_denetle(True))
+        QTimer.singleShot(0, self.duyarli_yerlesimi_guncelle)
 
     def ust_cubuk(self):
         cubuk = QFrame(); cubuk.setObjectName("ustCubuk")
@@ -837,7 +839,7 @@ class AnaPencere(QMainWindow):
         return cubuk
 
     def yan_menu(self):
-        menu = QFrame(); menu.setObjectName("yanMenu"); menu.setFixedWidth(190)
+        menu = QFrame(); menu.setObjectName("yanMenu")
         d = QVBoxLayout(menu); d.setContentsMargins(10, 14, 10, 12); d.setSpacing(5)
         d.addWidget(QLabel("MENÜ"))
         for ad, komut in (
@@ -856,7 +858,13 @@ class AnaPencere(QMainWindow):
         d.addWidget(QLabel("DeporiaQ Modern\nGüvenli • Hızlı • Bulut"))
         telif = QLabel("© 2026 DeporiaQ.\nTüm hakları saklıdır."); telif.setObjectName("soluk")
         d.addWidget(telif)
-        return menu
+        kaydir = QScrollArea(); kaydir.setObjectName("yanMenuKaydirma")
+        kaydir.setWidgetResizable(True)
+        kaydir.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        kaydir.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        kaydir.setFrameShape(QFrame.Shape.NoFrame); kaydir.setFixedWidth(190)
+        kaydir.setWidget(menu); self.menu_kaydir = kaydir
+        return kaydir
 
     def alt_cubuk(self):
         alt = QFrame(); alt.setObjectName("altCubuk")
@@ -871,22 +879,24 @@ class AnaPencere(QMainWindow):
 
     def dashboard_kur(self):
         d = QVBoxLayout(self.icerik); d.setContentsMargins(14, 10, 14, 10); d.setSpacing(8)
-        ust = QHBoxLayout(); baslik = QLabel("İşletme Özeti"); baslik.setObjectName("sayfaBaslik"); ust.addWidget(baslik)
-        ust.addSpacing(18); self.konum = QComboBox(); self.konum.setMinimumWidth(320); self.konum.setMaximumWidth(460)
-        self.konum.currentIndexChanged.connect(self.yenile); ust.addWidget(self.konum)
-        yenile = QPushButton("Yenile"); yenile.clicked.connect(self.yenile); ust.addWidget(yenile); ust.addStretch()
-        sosyal_yazi=QLabel("DeporiaQ Sosyal"); sosyal_yazi.setObjectName("soluk"); ust.addWidget(sosyal_yazi)
+        self.ust_yerlesim = QGridLayout(); self.ust_yerlesim.setSpacing(8)
+        self.baslik = QLabel("İşletme Özeti"); self.baslik.setObjectName("sayfaBaslik")
+        self.konum = QComboBox(); self.konum.setMinimumWidth(170); self.konum.setMaximumWidth(460)
+        self.konum.currentIndexChanged.connect(self.yenile)
+        self.yenile_dugmesi = QPushButton("Yenile"); self.yenile_dugmesi.clicked.connect(self.yenile)
+        self.sosyal = QWidget(); sosyal = QHBoxLayout(self.sosyal); sosyal.setContentsMargins(0,0,0,0); sosyal.setSpacing(8)
+        sosyal_yazi=QLabel("DeporiaQ Sosyal"); sosyal_yazi.setObjectName("soluk"); sosyal.addWidget(sosyal_yazi)
         youtube=QPushButton(QIcon(kaynak_yolu("youtube_icon.svg")),"DeporiaQ"); youtube.setToolTip("DeporiaQ YouTube • Yakında")
         instagram=QPushButton(QIcon(kaynak_yolu("instagram_icon.svg")),"DeporiaQ"); instagram.setToolTip("DeporiaQ Instagram • Yakında")
         youtube.clicked.connect(lambda:self.sosyal_yakinda("YouTube")); instagram.clicked.connect(lambda:self.sosyal_yakinda("Instagram"))
-        ust.addWidget(youtube); ust.addWidget(instagram); d.addLayout(ust)
-        kartlar = QHBoxLayout(); self.kartlar = []
+        sosyal.addWidget(youtube); sosyal.addWidget(instagram); d.addLayout(self.ust_yerlesim)
+        self.kart_yerlesim = QGridLayout(); self.kart_yerlesim.setSpacing(8); self.kartlar = []; self.kart_widgetlari=[]
         for bas in ("Ürün çeşidi", "Seçili konum stoğu", "Toplam stok değeri", "Kritik stok"):
             k = QFrame(); k.setObjectName("kart"); kd = QVBoxLayout(k); kd.setContentsMargins(10,6,10,7); kd.setSpacing(2)
             kd.addWidget(QLabel(bas)); deger = QLabel("0"); deger.setObjectName("kartDeger"); kd.addWidget(deger)
-            kartlar.addWidget(k); self.kartlar.append(deger)
-        d.addLayout(kartlar)
-        grafikler = QHBoxLayout(); grafikler.setSpacing(8)
+            self.kart_widgetlari.append(k); self.kartlar.append(deger)
+        d.addLayout(self.kart_yerlesim)
+        self.grafik_yerlesim = QGridLayout(); self.grafik_yerlesim.setSpacing(8)
         stok_karti = QFrame(); stok_karti.setObjectName("panel"); sk = QVBoxLayout(stok_karti)
         sk.addWidget(QLabel("Stok Sağlığı")); stok_grafikleri=QHBoxLayout(); self.halka_grafik = HalkaGrafik(); self.stok_sutun_grafik=SutunGrafik()
         stok_grafikleri.addWidget(self.halka_grafik,1); stok_grafikleri.addWidget(self.stok_sutun_grafik,1); sk.addLayout(stok_grafikleri)
@@ -894,31 +904,75 @@ class AnaPencere(QMainWindow):
         dk.addWidget(QLabel("En Değerli 5 Ürün")); self.cubuk_grafik = CubukGrafik(); dk.addWidget(self.cubuk_grafik)
         hareket_grafik_karti = QFrame(); hareket_grafik_karti.setObjectName("panel"); hg = QVBoxLayout(hareket_grafik_karti)
         hg.addWidget(QLabel("Hareket Dağılımı")); self.hareket_grafik = CubukGrafik(); hg.addWidget(self.hareket_grafik)
-        grafikler.addWidget(stok_karti, 1); grafikler.addWidget(deger_karti, 1); grafikler.addWidget(hareket_grafik_karti, 1); d.addLayout(grafikler)
+        self.grafik_widgetlari=[stok_karti,deger_karti,hareket_grafik_karti]; d.addLayout(self.grafik_yerlesim)
 
-        alt = QHBoxLayout()
+        self.alt_yerlesim = QGridLayout(); self.alt_yerlesim.setSpacing(8)
         hareket_karti = QFrame(); hareket_karti.setObjectName("panel"); hk = QVBoxLayout(hareket_karti)
         hk.addWidget(QLabel("Son Stok Hareketleri")); self.hareket_tablosu = QTableWidget(0, 3)
         self.hareket_tablosu.setHorizontalHeaderLabels(["Tarih", "İşlem", "Miktar"]); tablo_standardi(self.hareket_tablosu, 27)
         self.hareket_tablosu.setMinimumHeight(245); hk.addWidget(self.hareket_tablosu,1)
-        alt.addWidget(hareket_karti, 2)
         finans = QFrame(); finans.setObjectName("panel"); fk = QVBoxLayout(finans)
         fb = QHBoxLayout(); fb.addWidget(QLabel("Finans Merkezi")); fb.addStretch(); fk.addLayout(fb)
         self.kur_bilgileri = QLabel("TCMB kurları yükleniyor…"); self.kur_bilgileri.setObjectName("kurBilgisi"); fk.addWidget(self.kur_bilgileri)
         self.piyasa_bilgileri=QLabel("ALTIN  —     GÜMÜŞ  —\nBİST ARTAN  —     BİST AZALAN  —"); self.piyasa_bilgileri.setObjectName("kurBilgisi"); self.piyasa_bilgileri.setAlignment(Qt.AlignmentFlag.AlignCenter); fk.addWidget(self.piyasa_bilgileri,1)
         self.kur_durumu = QLabel("Resmî TCMB gösterge kurları"); self.kur_durumu.setObjectName("soluk"); fk.addWidget(self.kur_durumu)
-        alt.addWidget(finans, 2)
         aktif = QFrame(); aktif.setObjectName("panel"); ad = QVBoxLayout(aktif); ad.addWidget(QLabel("Aktif Kullanıcılar"))
         self.aktif_kullanicilar=QLabel("Cloud bağlantısı bekleniyor…"); self.aktif_kullanicilar.setObjectName("soluk"); self.aktif_kullanicilar.setAlignment(Qt.AlignmentFlag.AlignTop); self.aktif_kullanicilar.setWordWrap(True)
-        ad.addWidget(self.aktif_kullanicilar,1); alt.addWidget(aktif,1); d.addLayout(alt)
-        hizli = QHBoxLayout()
+        ad.addWidget(self.aktif_kullanicilar,1); self.alt_widgetlari=[hareket_karti,finans,aktif]; d.addLayout(self.alt_yerlesim)
+        self.hizli_yerlesim = QGridLayout(); self.hizli_yerlesim.setSpacing(8); self.hizli_dugmeler=[]
         for ad, komut in (("Ürün Özelleştirmeleri", self.urun_ozellestirmeleri_ac), ("Ürünler", self.urun_yonetimi_ac),
                           ("Kritik Stoklar", self.kritikleri_ac), ("Sipariş Önerileri", self.siparis_onerileri_ac),
                           ("Stok Transferi", self.transfer_ac)):
-            b = QPushButton(ad); b.clicked.connect(komut); hizli.addWidget(b)
-        d.addLayout(hizli)
+            b = QPushButton(ad); b.clicked.connect(komut); self.hizli_dugmeler.append(b)
+        d.addLayout(self.hizli_yerlesim)
         self.ara = QLineEdit()
+        self.duyarli_mod = None; self.duyarli_yerlesimi_guncelle()
         QTimer.singleShot(700, self.kurlari_yenile)
+
+    @staticmethod
+    def yerlesimi_bosalt(yerlesim):
+        while yerlesim.count(): yerlesim.takeAt(0)
+
+    def resizeEvent(self, olay):
+        super().resizeEvent(olay)
+        QTimer.singleShot(0, self.duyarli_yerlesimi_guncelle)
+
+    def duyarli_yerlesimi_guncelle(self):
+        if not hasattr(self, "kaydir") or not hasattr(self, "ust_yerlesim"): return
+        genislik = self.kaydir.viewport().width()
+        mod = "genis" if genislik >= 1120 else "orta" if genislik >= 760 else "dar"
+        if mod == self.duyarli_mod: return
+        self.duyarli_mod = mod
+        for yerlesim in (self.ust_yerlesim,self.kart_yerlesim,self.grafik_yerlesim,self.alt_yerlesim,self.hizli_yerlesim):
+            self.yerlesimi_bosalt(yerlesim)
+        for sutun in range(5):
+            self.ust_yerlesim.setColumnStretch(sutun,0)
+            self.alt_yerlesim.setColumnStretch(sutun,0)
+        if mod == "genis":
+            self.ust_yerlesim.addWidget(self.baslik,0,0); self.ust_yerlesim.addWidget(self.konum,0,1)
+            self.ust_yerlesim.addWidget(self.yenile_dugmesi,0,2); self.ust_yerlesim.setColumnStretch(3,1)
+            self.ust_yerlesim.addWidget(self.sosyal,0,4); kart_sutun,grafik_sutun=4,3
+        elif mod == "orta":
+            self.ust_yerlesim.addWidget(self.baslik,0,0); self.ust_yerlesim.addWidget(self.konum,0,1)
+            self.ust_yerlesim.addWidget(self.yenile_dugmesi,0,2); self.ust_yerlesim.addWidget(self.sosyal,1,0,1,3,Qt.AlignmentFlag.AlignRight)
+            kart_sutun,grafik_sutun=2,2
+        else:
+            self.ust_yerlesim.addWidget(self.baslik,0,0,1,2); self.ust_yerlesim.addWidget(self.konum,1,0)
+            self.ust_yerlesim.addWidget(self.yenile_dugmesi,1,1); self.ust_yerlesim.addWidget(self.sosyal,2,0,1,2,Qt.AlignmentFlag.AlignLeft)
+            kart_sutun,grafik_sutun=2,1
+        for i,w in enumerate(self.kart_widgetlari): self.kart_yerlesim.addWidget(w,i//kart_sutun,i%kart_sutun)
+        for i,w in enumerate(self.grafik_widgetlari): self.grafik_yerlesim.addWidget(w,i//grafik_sutun,i%grafik_sutun)
+        if mod == "genis":
+            for i,(w,oran) in enumerate(zip(self.alt_widgetlari,(2,2,1))):
+                self.alt_yerlesim.addWidget(w,0,i); self.alt_yerlesim.setColumnStretch(i,oran)
+            hizli_sutun=5
+        elif mod == "orta":
+            self.alt_yerlesim.addWidget(self.alt_widgetlari[0],0,0,1,2); self.alt_yerlesim.addWidget(self.alt_widgetlari[1],1,0)
+            self.alt_yerlesim.addWidget(self.alt_widgetlari[2],1,1); hizli_sutun=3
+        else:
+            for i,w in enumerate(self.alt_widgetlari): self.alt_yerlesim.addWidget(w,i,0)
+            hizli_sutun=2
+        for i,w in enumerate(self.hizli_dugmeler): self.hizli_yerlesim.addWidget(w,i//hizli_sutun,i%hizli_sutun)
 
     def konumlari_yenile(self):
         onceki = self.konum.currentData(); self.konum.blockSignals(True); self.konum.clear()
@@ -1082,7 +1136,10 @@ class AnaPencere(QMainWindow):
             if not self.guncelleme_sessiz:QMessageBox.information(self,"DeporiaQ güncel",f"En güncel sürümü kullanıyorsunuz: {SURUM}")
             return
         notlar=str(manifest.get("notes","")).strip();mesaj=f"DeporiaQ {yeni} hazır.\n\n{notlar[:500]}\n\nGüvenli güncelleme aracını şimdi açalım mı?"
-        if QMessageBox.question(self,"Yeni güncelleme hazır",mesaj)!=QMessageBox.StandardButton.Yes:return
+        soru=QMessageBox(QMessageBox.Icon.Question,"Yeni güncelleme hazır",mesaj,parent=self)
+        simdi=soru.addButton("Şimdi Güncelle",QMessageBox.ButtonRole.AcceptRole)
+        soru.addButton("Daha Sonra",QMessageBox.ButtonRole.RejectRole);soru.exec()
+        if soru.clickedButton() is not simdi:return
         arac=Path(sys.executable).resolve().parent/"DeporiaQUpdate.exe" if getattr(sys,"frozen",False) else Path(__file__).resolve().parent/"DeporiaQUpdate.exe"
         if not arac.exists():QMessageBox.warning(self,"Güncelleme aracı bulunamadı","DeporiaQUpdate.exe kurulum klasöründe bulunamadı.");return
         subprocess.Popen([str(arac),"--install-now"],close_fds=True)
