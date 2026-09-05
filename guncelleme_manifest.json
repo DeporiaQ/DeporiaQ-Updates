@@ -1,6 +1,6 @@
 {
-  "version": "0.21.3",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.21.3/DeporiaQ_Setup_0.21.3.exe",
-  "sha256": "30b540a8cc1eb9bea2155f4ec6ceb78cb18e5dc0b7428493b2a8ef0e9b89a748",
-  "notes": "Küçük ekranlarda kaybolmayan menü, duyarlı gösterge paneli ve yatay taşma düzeltmesi eklendi."
+  "version": "0.21.4",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.21.4/DeporiaQ_Setup_0.21.4.exe",
+  "sha256": "b16024bc42918822ae9b5579479c54826c98bbb9dc3bfdd555236d74196160d4",
+  "notes": "Modern kaydırma çubukları, sağ alt güncelleme bildirimi ve yüzdeli güncelleme ilerlemesi eklendi."
 }
