@@ -1,4 +1,4 @@
-"""DeporiaQ 0.22.0 görünür ilerlemeli güvenli güncelleme yardımcısı."""
+"""DeporiaQ 0.22.1 görünür ilerlemeli güvenli güncelleme yardımcısı."""
 import ctypes
 import hashlib
 import json
@@ -14,13 +14,44 @@ from tkinter import ttk
 import urllib.request
 from pathlib import Path
 
-MEVCUT_SURUM = "0.22.0"
+MEVCUT_SURUM = "0.22.1"
 PROGRAM_ADI = "DeporiaQ"
 AZAMI_GUNCELLEME_BOYUTU = 1024 * 1024 * 1024
 
 
 def uygulama_klasoru():
     return Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+
+
+def deporiaq_yolunu_bul():
+    """Güncellemeden sonra kurulu uygulamayı güvenilir biçimde bulur."""
+    adaylar = [
+        uygulama_klasoru() / "DeporiaQ.exe",
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "DeporiaQ" / "DeporiaQ.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "DeporiaQ" / "DeporiaQ.exe",
+    ]
+    for aday in adaylar:
+        if aday.is_file():
+            return aday
+    return adaylar[0]
+
+
+def gecikmeli_yeniden_baslat(uygulama):
+    """Güncelleyici kapandıktan sonra DeporiaQ'yu birkaç kez deneyerek açar."""
+    if os.name != "nt":
+        subprocess.Popen([str(uygulama)], close_fds=True)
+        return
+    komut = (
+        "$p='" + str(uygulama).replace("'", "''") + "';"
+        "1..5|%{Start-Sleep -Seconds 2;"
+        "if(Test-Path -LiteralPath $p){Start-Process -FilePath $p;exit}}"
+    )
+    bayrak = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+    subprocess.Popen(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", komut],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        creationflags=bayrak, close_fds=True,
+    )
 
 
 def surum_parcalari(surum):
@@ -155,9 +186,9 @@ class Bildirim:
                 self.kurulum_suruyor=False
                 if sonuc.returncode!=0:raise RuntimeError(f"Kurulum tamamlanamadı (kod {sonuc.returncode}).")
                 self.ilerleme_ayarla(100,"Güncelleme tamamlandı • DeporiaQ yeniden açılıyor…")
-                uygulama=uygulama_klasoru()/"DeporiaQ.exe"
-                if uygulama.exists():subprocess.Popen([str(uygulama)],env=ortam,close_fds=True)
-                self.root.after(1400,self.kapat)
+                uygulama=deporiaq_yolunu_bul()
+                gecikmeli_yeniden_baslat(uygulama)
+                self.root.after(1000,self.kapat)
             except Exception as hata:
                 self.kurulum_suruyor=False
                 try: gecici.unlink(missing_ok=True)
@@ -196,6 +227,7 @@ def sessiz_indir_ve_kur(manifest):
     ortam["PYINSTALLER_RESET_ENVIRONMENT"]="1"
     sonuc=subprocess.run([str(hedef),"/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CLOSEAPPLICATIONS","/FORCECLOSEAPPLICATIONS"],env=ortam,close_fds=True)
     if sonuc.returncode != 0:raise RuntimeError(f"Kurulum tamamlanamadı (kod {sonuc.returncode}).")
+    gecikmeli_yeniden_baslat(deporiaq_yolunu_bul())
 
 
 if __name__ == "__main__" and tek_ornek_calissin():

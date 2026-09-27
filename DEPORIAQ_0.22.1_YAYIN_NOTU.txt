@@ -1,0 +1,7 @@
+DeporiaQ 0.22.1
+
+- Güncelleme tamamlandıktan sonra uygulamanın otomatik açılmaması düzeltildi.
+- Windows dosya kilidi ve kurulum kapanışı için gecikmeli yeniden başlatma eklendi.
+- DeporiaQ bulunamazsa farklı standart kurulum konumları kontrol edilir.
+- Açılış işlemi tek deneme yerine kontrollü biçimde tekrar denenir.
+- Cloud-first giriş ve veritabanısız ikinci bilgisayar kurulumu korunur.
