@@ -1,6 +1,6 @@
 {
-  "version": "0.21.4",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.21.4/DeporiaQ_Setup_0.21.4.exe",
-  "sha256": "b16024bc42918822ae9b5579479c54826c98bbb9dc3bfdd555236d74196160d4",
-  "notes": "Modern kaydırma çubukları, sağ alt güncelleme bildirimi ve yüzdeli güncelleme ilerlemesi eklendi."
+  "version": "0.22.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.0/DeporiaQ_Setup_0.22.0.exe",
+  "sha256": "f26941188c2dbb51cc02f35e83a22866b9f53c5258c25c0d0e9b3a48d75bf9c5",
+  "notes": "Cloud-first giriş eklendi. Yeni bilgisayarda veritabanı taşımadan e-posta ve Cloud parolasıyla işletme verileri otomatik indirilir. Güncelleme denetimi giriş ekranında başlar."
 }
