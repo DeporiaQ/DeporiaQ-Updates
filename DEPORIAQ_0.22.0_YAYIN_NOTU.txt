@@ -1,0 +1,11 @@
+DeporiaQ 0.22.0 - Cloud-first giriş
+
+- Yeni bilgisayara müşteri veritabanı dosyası göndermek artık gerekmez.
+- İlk açılışta yalnızca Supabase e-posta adresi ve Cloud parolası istenir.
+- İşletme, yetki, konum, ürün ve stok bilgileri otomatik indirilerek güvenli yerel çalışma alanı hazırlanır.
+- Project URL ve publishable key son kullanıcıya gösterilmez; GitHub Actions secrets üzerinden yayın paketine eklenir.
+- Sonraki girişler için kullanıcı adı otomatik oluşturulur ve hatırlanabilir.
+- Güncelleme denetimi giriş ekranında başlar; kullanıcı oturum açmadan yeni sürüm bildirimi alabilir.
+- Sessiz kurulum, yüzdeli ilerleme ve güncelleme sonrası otomatik açılış korunmuştur.
+
+Güvenlik notu: Masaüstü uygulamasına yalnızca Supabase publishable/anon anahtarı eklenmelidir. Secret veya service_role anahtarı kullanılmamalıdır.

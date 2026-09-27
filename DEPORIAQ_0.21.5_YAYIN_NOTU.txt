@@ -1,0 +1,8 @@
+DeporiaQ 0.21.5 - Güncelleme Akışı Doğrulaması
+
+- Sağ alt köşedeki güncelleme bildirimi gerçek güncelleme geçişinde sınanacak.
+- Gerçek indirme yüzdesi ve aşama bilgileri etkinleştirildi.
+- Kurulum tamamlandıktan sonra DeporiaQ'nun otomatik açılması etkinleştirildi.
+- Modern, tema uyumlu kaydırma çubukları korunuyor.
+
+Bu sürüm veritabanı değişikliği içermez. Supabase SQL çalıştırılması gerekmez.

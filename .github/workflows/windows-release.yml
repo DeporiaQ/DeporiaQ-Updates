@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Yayın sürümü (örnek: 0.21.4)"
+        description: "Yayın sürümü (örnek: 0.22.0)"
         required: true
-        default: "0.21.4"
+        default: "0.22.0"
 
 permissions:
   contents: write
@@ -38,10 +38,24 @@ jobs:
             throw "deporiaq_qt.py sürümü ile yayın sürümü uyuşmuyor."
           }
 
+      - name: Cloud istemci yapılandırmasını hazırla
+        shell: pwsh
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_URL)) { throw "SUPABASE_URL secret tanımlı değil." }
+          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_PUBLISHABLE_KEY)) { throw "SUPABASE_PUBLISHABLE_KEY secret tanımlı değil." }
+          if ($env:SUPABASE_PUBLISHABLE_KEY -match "service_role|sb_secret_") { throw "Secret/service_role anahtarı masaüstü uygulamasına gömülemez." }
+          [ordered]@{
+            project_url = $env:SUPABASE_URL.TrimEnd('/')
+            publishable_key = $env:SUPABASE_PUBLISHABLE_KEY
+          } | ConvertTo-Json | Set-Content deporiaq_cloud.json -Encoding utf8
+
       - name: Windows uygulamalarını oluştur
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --add-data "deporiaq_cloud.json;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeporiaQUpdate deporiaq_guncelleme_bildirici.py
 
       - name: Kurulum dosyasını oluştur
@@ -59,7 +73,7 @@ jobs:
             version = $version
             download_url = "https://github.com/${{ github.repository }}/releases/download/v$version/DeporiaQ_Setup_$version.exe"
             sha256 = $sha
-            notes = "Modern kaydırma çubukları, sağ alt güncelleme bildirimi ve yüzdeli güncelleme ilerlemesi eklendi."
+            notes = "Cloud-first giriş eklendi. Yeni bilgisayarda veritabanı taşımadan e-posta ve Cloud parolasıyla işletme verileri otomatik indirilir. Güncelleme denetimi giriş ekranında başlar."
           }
           $manifest | ConvertTo-Json | Set-Content guncelleme_manifest.json -Encoding utf8
 
@@ -69,7 +83,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ inputs.version }}"
-          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.21.4_YAYIN_NOTU.txt
+          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.22.0_YAYIN_NOTU.txt
 
       - name: Manifesti ana dala gönder
         shell: pwsh
