@@ -1,0 +1,9 @@
+DeporiaQ 0.22.2
+
+- Uzun lokasyon adları için genişleyen konum seçici eklendi.
+- Özet kartları yatay, daha büyük ve okunabilir hale getirildi.
+- Stok sağlığı grafikleri ve açıklamaları büyütüldü.
+- Gösterge paneline profesyonel depo arka planı eklendi.
+- Finans Merkezi'ne stok sermayesi, ürün başına değer, kritik ürün ve stok güven endeksi eklendi.
+- Grafik alanlarındaki gereksiz boşluklar dengelendi.
+- Güncelleme sonrası otomatik yeniden açılma düzeltmesi etkinleştirildi.
