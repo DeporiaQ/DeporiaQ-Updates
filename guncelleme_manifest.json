@@ -1,6 +1,6 @@
 {
-  "version": "0.22.1",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.1/DeporiaQ_Setup_0.22.1.exe",
-  "sha256": "4f67dd6eac2a2c177263ad992c4ffd8e51a40d6d2ab03f0df0684ed9489dc824",
-  "notes": "Güncelleme tamamlandıktan sonra DeporiaQ gecikmeli ve doğrulamalı olarak otomatik yeniden açılır. Cloud-first giriş ve veritabanısız ikinci cihaz kurulumu korunur."
+  "version": "0.22.2",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.2/DeporiaQ_Setup_0.22.2.exe",
+  "sha256": "85aaabad6d7900fcddd0fb2d9e6053562f0b081e1f512b3539f9560a63bc64b6",
+  "notes": "Gösterge paneli depo görseliyle yenilendi; özet kartları, stok sağlığı ve finans merkezi daha okunabilir ve işlevsel hale getirildi. Otomatik yeniden açılma düzeltmesi etkinleştirildi."
 }
