@@ -7,3 +7,4 @@ DeporiaQ 0.22.2
 - Finans Merkezi'ne stok sermayesi, ürün başına değer, kritik ürün ve stok güven endeksi eklendi.
 - Grafik alanlarındaki gereksiz boşluklar dengelendi.
 - Güncelleme sonrası otomatik yeniden açılma düzeltmesi etkinleştirildi.
+- Kurulum dosyasına çift tıklandığında görünür kurulum sihirbazının açılmaması düzeltildi.

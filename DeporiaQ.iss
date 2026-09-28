@@ -1,5 +1,5 @@
 #define MyAppName "DeporiaQ"
-#define MyAppVersion "0.22.2"
+#define MyAppVersion "0.22.3"
 #define MyAppPublisher "DeporiaQ"
 #define MyAppExeName "DeporiaQ.exe"
 
@@ -45,26 +45,3 @@ Filename: "{app}\{#MyAppExeName}"; Description: "DeporiaQ'yu başlat"; Flags: no
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""DeporiaQ Update Check"""; Flags: runhidden waituntilterminated; RunOnceId: "DeporiaQUpdateTaskDelete"
-
-[Code]
-function ParametreVar(Aranan: String): Boolean;
-var
-  I: Integer;
-begin
-  Result := False;
-  for I := 1 to ParamCount do
-    if CompareText(ParamStr(I), Aranan) = 0 then begin Result := True; Exit; end;
-end;
-
-function InitializeSetup(): Boolean;
-var
-  Kod: Integer;
-begin
-  Result := True;
-  { 0.20 ve daha eski güncelleyiciler parametre vermese bile kurulumu sessiz sürdür. }
-  if (not WizardSilent) and (not ParametreVar('/DEPORIAQ_SILENT')) then
-  begin
-    ShellExec('', ExpandConstant('{srcexe}'), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /DEPORIAQ_SILENT', '', SW_SHOW, ewNoWait, Kod);
-    Result := False;
-  end;
-end;

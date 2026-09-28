@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Yayın sürümü (örnek: 0.22.2)"
+        description: "Yayın sürümü (örnek: 0.22.3)"
         required: true
-        default: "0.22.2"
+        default: "0.22.3"
 
 permissions:
   contents: write
 
 jobs:
   build-and-release:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Kaynakları al
         uses: actions/checkout@v5
@@ -60,7 +60,21 @@ jobs:
 
       - name: Kurulum dosyasını oluştur
         shell: pwsh
-        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" DeporiaQ.iss'
+        run: |
+          if ((Get-Content DeporiaQ.iss -Raw) -match 'InitializeSetup') {
+            throw "Kurulumu görünmeden kapatan InitializeSetup kodu yeniden eklenemez."
+          }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" DeporiaQ.iss
+
+      - name: Windows 10 ve 11 kurulum testini yap
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $setup = Join-Path $PWD "kurulum\DeporiaQ_Setup_$version.exe"
+          $testDir = Join-Path $env:RUNNER_TEMP "DeporiaQ-Install-Test"
+          $process = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$testDir" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Kurulum testi başarısız: $($process.ExitCode)" }
+          if (-not (Test-Path (Join-Path $testDir "DeporiaQ.exe"))) { throw "Kurulum testi DeporiaQ.exe oluşturmadı." }
 
       - name: Güncelleme manifestini üret
         shell: pwsh
@@ -83,7 +97,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ inputs.version }}"
-          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.22.2_YAYIN_NOTU.txt
+          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.22.3_YAYIN_NOTU.txt
 
       - name: Manifesti ana dala gönder
         shell: pwsh

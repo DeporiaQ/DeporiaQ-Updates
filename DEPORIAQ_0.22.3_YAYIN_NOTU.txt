@@ -1,0 +1,6 @@
+DeporiaQ 0.22.3
+
+- Windows 10 ve Windows 11 üzerinde kurulumun başlamadan kapanmasına neden olan eski InitializeSetup yönlendirmesi tamamen kaldırıldı.
+- Kurulum dosyasına çift tıklandığında standart, görünür kurulum sihirbazı açılır.
+- 0.22.2 gösterge paneli, depo arka planı ve Finans Merkezi geliştirmeleri korunur.
+- Güncelleme sonrası otomatik yeniden açılma düzeltmesi korunur.

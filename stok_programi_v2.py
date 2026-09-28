@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.22.2"
+PROGRAM_SURUMU = "0.22.3"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
