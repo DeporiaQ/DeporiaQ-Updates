@@ -1,6 +1,6 @@
 {
-  "version": "0.22.2",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.2/DeporiaQ_Setup_0.22.2.exe",
-  "sha256": "85aaabad6d7900fcddd0fb2d9e6053562f0b081e1f512b3539f9560a63bc64b6",
+  "version": "0.22.3",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.3/DeporiaQ_Setup_0.22.3.exe",
+  "sha256": "b31ddc4810d8d5a0e143a48bfd0ce5c41c2cfcb3c27707166e2afc2c6e7cd685",
   "notes": "Gösterge paneli depo görseliyle yenilendi; özet kartları, stok sağlığı ve finans merkezi daha okunabilir ve işlevsel hale getirildi. Otomatik yeniden açılma düzeltmesi etkinleştirildi."
 }
