@@ -1,6 +1,6 @@
 {
-  "version": "0.22.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.0/DeporiaQ_Setup_0.22.0.exe",
-  "sha256": "f26941188c2dbb51cc02f35e83a22866b9f53c5258c25c0d0e9b3a48d75bf9c5",
-  "notes": "Cloud-first giriş eklendi. Yeni bilgisayarda veritabanı taşımadan e-posta ve Cloud parolasıyla işletme verileri otomatik indirilir. Güncelleme denetimi giriş ekranında başlar."
+  "version": "0.22.1",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.1/DeporiaQ_Setup_0.22.1.exe",
+  "sha256": "4f67dd6eac2a2c177263ad992c4ffd8e51a40d6d2ab03f0df0684ed9489dc824",
+  "notes": "Güncelleme tamamlandıktan sonra DeporiaQ gecikmeli ve doğrulamalı olarak otomatik yeniden açılır. Cloud-first giriş ve veritabanısız ikinci cihaz kurulumu korunur."
 }
