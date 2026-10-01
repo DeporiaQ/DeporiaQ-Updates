@@ -1,0 +1,11 @@
+DeporiaQ 0.22.4
+
+- İşletme aboneliği Supabase sunucu saatine göre her girişte ve çalışma sırasında doğrulanır.
+- Süresi biten, askıya alınan veya iptal edilen abonelik uygulama erişimini güvenli biçimde durdurur.
+- Cloud üyeliği kullanıcı kimliğiyle açıkça filtrelenir; viewer rolünün yanlışlıkla Ana Yönetici görünmesi engellenir.
+- Bilinmeyen roller otomatik olarak Görüntüleyici yetkisine düşürülür.
+- Kullanıcı adı veya Cloud e-posta ile giriş desteği ve daha anlaşılır ilk kurulum akışı eklendi.
+- Depo arka planı görünür hale getirildi; kartlar ve paneller okunabilir cam görünümle yenilendi.
+- Güncelleme sonrası otomatik yeniden açılma ve görünür ilerleme akışı korunmuştur.
+
+ÖNEMLİ: Yayından önce DEPORIAQ_CLOUD_0.22.4_MIGRATION.sql dosyasını Supabase SQL Editor'da bir kez çalıştırın.

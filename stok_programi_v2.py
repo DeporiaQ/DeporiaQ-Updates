@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.22.3"
+PROGRAM_SURUMU = "0.22.4"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -1751,6 +1751,7 @@ class DeporiaQCloud:
         self.role = ""
         self.local_username = ""
         self.location_name = ""
+        self.entitlement = {}
 
     @property
     def bagli(self):
@@ -1804,13 +1805,15 @@ class DeporiaQCloud:
         if not self.access_token:
             raise RuntimeError("Cloud oturumu açılamadı.")
         uyelikler = self._istek(
-            "/rest/v1/company_members?select=company_id,role&active=eq.true&limit=1"
+            "/rest/v1/company_members?select=company_id,role"
+            f"&user_id=eq.{urllib.parse.quote(self.user_id)}&active=eq.true&limit=1"
         ) or []
         if not uyelikler:
             self.cikis_yap()
             raise RuntimeError("Bu hesabın etkin bir DeporiaQ işletme üyeliği yok.")
         self.company_id = uyelikler[0]["company_id"]
-        self.role = uyelikler[0]["role"]
+        self.role = self._rolu_guvenli_yap(uyelikler[0].get("role"))
+        self.lisans_dogrula()
         sirketler = self._istek(
             f"/rest/v1/companies?select=name&id=eq.{self.company_id}&limit=1"
         ) or []
@@ -1829,18 +1832,50 @@ class DeporiaQCloud:
         if not self.access_token:
             raise RuntimeError("Cloud oturumu yenilenemedi.")
         uyelikler = self._istek(
-            "/rest/v1/company_members?select=company_id,role&active=eq.true&limit=1"
+            "/rest/v1/company_members?select=company_id,role"
+            f"&user_id=eq.{urllib.parse.quote(self.user_id)}&active=eq.true&limit=1"
         ) or []
         if not uyelikler:
             self.cikis_yap()
             raise RuntimeError("Etkin işletme üyeliği bulunamadı.")
-        self.company_id, self.role = uyelikler[0]["company_id"], uyelikler[0]["role"]
+        self.company_id = uyelikler[0]["company_id"]
+        self.role = self._rolu_guvenli_yap(uyelikler[0].get("role"))
+        self.lisans_dogrula()
         sirketler = self._istek(
             f"/rest/v1/companies?select=name&id=eq.{self.company_id}&limit=1"
         ) or []
         self.company_name = sirketler[0]["name"] if sirketler else "DeporiaQ Cloud"
         self._cihazi_kaydet()
         return self.company_name
+
+    @staticmethod
+    def _rolu_guvenli_yap(rol):
+        """Bilinmeyen/bozuk Cloud rolleri yetki yükseltmek yerine salt okunura düşer."""
+        rol = str(rol or "").strip().lower()
+        return rol if rol in {"owner", "admin", "manager", "employee", "warehouse", "branch", "viewer"} else "viewer"
+
+    @staticmethod
+    def yerel_rol_kodu(rol):
+        return {
+            "owner": "ANA_YONETICI", "admin": "ANA_YONETICI", "manager": "ANA_YONETICI",
+            "employee": "DEPO_PERSONELI", "warehouse": "DEPO_PERSONELI",
+            "branch": "SUBE_PERSONELI", "viewer": "GORUNTULEYICI",
+        }.get(str(rol or "").lower(), "GORUNTULEYICI")
+
+    def lisans_dogrula(self):
+        """Abonelik kararını yalnızca Supabase sunucu saatine göre doğrular."""
+        sonuc = self._istek("/rest/v1/rpc/get_my_entitlement", "POST", {}) or []
+        kayit = sonuc[0] if isinstance(sonuc, list) and sonuc else (sonuc if isinstance(sonuc, dict) else {})
+        if not kayit or str(kayit.get("company_id", "")) != self.company_id:
+            raise RuntimeError("[LISANS] Bu işletme için geçerli bir DeporiaQ lisansı bulunamadı.")
+        if not bool(kayit.get("allowed")):
+            durum = str(kayit.get("status") or "inactive")
+            raise RuntimeError(
+                f"[LISANS] DeporiaQ aboneliği etkin değil ({durum}). "
+                "İşletme yöneticinizin DeporiaQ ile iletişime geçmesi gerekir."
+            )
+        self.entitlement = dict(kayit)
+        return self.entitlement
 
     def cikis_yap(self):
         self.access_token = self.refresh_token = self.user_id = self.company_id = ""
@@ -2207,11 +2242,7 @@ class DeporiaQCloud:
         if not konumlar:
             raise RuntimeError("Cloud işletmesinde etkin bir merkez/depo/şube bulunamadı.")
         merkez = next((k for k in konumlar if k.get("location_type") == "center"), konumlar[0])
-        yerel_rol = {
-            "owner": "ANA_YONETICI", "admin": "ANA_YONETICI", "manager": "ANA_YONETICI",
-            "employee": "DEPO_PERSONELI", "warehouse": "DEPO_PERSONELI",
-            "branch": "SUBE_PERSONELI", "viewer": "GORUNTULEYICI",
-        }.get(str(self.role).lower(), "GORUNTULEYICI")
+        yerel_rol = self.yerel_rol_kodu(self.role)
         try:
             self.vt.ilk_kurulumu_tamamla(
                 self.company_name, "Cloud işletmesi", merkez["name"], "TL",

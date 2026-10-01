@@ -1,4 +1,4 @@
-"""DeporiaQ 0.22.3 - Cloud merkezli, veritabanısız müşteri kurulumu."""
+"""DeporiaQ 0.22.4 - güvenli abonelik, doğru roller ve yenilenen görünüm."""
 import csv
 import json
 import os
@@ -30,7 +30,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.22.3"
+SURUM = "0.22.4"
 
 
 def kaynak_yolu(ad):
@@ -127,6 +127,7 @@ class CloudKontrolu(QThread):
         try:
             if self.refresh_token and not self.cloud.bagli:self.cloud.oturumu_yenile(self.refresh_token)
             if not self.cloud.bagli:raise RuntimeError("Cloud oturumu gerekli")
+            self.cloud.lisans_dogrula()
             self.cloud._cihazi_kaydet(); self.tamamlandi.emit(self.cloud.cihazlari_getir(),self.cloud.refresh_token)
         except Exception as e:self.hata.emit(str(e))
 
@@ -225,7 +226,8 @@ class DashboardArkaPlan(QWidget):
                                       Qt.TransformationMode.SmoothTransformation)
             x = max(0, (kapla.width() - self.width()) // 2); y = max(0, (kapla.height() - self.height()) // 2)
             p.drawPixmap(self.rect(), kapla, QRectF(x, y, self.width(), self.height()))
-        p.fillRect(self.rect(), QColor(7, 15, 28, 188))
+        # Görsel belirgin kalır; koyu katman metinlerin okunabilirliğini korur.
+        p.fillRect(self.rect(), QColor(7, 15, 28, 112))
 
 
 class FinansOzetGrafik(QWidget):
@@ -277,7 +279,7 @@ class IlkKurulumPenceresi(QDialog):
         goster=QCheckBox("Parolayı göster");goster.toggled.connect(lambda acik:self.m_cloud_pw.setEchoMode(QLineEdit.EchoMode.Normal if acik else QLineEdit.EchoMode.Password))
         secenekler.addWidget(self.m_hatirla);secenekler.addStretch();secenekler.addWidget(goster);ana.addLayout(secenekler)
         self.durum=QLabel("İlk girişte verileriniz güvenli biçimde bu bilgisayara hazırlanır.");self.durum.setWordWrap(True);self.durum.setObjectName("soluk");ana.addWidget(self.durum)
-        self.m_tamam=QPushButton("Giriş Yap ve İşletmeyi İndir");self.m_tamam.setObjectName("birincil");self.m_tamam.clicked.connect(self.mevcut_isletme);ana.addWidget(self.m_tamam)
+        self.m_tamam=QPushButton("Giriş Yap ve İşletmeyi Hazırla");self.m_tamam.setObjectName("birincil");self.m_tamam.clicked.connect(self.mevcut_isletme);ana.addWidget(self.m_tamam)
         ana.addStretch()
 
     def mevcut_isletme(self):
@@ -298,7 +300,8 @@ class IlkKurulumPenceresi(QDialog):
             urun,konum,stok=cloud.mevcut_isletmeyi_bu_cihaza_kur(kullanici,parola)
             yerel_ayari_kaydet("cloud_url",url);yerel_ayari_kaydet("cloud_publishable_key",anahtar);yerel_ayari_kaydet("cloud_email",email)
             yerel_ayari_kaydet("hatirlanan_kullanici",kullanici)
-            yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(cloud.refresh_token) if self.m_hatirla.isChecked() else "")
+            # Cloud parolası değil, Supabase'in iptal edilebilir oturum anahtarı DPAPI ile korunur.
+            yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(cloud.refresh_token))
         except Exception as e:
             self.m_tamam.setEnabled(True);self.durum.setText("Bağlantı kurulamadı. Bilgilerinizi kontrol edip yeniden deneyin.");QMessageBox.warning(self,"İşletmeye bağlanılamadı",str(e));return
         QMessageBox.information(self,"Bağlantı tamamlandı",f"{sirket} bu bilgisayara bağlandı.\n{konum} konum, {urun} ürün ve {stok} stok kaydı indirildi.\n\nSonraki girişlerde kullanıcı adınız: {kullanici}")
@@ -325,7 +328,7 @@ class GirisPenceresi(QWidget):
         kutu.addWidget(alt)
         kutu.addSpacing(28)
         self.kullanici = QLineEdit()
-        self.kullanici.setPlaceholderText("Kullanıcı adı")
+        self.kullanici.setPlaceholderText("Kullanıcı adı veya Cloud e-posta")
         self.kullanici.setText(str(self.ayarlar.get("hatirlanan_kullanici", "")))
         self.parola = QLineEdit()
         self.parola.setPlaceholderText("Parola")
@@ -383,14 +386,43 @@ class GirisPenceresi(QWidget):
             subprocess.Popen([str(arac), "--notify"], close_fds=True)
 
     def giris(self):
-        kayit = self.vt.kimlik_dogrula(self.kullanici.text(), self.parola.text())
+        girilen = self.kullanici.text().strip()
+        yerel_ad = ("".join(c for c in girilen.split("@",1)[0].upper() if c.isalnum() or c in "_-")
+                    if "@" in girilen else girilen)
+        url, anahtar = cloud_yapilandirmasi_oku()
+        cloud_bagli = bool(url and anahtar and self.vt.ayar_getir("cloud_etkin", "0") == "1")
+        # E-postayla girişte Cloud hesabı doğrudan kimliktir; kullanıcı adıyla girişte yerel parola doğrulanır.
+        kayit = self.vt.kullanici_bul(yerel_ad) if (cloud_bagli and "@" in girilen) else self.vt.kimlik_dogrula(yerel_ad, self.parola.text())
         if not kayit:
-            QMessageBox.warning(self, "Giriş başarısız", "Kullanıcı adı veya parola hatalı.")
-            self.parola.clear()
-            return
+            QMessageBox.warning(self, "Giriş başarısız", "Kullanıcı adı/e-posta veya parola hatalı.")
+            self.parola.clear(); return
+        # Cloud bağlantılı kurulumlarda üyelik, rol ve abonelik her açılışta sunucudan doğrulanır.
+        if cloud_bagli:
+            cloud = DeporiaQCloud(self.vt, str(ayarlari_oku().get("cihaz_kimligi", "")))
+            cloud.local_username = yerel_ad
+            try:
+                cloud.yapilandir(url, anahtar)
+                if "@" in girilen:
+                    cloud.giris_yap(girilen, self.parola.text())
+                else:
+                    token = windows_sifre_coz(str(ayarlari_oku().get("cloud_refresh_token_dpapi", "")))
+                    if not token:
+                        raise RuntimeError("Güvenli Cloud oturumu bulunamadı. E-posta adresiniz ve Cloud parolanızla giriş yapın.")
+                    cloud.oturumu_yenile(token)
+                yerel_rol = cloud.yerel_rol_kodu(cloud.role)
+                self.vt.baglanti.execute("UPDATE kullanicilar SET rol=? WHERE id=?", (yerel_rol, kayit["id"]))
+                self.vt.baglanti.commit()
+                kayit = self.vt.baglanti.execute(
+                    "SELECT * FROM kullanicilar WHERE id=?", (kayit["id"],)
+                ).fetchone()
+                yerel_ayari_kaydet("cloud_refresh_token_dpapi", windows_sifrele(cloud.refresh_token))
+                if "@" in girilen: yerel_ayari_kaydet("cloud_email", girilen)
+            except Exception as e:
+                QMessageBox.critical(self, "Cloud ve lisans doğrulanamadı", str(e))
+                return
         self.vt.aktif_kullanici_id = kayit["id"]
         yerel_ayari_kaydet(
-            "hatirlanan_kullanici", self.kullanici.text().strip() if self.hatirla.isChecked() else ""
+            "hatirlanan_kullanici", yerel_ad if self.hatirla.isChecked() else ""
         )
         self.ana = AnaPencere(self.vt, dict(kayit), self)
         self.ana.showMaximized()
@@ -857,6 +889,7 @@ class AnaPencere(QMainWindow):
         self.canli_zamanlayici=QTimer(self);self.canli_zamanlayici.timeout.connect(self.canli_yenile);self.canli_zamanlayici.start(15000)
         self.senkron_zamanlayici=QTimer(self);self.senkron_zamanlayici.timeout.connect(self.cloud_senkronize);self.senkron_zamanlayici.start(30000)
         self.kur_zamanlayici=QTimer(self);self.kur_zamanlayici.timeout.connect(self.kurlari_yenile);self.kur_zamanlayici.start(300000)
+        self.lisans_kilitli=False
         QTimer.singleShot(900,self.cloud_oturumunu_yenile)
         QTimer.singleShot(0, self.duyarli_yerlesimi_guncelle)
 
@@ -1070,6 +1103,11 @@ class AnaPencere(QMainWindow):
         self.cloud.setText('<span style="color:#4ADE80">●</span> <span style="color:#FFFFFF">Cloud güncel</span>')
 
     def cloud_hatasi(self,hata):
+        if str(hata).startswith("[LISANS]") and not self.lisans_kilitli:
+            self.lisans_kilitli=True
+            self.senkron_zamanlayici.stop(); self.canli_zamanlayici.stop()
+            QMessageBox.critical(self,"DeporiaQ aboneliği etkin değil",str(hata).replace("[LISANS]","").strip())
+            self.cikis_yap(); return
         self.online.setText("0 online");self.aktif_kullanicilar.setText("Cloud bağlantısı yok")
         self.cloud.setText('<span style="color:#F45B76">●</span> <span style="color:#FFFFFF">Cloud çevrimdışı</span>')
 
@@ -1283,11 +1321,11 @@ QLabel#sayfaBaslik { font-size:24px; font-weight:750; } QLabel#soluk { color:#94
 QLabel#cloud { color:#FFFFFF; background:#17243A; border:1px solid #31537A; border-radius:14px; padding:7px 12px; font-weight:700; }
 QLabel#online { color:#FFFFFF; background:transparent; border:0; padding:7px 5px; font-weight:700; }
 QLabel#durum { color:#8FA6BF; }
-QFrame#kart { background:rgba(30,38,53,232); border:1px solid #476685; border-radius:8px; }
+QFrame#kart { background:rgba(24,34,49,205); border:1px solid rgba(111,163,211,185); border-radius:10px; }
 QFrame#kart QLabel { background:transparent; border:0; }
 QLabel#kartBaslik { font-size:15px; font-weight:650; color:#E2E8F0; }
 QLabel#kartDeger { font-size:24px; font-weight:800; color:#38BDF8; }
-QFrame#panel { background:rgba(18,31,49,232); border:1px solid #476685; border-radius:8px; }
+QFrame#panel { background:rgba(13,27,44,207); border:1px solid rgba(111,163,211,175); border-radius:10px; }
 QFrame#panel QLabel { background:transparent; border:0; font-weight:650; }
 QLabel#kurBilgisi { color:#E2E8F0; font-family:'Consolas'; font-size:13px; line-height:1.5; }
 QHeaderView::section { background:#314C6B; padding:8px; font-weight:700; }

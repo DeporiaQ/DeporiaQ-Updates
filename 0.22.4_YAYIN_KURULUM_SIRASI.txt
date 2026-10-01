@@ -1,0 +1,24 @@
+DEPORIAQ 0.22.4 YAYIN SIRASI
+
+1. Supabase > SQL Editor > New query açın.
+2. DEPORIAQ_CLOUD_0.22.4_MIGRATION.sql içeriğinin tamamını yapıştırıp Run'a basın.
+3. Sonucun Success olduğunu görün.
+4. Supabase > Authentication > Users bölümünde ekranda paylaşılmış hesabı açın ve yeni, benzersiz bir Cloud parolası belirleyin.
+5. Yeni parolayı yalnızca hesap sahibine güvenli yoldan verin; ekran görüntüsünde veya mesajda paylaşmayın.
+6. Bu paketteki dosyaları DeporiaQ-Updates GitHub Desktop klasörüne kopyalayın.
+7. GitHub Desktop: Summary = DeporiaQ 0.22.4 abonelik ve yetki güvenliği
+8. Commit to main, ardından Push origin.
+9. GitHub > Actions > DeporiaQ Windows Release > Run workflow.
+10. Sürüm alanına 0.22.4 yazıp çalıştırın ve yeşil Success sonucunu bekleyin.
+
+ABONELİK YÖNETİMİ
+
+Müşteriyi hemen durdurmak için SQL Editor'da şirket UUID'sini kullanın:
+update public.company_subscriptions
+set status='suspended', updated_at=now()
+where company_id='SIRKET-UUID';
+
+30 gün yeniden etkinleştirmek için:
+update public.company_subscriptions
+set status='active', valid_until=now()+interval '30 days', grace_until=null, updated_at=now()
+where company_id='SIRKET-UUID';
