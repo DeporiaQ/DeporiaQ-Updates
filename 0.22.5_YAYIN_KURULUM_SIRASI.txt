@@ -1,0 +1,29 @@
+DEPORIAQ 0.22.5 — YAYINLAMA
+
+Bu ZIP kaynak ve GitHub Actions paketidir; önceden derlenmiş Windows EXE içermez.
+0.22.4 SQL yapıları daha önce kontrol edildi. Bu düzeltme için yeni SQL çalıştırmayın.
+
+1. GitHub Desktop: DeporiaQ-Updates / main seçili olsun. Fetch origin, gerekiyorsa Pull origin.
+2. ZIP içindeki dosya ve klasörleri doğrudan DeporiaQ-Updates içine kopyalayın; değiştirin.
+   .github ve tests klasörleri de aktarılmalı. ZIP'i iç içe bir alt klasöre kopyalamayın.
+   Önceki kullanıcı verisi, AppData veya Supabase verisiyle işlem yapılmayacak.
+3. Summary: DeporiaQ 0.22.5 otomatik acilis ve depo arka plani duzeltmesi
+   Commit to main, ardından Push origin.
+4. GitHub > Actions > DeporiaQ Windows Release > Run workflow
+   Branch: main / version: 0.22.5. Bir kez çalıştırın.
+5. Akış önce Qt arka plan testini, ardından EXE/kurulum derlemesini ve Windows testini yapar.
+   Windows testi, 0.22.4 güncelleyicisini derleyip kurulumun onu kapattığı durumu tekrarlar.
+   Sadece EXE'nin varlığı yeterli değildir: yeni uygulamanın görünür penceresi açılmalıdır.
+   Test 180 saniye içinde açılan ve açık kalan pencereyi göremezse yayın durur.
+6. Kırmızı sonuç çıkarsa tekrar sürüm yayımlamayın. DeporiaQ-0.22.5-test-results
+   artifact dosyasındaki günlükleri paylaşın. Yeni manifest henüz yayımlanmaz.
+7. Yeşil Success: Releases > 0.22.5 altında Setup EXE ve manifesti kontrol edin.
+8. Kurulu 0.22.4 içinden güncellemeyi başlatın. Kurulumdan sonra giriş ekranı açılmalı.
+   Giriş yapıp 0.22.5 yazısını ve depo arka planını kontrol edin.
+
+TEST KAPSAMI
+- Bu paketteki TEST_SONUCLARI_0.22.5.txt dosyası yapılan / bekleyen testleri ayırır.
+- GitHub testi Windows Server 2022 üzerinde çalışır; Windows 10/11 test edilmiş sayılmaz.
+- tests/test_windows_install.py sadece ayrılmış GitHub runner içindir.
+  Kendi bilgisayarınızda çalıştırmayın; eski güncelleyicinin taskkill davranışını test eder.
+- GORUNUM_ONIZLEMELERI içindeki resimler gerçek Qt penceresinden, sentetik boş verilerle alınmıştır.

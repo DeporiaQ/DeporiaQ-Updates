@@ -1,0 +1,13 @@
+DeporiaQ 0.22.5
+
+- Sessiz güncelleme tamamlandığında uygulamayı artık Inno Setup başlatır.
+- Eski güncelleyicinin kurulum sırasında kapatılması yeniden açılmayı engellemez.
+- Güncelleyicinin ikinci bir uygulama açma girişimi kaldırıldı.
+- Depo arka planında QRect / QRectF çizim hatası düzeltildi.
+- Grafiklerin düz renk yüzeyleri şeffaflaştırıldı; cam panellerin arkasında depo görseli görünür.
+- Küçük pencerelerde grafik yerleşiminin daralması düzeltildi.
+- Yerel EXE derleme betiklerine eksik görsel kaynakları eklendi.
+- Yayın öncesi gerçek Windows kurulum / eski güncelleyici geçiş testi eklendi.
+- Test başarısızsa GitHub Release ve güncelleme manifesti yayımlanmaz.
+
+0.22.4 abonelik ve rol davranışları korunmuştur. Yeni SQL işlemi gerekmez.

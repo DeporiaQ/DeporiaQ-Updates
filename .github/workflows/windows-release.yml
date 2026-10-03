@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Yayın sürümü (örnek: 0.22.4)"
+        description: "Yayın sürümü (örnek: 0.22.5)"
         required: true
-        default: "0.22.4"
+        default: "0.22.5"
 
 permissions:
   contents: write
@@ -27,7 +27,8 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install PySide6 ttkbootstrap pyinstaller
+          python -m pip install PySide6==6.11.2 ttkbootstrap==2.2.3 "pyinstaller>=6.9,<7" psutil==7.2.2
+          if ($LASTEXITCODE -ne 0) { throw "Python bağımlılıkları kurulamadı." }
           choco install innosetup -y --no-progress
 
       - name: Sürüm tutarlılığını doğrula
@@ -37,6 +38,12 @@ jobs:
           if ((Get-Content deporiaq_qt.py -Raw) -notmatch ('SURUM = "' + [regex]::Escape($version) + '"')) {
             throw "deporiaq_qt.py sürümü ile yayın sürümü uyuşmuyor."
           }
+
+      - name: Qt arka plan ve görünürlük testini çalıştır
+        shell: pwsh
+        run: |
+          python tests/test_dashboard.py test-results
+          if ($LASTEXITCODE -ne 0) { throw "Qt çizim testi başarısız; yayın durduruldu." }
 
       - name: Cloud istemci yapılandırmasını hazırla
         shell: pwsh
@@ -56,25 +63,37 @@ jobs:
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --add-data "dashboard_background.jpg;." --add-data "deporiaq_cloud.json;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
+          if ($LASTEXITCODE -ne 0) { throw "DeporiaQ derlenemedi." }
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeporiaQUpdate deporiaq_guncelleme_bildirici.py
+          if ($LASTEXITCODE -ne 0) { throw "Güncelleyici derlenemedi." }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --paths tests/fixtures --distpath test-old-dist --workpath test-old-build --specpath tests --name DeporiaQUpdate tests/legacy_update_driver.py
+          if ($LASTEXITCODE -ne 0) { throw "0.22.4 geçiş testi aracı derlenemedi." }
 
       - name: Kurulum dosyasını oluştur
         shell: pwsh
         run: |
+          python tests/test_bundle.py
+          if ($LASTEXITCODE -ne 0) { throw "EXE görsel içeriği doğrulanamadı." }
           if ((Get-Content DeporiaQ.iss -Raw) -match 'InitializeSetup') {
             throw "Kurulumu görünmeden kapatan InitializeSetup kodu yeniden eklenemez."
           }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" DeporiaQ.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup derlenemedi." }
 
-      - name: Windows 10 ve 11 kurulum testini yap
+      - name: Windows Server 2022 gerçek kurulum ve eski güncelleyici geçiş testi
+        timeout-minutes: 10
         shell: pwsh
         run: |
-          $version = "${{ inputs.version }}"
-          $setup = Join-Path $PWD "kurulum\DeporiaQ_Setup_$version.exe"
-          $testDir = Join-Path $env:RUNNER_TEMP "DeporiaQ-Install-Test"
-          $process = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$testDir" -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "Kurulum testi başarısız: $($process.ExitCode)" }
-          if (-not (Test-Path (Join-Path $testDir "DeporiaQ.exe"))) { throw "Kurulum testi DeporiaQ.exe oluşturmadı." }
+          python tests/test_windows_install.py
+          if ($LASTEXITCODE -ne 0) { throw "Otomatik açılma testi başarısız; yayın durduruldu." }
+
+      - name: Test günlüklerini ve ekran görüntülerini sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeporiaQ-0.22.5-test-results
+          path: test-results/
+          if-no-files-found: warn
 
       - name: Güncelleme manifestini üret
         shell: pwsh
@@ -87,7 +106,7 @@ jobs:
             version = $version
             download_url = "https://github.com/${{ github.repository }}/releases/download/v$version/DeporiaQ_Setup_$version.exe"
             sha256 = $sha
-            notes = "Sunucu taraflı abonelik denetimi, güvenli rol eşleştirmesi, sade e-posta/kullanıcı girişi ve belirgin cam görünümlü depo arka planı eklendi."
+            notes = "Kurulum sonrası yeniden açılma kurulum dosyasına taşındı. Depo arka planının çizim hatası ve panellerin görseli örtmesi düzeltildi."
           }
           $manifest | ConvertTo-Json | Set-Content guncelleme_manifest.json -Encoding utf8
 
@@ -97,7 +116,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ inputs.version }}"
-          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.22.4_YAYIN_NOTU.txt
+          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.22.5_YAYIN_NOTU.txt
 
       - name: Manifesti ana dala gönder
         shell: pwsh

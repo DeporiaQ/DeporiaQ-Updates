@@ -1,0 +1,30 @@
+DEPORIAQ 0.22.5 — DOĞRULAMA DURUMU
+Tarih: 1 Ekim 2026
+
+YAPILAN VE GEÇEN KONTROLLER (Linux / Python 3.12 / PySide6 6.11.2):
+- 0.22.4 çizim çağrısı aynı QRect/QRectF argümanlarıyla çalıştırıldı: ValueError yeniden üretildi.
+- Düzeltilmiş gerçek DashboardArkaPlan sınıfı üç boyutta piksel karşılaştırmasını geçti.
+- Gerçek AnaPencere 1920x1000, 1366x768, 900x650 boyutlarında çizildi.
+- Fotoğraflı/fotoğrafsız görüntüler karşılaştırıldı; fotoğrafın paneller altında görünürlüğü doğrulandı.
+- Çizim sırasında yakalanan Qt/Python istisnası: 0.
+- Önizlemeler gözle incelendi.
+- Python kaynakları sözdizimi denetimini geçti.
+- Workflow YAML yapısı ayrıştırıldı; yayın adımları testlerin arkasında.
+- Üretim SQL dosyaları ve iş mantığı korunmuştur; stok_programi_v2.py sadece sürüm değişimi içerir.
+
+KANITLANAN ÖNCEKİ KURULUM DAVRANIŞI:
+Kullanıcının Setup Log 2026-10-01 #001.txt günlüğünde Restart Manager,
+DeporiaQUpdate işlemini tespit edip kapatıyor. Kurulum başarılı; uygulama başlatma
+satırı yok. 0.22.5 sessiz kurulumun [Run] adımına doğrudan uygulama başlatma eklendi.
+
+EKLENEN, FAKAT BU ORTAMDA ÇALIŞTIRILMAYAN WINDOWS KONTROLLERİ:
+- Windows EXE içinde depo görselinin test edilen dosyayla aynı olması.
+- Sessiz temiz kurulum sonrası görünür 0.22.5 penceresi.
+- Dondurulmuş gerçek 0.22.4 güncelleyici koduyla yükseltme; Restart Manager kapanması.
+- Kurulumun DeporiaQ.exe başlatma kaydı, dosya karmaları, açık kalan tek pencere.
+- Başarısızlıkta yayınlama ve manifest güncellemesinin engellenmesi.
+
+Bu ortam Linux'tur; Windows, Wine ve Inno Setup bulunmuyor.
+Bu nedenle Windows kurulum derlemesi veya uçtan uca testinin burada geçtiği iddia edilmez.
+GitHub Actions çalıştırıldığında sonuçlar artifact olarak saklanacaktır.
+Windows 10/11 ve kullanıcının bilgisayarındaki son kabul testi henüz yapılmadı.

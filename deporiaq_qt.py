@@ -1,4 +1,4 @@
-"""DeporiaQ 0.22.4 - güvenli abonelik, doğru roller ve yenilenen görünüm."""
+"""DeporiaQ 0.22.5 - güvenli abonelik, doğru roller ve yenilenen görünüm."""
 import csv
 import json
 import os
@@ -16,7 +16,7 @@ from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QIntValidator,
                            QKeySequence, QPainter, QPen, QPixmap, QShortcut, QTextDocument)
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
+    QAbstractItemView, QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
     QFormLayout, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
     QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QCompleter,
     QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
@@ -30,7 +30,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.22.4"
+SURUM = "0.22.5"
 
 
 def kaynak_yolu(ad):
@@ -225,9 +225,9 @@ class DashboardArkaPlan(QWidget):
             kapla = self.gorsel.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                                       Qt.TransformationMode.SmoothTransformation)
             x = max(0, (kapla.width() - self.width()) // 2); y = max(0, (kapla.height() - self.height()) // 2)
-            p.drawPixmap(self.rect(), kapla, QRectF(x, y, self.width(), self.height()))
+            p.drawPixmap(QRectF(self.rect()), kapla, QRectF(x, y, self.width(), self.height()))
         # Görsel belirgin kalır; koyu katman metinlerin okunabilirliğini korur.
-        p.fillRect(self.rect(), QColor(7, 15, 28, 112))
+        p.fillRect(self.rect(), QColor(7, 15, 28, 85))
 
 
 class FinansOzetGrafik(QWidget):
@@ -959,7 +959,7 @@ class AnaPencere(QMainWindow):
         self.konum.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Fixed)
         self.konum.currentIndexChanged.connect(self.yenile)
         self.yenile_dugmesi = QPushButton("Yenile"); self.yenile_dugmesi.clicked.connect(self.yenile)
-        self.sosyal = QWidget(); sosyal = QHBoxLayout(self.sosyal); sosyal.setContentsMargins(0,0,0,0); sosyal.setSpacing(8)
+        self.sosyal = QWidget(); self.sosyal.setObjectName("dashboardSosyal"); sosyal = QHBoxLayout(self.sosyal); sosyal.setContentsMargins(0,0,0,0); sosyal.setSpacing(8)
         sosyal_yazi=QLabel("DeporiaQ Sosyal"); sosyal_yazi.setObjectName("soluk"); sosyal.addWidget(sosyal_yazi)
         youtube=QPushButton(QIcon(kaynak_yolu("youtube_icon.svg")),"DeporiaQ"); youtube.setToolTip("DeporiaQ YouTube • Yakında")
         instagram=QPushButton(QIcon(kaynak_yolu("instagram_icon.svg")),"DeporiaQ"); instagram.setToolTip("DeporiaQ Instagram • Yakında")
@@ -975,7 +975,7 @@ class AnaPencere(QMainWindow):
         d.addLayout(self.kart_yerlesim)
         self.grafik_yerlesim = QGridLayout(); self.grafik_yerlesim.setSpacing(8)
         stok_karti = QFrame(); stok_karti.setObjectName("panel"); sk = QVBoxLayout(stok_karti)
-        sk.addWidget(QLabel("Stok Sağlığı")); stok_grafikleri=QHBoxLayout(); self.halka_grafik = HalkaGrafik(); self.stok_sutun_grafik=SutunGrafik()
+        sk.addWidget(QLabel("Stok Sağlığı")); stok_grafikleri=QHBoxLayout(); self.stok_grafikleri=stok_grafikleri; self.halka_grafik = HalkaGrafik(); self.stok_sutun_grafik=SutunGrafik()
         stok_grafikleri.addWidget(self.halka_grafik,1); stok_grafikleri.addWidget(self.stok_sutun_grafik,1); sk.addLayout(stok_grafikleri)
         deger_karti = QFrame(); deger_karti.setObjectName("panel"); dk = QVBoxLayout(deger_karti)
         dk.addWidget(QLabel("En Değerli 5 Ürün")); self.cubuk_grafik = CubukGrafik(); dk.addWidget(self.cubuk_grafik)
@@ -1018,14 +1018,15 @@ class AnaPencere(QMainWindow):
     def duyarli_yerlesimi_guncelle(self):
         if not hasattr(self, "kaydir") or not hasattr(self, "ust_yerlesim"): return
         genislik = self.kaydir.viewport().width()
-        mod = "genis" if genislik >= 1120 else "orta" if genislik >= 760 else "dar"
+        mod = "genis" if genislik >= 1400 else "orta" if genislik >= 760 else "dar"
         if mod == self.duyarli_mod: return
         self.duyarli_mod = mod
         for yerlesim in (self.ust_yerlesim,self.kart_yerlesim,self.grafik_yerlesim,self.alt_yerlesim,self.hizli_yerlesim):
             self.yerlesimi_bosalt(yerlesim)
-        for sutun in range(5):
-            self.ust_yerlesim.setColumnStretch(sutun,0)
-            self.alt_yerlesim.setColumnStretch(sutun,0)
+        # Clear stretches left behind by the previous window width.
+        for yerlesim in (self.ust_yerlesim,self.kart_yerlesim,self.grafik_yerlesim,self.alt_yerlesim,self.hizli_yerlesim):
+            for sutun in range(5): yerlesim.setColumnStretch(sutun,0)
+        self.stok_grafikleri.setDirection(QBoxLayout.Direction.TopToBottom if mod == "dar" else QBoxLayout.Direction.LeftToRight)
         if mod == "genis":
             self.ust_yerlesim.addWidget(self.baslik,0,0); self.ust_yerlesim.addWidget(self.konum,0,1)
             self.ust_yerlesim.addWidget(self.yenile_dugmesi,0,2); self.ust_yerlesim.setColumnStretch(1,3); self.ust_yerlesim.setColumnStretch(3,1)
@@ -1039,7 +1040,11 @@ class AnaPencere(QMainWindow):
             self.ust_yerlesim.addWidget(self.yenile_dugmesi,1,1); self.ust_yerlesim.addWidget(self.sosyal,2,0,1,2,Qt.AlignmentFlag.AlignLeft)
             kart_sutun,grafik_sutun=2,1
         for i,w in enumerate(self.kart_widgetlari): self.kart_yerlesim.addWidget(w,i//kart_sutun,i%kart_sutun)
-        for i,w in enumerate(self.grafik_widgetlari): self.grafik_yerlesim.addWidget(w,i//grafik_sutun,i%grafik_sutun)
+        if mod == "orta":
+            self.grafik_yerlesim.addWidget(self.grafik_widgetlari[0],0,0,1,2)
+            for i,w in enumerate(self.grafik_widgetlari[1:]): self.grafik_yerlesim.addWidget(w,1,i)
+        else:
+            for i,w in enumerate(self.grafik_widgetlari): self.grafik_yerlesim.addWidget(w,i//grafik_sutun,i%grafik_sutun)
         if mod == "genis":
             for i,oran in enumerate((2,1,1)): self.grafik_yerlesim.setColumnStretch(i,oran)
         if mod == "genis":
@@ -1047,8 +1052,8 @@ class AnaPencere(QMainWindow):
                 self.alt_yerlesim.addWidget(w,0,i); self.alt_yerlesim.setColumnStretch(i,oran)
             hizli_sutun=5
         elif mod == "orta":
-            self.alt_yerlesim.addWidget(self.alt_widgetlari[0],0,0,1,2); self.alt_yerlesim.addWidget(self.alt_widgetlari[1],1,0)
-            self.alt_yerlesim.addWidget(self.alt_widgetlari[2],1,1); hizli_sutun=3
+            self.alt_yerlesim.addWidget(self.alt_widgetlari[0],0,0,1,2); self.alt_yerlesim.addWidget(self.alt_widgetlari[1],1,0,1,2)
+            self.alt_yerlesim.addWidget(self.alt_widgetlari[2],2,0,1,2); hizli_sutun=3
         else:
             for i,w in enumerate(self.alt_widgetlari): self.alt_yerlesim.addWidget(w,i,0)
             hizli_sutun=2
@@ -1298,7 +1303,9 @@ class AnaPencere(QMainWindow):
 
 STIL = """
 QWidget { background:#131A26; color:#F8FAFC; font-family:'Segoe UI'; font-size:14px; }
-QWidget#dashboardArkaPlan { background:transparent; }
+QWidget#dashboardArkaPlan, QWidget#dashboardSosyal { background:transparent; }
+HalkaGrafik, CubukGrafik, SutunGrafik, FinansOzetGrafik { background:transparent; }
+QLabel { background:transparent; }
 QLineEdit,QComboBox,QSpinBox { background:#1E2635; border:1px solid #3B4B63; padding:8px; min-height:20px; }
 QTableWidget { background:#1E2635; border:1px solid #3B4B63; alternate-background-color:#293344; }
 QTableWidget::item { padding:6px 8px; border:0; }
@@ -1321,11 +1328,11 @@ QLabel#sayfaBaslik { font-size:24px; font-weight:750; } QLabel#soluk { color:#94
 QLabel#cloud { color:#FFFFFF; background:#17243A; border:1px solid #31537A; border-radius:14px; padding:7px 12px; font-weight:700; }
 QLabel#online { color:#FFFFFF; background:transparent; border:0; padding:7px 5px; font-weight:700; }
 QLabel#durum { color:#8FA6BF; }
-QFrame#kart { background:rgba(24,34,49,205); border:1px solid rgba(111,163,211,185); border-radius:10px; }
+QFrame#kart { background:rgba(24,34,49,170); border:1px solid rgba(111,163,211,185); border-radius:10px; }
 QFrame#kart QLabel { background:transparent; border:0; }
 QLabel#kartBaslik { font-size:15px; font-weight:650; color:#E2E8F0; }
 QLabel#kartDeger { font-size:24px; font-weight:800; color:#38BDF8; }
-QFrame#panel { background:rgba(13,27,44,207); border:1px solid rgba(111,163,211,175); border-radius:10px; }
+QFrame#panel { background:rgba(13,27,44,170); border:1px solid rgba(111,163,211,175); border-radius:10px; }
 QFrame#panel QLabel { background:transparent; border:0; font-weight:650; }
 QLabel#kurBilgisi { color:#E2E8F0; font-family:'Consolas'; font-size:13px; line-height:1.5; }
 QHeaderView::section { background:#314C6B; padding:8px; font-weight:700; }

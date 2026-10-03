@@ -1,5 +1,5 @@
 #define MyAppName "DeporiaQ"
-#define MyAppVersion "0.22.4"
+#define MyAppVersion "0.22.5"
 #define MyAppPublisher "DeporiaQ"
 #define MyAppExeName "DeporiaQ.exe"
 
@@ -41,7 +41,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C schtasks /Delete /F /TN ""DeporiaQ Update Check"" >nul 2>&1"; Flags: runhidden waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Description: "DeporiaQ'yu başlat"; Flags: nowait postinstall; Check: not WizardSilent
+Filename: "{app}\{#MyAppExeName}"; Description: "DeporiaQ'yu başlat"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+
+; Silent upgrades must launch from Setup: Restart Manager can kill the old updater.
+Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Flags: nowait skipifnotsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""DeporiaQ Update Check"""; Flags: runhidden waituntilterminated; RunOnceId: "DeporiaQUpdateTaskDelete"
