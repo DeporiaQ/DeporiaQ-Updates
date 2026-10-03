@@ -14,6 +14,14 @@ import time
 
 import psutil
 
+
+def configure_console():
+    """GitHub logs are UTF-8; Windows may otherwise select cp1252 for pipes."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "test-results"
 
@@ -132,4 +140,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_console()
     main()
