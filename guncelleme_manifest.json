@@ -1,6 +1,6 @@
 {
-  "version": "0.22.4",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.4/DeporiaQ_Setup_0.22.4.exe",
-  "sha256": "08b7d9d0631e16c60e33e8463a6a6598765929ef747bc854a1727068f518b7c6",
-  "notes": "Sunucu taraflı abonelik denetimi, güvenli rol eşleştirmesi, sade e-posta/kullanıcı girişi ve belirgin cam görünümlü depo arka planı eklendi."
+  "version": "0.22.5",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.5/DeporiaQ_Setup_0.22.5.exe",
+  "sha256": "687a53a894bd59c022a541f3b2817c725181521a2a38a9ef245f82b72a9a05cc",
+  "notes": "Kurulum sonrası yeniden açılma kurulum dosyasına taşındı. Depo arka planının çizim hatası ve panellerin görseli örtmesi düzeltildi."
 }
