@@ -1,0 +1,39 @@
+DEPORIAQ 0.23.0 — TEST KAYDI (6 Ekim 2026)
+
+ÇALIŞTIRILAN ORTAM: Linux, Python 3.12, PySide6 6.11.2.
+Örnek veriler geçici test veritabanlarında oluşturuldu; müşteri verisi kullanılmadı.
+
+BAŞARILI
+- 36 pytest testi: analiz hesapları, tarih sınırları, eksik/hareketsiz veri,
+  CSV formül kaçışı, Türkçe arama, negatif olmayan satın alma ihtiyaçları,
+  stok fazlasının tek kez dağıtımı, raporların veritabanını değiştirmemesi.
+- 9 üretim analiz ekranı gerçek Qt widget'larıyla açıldı.
+- CSV ve PDF dosyaları gerçek dışa aktarım koduyla üretildi.
+- Görüntüleyici yetkisi ve abonelik kilidinde erişim kontrolü denetlendi.
+- SQLite WAL içindeki en son kayıt yedekte doğrulandı.
+- Ctrl+K filtreleme ve seçilen komutun çalışması kontrol edildi.
+- Güncelleme ortamı temizliği, sürümlü/atomik açılış onayı, hata günlüğü,
+  installer hata kodunun korunması ve güvenli manifest sürümü denetlendi.
+- Qt arka plan testi: 1920×1000, 1366×768, 900×650 ana pencere;
+  resmin paneller arasından görünmesi ve Qt çizim hatası olmaması doğrulandı.
+- Operasyon Merkezi 1120×760 ve 760×560 önizlemeleri incelendi.
+- Python derleme/sözdizimi ve workflow YAML okuma kontrolü başarılı.
+
+HENÜZ ÇALIŞTIRILMADI
+- Windows EXE ve Inno Setup derlemesi.
+- PowerShell Windows çalıştırması / sözdizimi doğrulaması.
+- Windows'ta sessiz kurulum ve 0.22.4 / 0.22.5 geçiş testleri.
+- Kullanıcının bilgisayarında standart kullanıcı/UAC/antivirüs koşullarında test.
+
+Bu kontroller GitHub Actions'a eklendi; başarılı çalıştırılmış gibi raporlanmadı.
+Önceki sorunun kullanıcının bilgisayarındaki kesin kök nedeni için günlüğü yoktu.
+Yeni kod bilinen riskleri (kurulumla çakışan açılış, eski frozen ortam, sessiz
+başarısızlık ve açılış onayı eksikliği) ele alır; yerinde doğrulama bekler.
+
+Kanıtlar: test-results/unit-results.xml ve test-results içindeki PNG dosyaları.
+Windows workflow ayrıca test-results/windows-result.json, kurulum günlükleri,
+relaunch.log ve gerçek Windows pencere ekran görüntülerini artifact olarak saklar.
+
+Teknik başvuru:
+https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html
+https://jrsoftware.org/ishelp/topic_runsection.htm

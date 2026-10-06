@@ -1,5 +1,5 @@
 #define MyAppName "DeporiaQ"
-#define MyAppVersion "0.22.5"
+#define MyAppVersion "0.23.0"
 #define MyAppPublisher "DeporiaQ"
 #define MyAppExeName "DeporiaQ.exe"
 
@@ -35,16 +35,25 @@ Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\DeporiaQUpdate.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "guncelleme_ayarlari.json"; DestDir: "{app}"; Flags: ignoreversion
 
+Source: "deporiaq_restart.ps1"; DestDir: "{app}"; Flags: ignoreversion
+
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C schtasks /Delete /F /TN ""DeporiaQ Update Check"" >nul 2>&1"; Flags: runhidden waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Description: "DeporiaQ'yu başlat"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser
-
-; Silent upgrades must launch from Setup: Restart Manager can kill the old updater.
-Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Flags: nowait skipifnotsilent runasoriginaluser
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\deporiaq_restart.ps1"" -AppPath ""{app}\{#MyAppExeName}"" -Version ""{#MyAppVersion}"" -SetupProcessId {code:SetupPID}"; Description: "DeporiaQ'yu başlat"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser runhidden
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\deporiaq_restart.ps1"" -AppPath ""{app}\{#MyAppExeName}"" -Version ""{#MyAppVersion}"" -SetupProcessId {code:SetupPID}"; WorkingDir: "{app}"; Flags: nowait skipifnotsilent runasoriginaluser runhidden
 
 [UninstallRun]
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""DeporiaQ Update Check"""; Flags: runhidden waituntilterminated; RunOnceId: "DeporiaQUpdateTaskDelete"
+
+[Code]
+function GetCurrentProcessId: LongWord;
+  external 'GetCurrentProcessId@kernel32.dll stdcall';
+
+function SetupPID(Param: String): String;
+begin
+  Result := IntToStr(GetCurrentProcessId);
+end;

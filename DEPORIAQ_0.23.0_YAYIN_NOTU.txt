@@ -1,0 +1,50 @@
+DeporiaQ 0.23.0 — Operasyon Merkezi
+
+GÜNCELLEME SONRASI AÇILIŞ
+Kurulum artık bağımsız bir PowerShell başlatıcısı çalıştırır. Başlatıcı kurulumun
+bitmesini bekler, önceki PyInstaller çalışma ortamını temizler ve yeni uygulamayı
+açar. Yeni pencere görünür olduğunda sürüm ve işlem kimliğiyle açılış onayı yazılır.
+Yalnızca işlem açılıştan önce kapanmışsa ikinci deneme yapılır; yaşayan bir işlem
+varken ikinci uygulama başlatılmaz. Sorun halinde kullanıcıya uyarı gösterilir ve
+LocalAppData\DeporiaQ\logs altında relaunch.log / startup.log tutulur.
+Yeni güncelleyici kurulumdan önce bütün DeporiaQ işlemlerine taskkill uygulamaz;
+çalışan dosyaların kapanışını Windows kurulumunun Restart Manager aşaması yönetir.
+
+10 YENİ GELİŞTİRME
+1. Tüm depolarda arama: ürün, barkod, konum ve Türkçe karakterlere duyarlı olmayan
+   çok kelimeli filtre; eksik stok kayıtları 0 olarak görünür.
+2. Stok tükenme analizi: seçilen geçmiş dönemin günlük satışına göre kalan gün;
+   satış yoksa tahmin uydurulmaz, 7 gün ve sıfır stok durumları vurgulanır.
+3. ABC satış analizi: ciro katkısı, kümülatif pay ve A/B/C sınıfları.
+4. Hareketsiz stoklar: giriş/transfer/satış geçmişine göre stok yaşı ve bağlı alış değeri.
+5. Depolar arası dengeleme: kaynak güvenlik stoğunu koruyan, aynı stoğu tekrar
+   dağıtmayan transfer önerileri. Otomatik transfer yapmaz.
+6. Satın alma planı: geçmiş satış hızı, hedef gün ve kritik stok eşiğine göre
+   önerilen adet ile ürün kartı maliyetinden tahmini bütçe.
+7. Depo/şube karşılaştırması: stok, alış/satış değeri, kritik ürün, dönem cirosu ve brüt kâr.
+8. Günlük satış ve brüt kâr: 1–365 günlük inceleme, satış olmayan günler dahil.
+9. Sayım çalışma listesi: konum/ürün bazında sistem stoğu, boş sayılan/not alanları;
+   CSV ve PDF çıktısı. Mevcut stok sayımı ekranıyla birlikte kullanılır.
+10. Ctrl+K hızlı komut menüsü: yazarak işlem ve analiz ekranı açma; Ctrl+F tüm depolarda arama.
+
+Operasyon Merkezi Ana Yönetici yetkisi ister. Görünümler yerel veriye dayanır;
+Cloud eşitlemesi tamamlandıktan sonra yenileyin. CSV/PDF mevcut filtreyi ve
+sıralamayı korur. CSV metinleri formül çalıştırmaya karşı kaçışlanır. Excel'de
+barkod sütununu metin olarak içe aktarın. Tükenme ve satın alma sonuçları satış
+ortalamasına dayalı öneridir, garanti veya otomatik sipariş değildir.
+
+EK DÜZELTMELER
+- SQLite backup API ve bütünlük kontrolü ile WAL dahil güncel yedek.
+- Instagram: https://www.instagram.com/deporiaq/
+- YouTube: https://www.youtube.com/@DeporiaQ
+- Destek: deporiaq@gmail.com; yerel destek formunun e-posta göndermediği açıklanır.
+- Depo arka planı ve cam panel görünümü korunur.
+- Bu sürüm için yeni Supabase migration yoktur.
+
+DOĞRULAMA DURUMU
+Bu paketin Linux ortamında 36 işlev testi ve Qt çizim testi başarılıdır.
+Windows EXE/kurulum dosyası bu ortamda üretilmedi, Windows geçiş testleri henüz
+çalıştırılmadı. GitHub Actions bu kontrolleri yapmadan yayın oluşturmaz.
+CI başarısı Windows Server 2022 içindir; kullanıcının Windows masaüstü/UAC ve
+antivirüs ortamında doğrulama yerine geçmez. Otomatik açılışın bu bilgisayarda
+kesin çözüldüğü henüz iddia edilmemektedir.

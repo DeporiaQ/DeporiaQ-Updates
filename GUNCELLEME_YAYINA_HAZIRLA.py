@@ -9,7 +9,7 @@ def main():
     if len(sys.argv) != 4:
         print(
             "Kullanim: py GUNCELLEME_YAYINA_HAZIRLA.py "
-            '"kurulum\\DeporiaQ_Setup_0.17.0.exe" 0.17.0 "https://...exe"'
+            '"kurulum\\DeporiaQ_Setup_0.23.0.exe" 0.23.0 "https://...exe"'
         )
         return 1
 
@@ -35,7 +35,7 @@ def main():
         "version": surum,
         "download_url": adres,
         "sha256": ozet.hexdigest(),
-        "notes": "DeporiaQ Cloud test bağlantısı, güvenli Supabase oturumu, yerel veriyi buluta gönderme, buluttan yenileme ve cihaz kaydı eklendi.",
+        "notes": "Bağımsız açılış denetimi, Operasyon Merkezi ve Ctrl+K hızlı komut menüsü.",
     }
     (yayin / "guncelleme_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2),

@@ -65,7 +65,7 @@ def visible_windows(stage):
         if pid.value in pids and user32.IsWindowVisible(hwnd):
             text = ctypes.create_unicode_buffer(1024)
             user32.GetWindowTextW(hwnd, text, len(text))
-            if "DeporiaQ 0.22.5" in text.value:
+            if "DeporiaQ 0.23.0" in text.value:
                 result.append({"pid": pid.value, "title": text.value})
         return True
 
@@ -87,7 +87,7 @@ def wait_for_window(stage, label):
             ImageGrab.grab().save(OUT / f"windows-{label}.png")
             return found
         time.sleep(1)
-    raise AssertionError(f"{label}: Setup did not open a visible DeporiaQ 0.22.5 window")
+    raise AssertionError(f"{label}: Setup did not open a visible DeporiaQ 0.23.0 window")
 
 
 def main():
@@ -98,7 +98,7 @@ def main():
     OUT.mkdir(exist_ok=True)
     stage = Path(os.environ["RUNNER_TEMP"]) / "DeporiaQ Install Regression"
     stage.mkdir(exist_ok=True)
-    setup = ROOT / "kurulum" / "DeporiaQ_Setup_0.22.5.exe"
+    setup = ROOT / "kurulum" / "DeporiaQ_Setup_0.23.0.exe"
     legacy = ROOT / "test-old-dist" / "DeporiaQUpdate.exe"
     report = {"platform": sys.getwindowsversion().build, "tests": {}}
     try:
@@ -124,7 +124,7 @@ def main():
         assert "Shutting down applications using our files" in log, "Missing Restart Manager shutdown"
         assert "DeporiaQUpdate" in log, "Old updater not found by Restart Manager"
         assert "Installation process succeeded" in log, "Upgrade did not finish"
-        assert f"Filename: {stage / 'DeporiaQ.exe'}" in log, "Setup did not own relaunch"
+        assert "deporiaq_restart.ps1" in log, "Setup did not start the independent launcher"
         # Also check that installed bytes are exactly the newly built applications.
         import hashlib
         for name in ("DeporiaQ.exe", "DeporiaQUpdate.exe"):
@@ -132,6 +132,35 @@ def main():
             assert digest(stage / name) == digest(ROOT / "dist" / name), name
         time.sleep(8)
         assert len(visible_windows(stage)) == 1, "Duplicate application window after upgrade"
+        # The currently deployed 0.22.5 must also upgrade using its exact frozen notifier.
+        stop_stage(stage)
+        shutil.copy2(legacy, stage / "DeporiaQUpdate.exe")
+        old = subprocess.Popen([str(stage / "DeporiaQUpdate.exe"), str(setup),
+                                str(OUT / "upgrade-0.22.5.log"), str(returned), "--from-0.22.5"])
+        report["tests"]["upgrade-0.22.5"] = wait_for_window(stage, "upgrade-0.22.5")
+        old.wait(timeout=30)
+        time.sleep(8)
+        assert len(visible_windows(stage)) == 1, "Duplicate after 0.22.5 upgrade"
+        launcher_log = Path(os.environ["LOCALAPPDATA"]) / "DeporiaQ" / "logs" / "relaunch.log"
+        text = launcher_log.read_text(encoding="utf-8-sig")
+        assert text.count("READY version=0.23.0") >= 3, text
+        # Reproduce a stale PyInstaller parent environment; only the installed
+        # production launcher may sanitize it and start the actual frozen app.
+        stop_stage(stage)
+        dirty = dict(os.environ)
+        dirty.update({'_PYI_ARCHIVE_FILE': str(stage / 'DeporiaQ.exe'),
+                      '_PYI_APPLICATION_HOME_DIR': str(stage / 'removed-extraction'),
+                      '_PYI_PARENT_PROCESS_LEVEL': '1', '_MEIPASS2': 'missing'})
+        dirty.pop('PYINSTALLER_RESET_ENVIRONMENT', None)
+        launcher = subprocess.Popen(['powershell.exe', '-NoProfile', '-NonInteractive',
+                                     '-ExecutionPolicy', 'Bypass', '-File',
+                                     str(stage / 'deporiaq_restart.ps1'), '-AppPath',
+                                     str(stage / 'DeporiaQ.exe'), '-Version', '0.23.0'], env=dirty)
+        report['tests']['dirty-environment'] = wait_for_window(stage, 'dirty-environment')
+        assert launcher.wait(timeout=30) == 0
+        text = launcher_log.read_text(encoding='utf-8-sig')
+        assert text.count('READY version=0.23.0') >= 4, text
+        shutil.copy2(launcher_log, OUT / "relaunch.log")
         report["status"] = "passed"
     finally:
         (OUT / "windows-result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

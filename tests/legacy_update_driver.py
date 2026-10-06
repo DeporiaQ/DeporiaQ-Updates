@@ -8,7 +8,9 @@ import hashlib
 import subprocess
 import sys
 from pathlib import Path
-import notifier_0_22_4 as legacy
+import notifier_0_22_4
+import notifier_0_22_5
+legacy = notifier_0_22_5 if "--from-0.22.5" in sys.argv else notifier_0_22_4
 
 setup, log, returned = map(Path, sys.argv[1:4])
 original_run = subprocess.run
@@ -22,7 +24,7 @@ def run_with_log(args, **kwargs):
 
 legacy.subprocess.run = run_with_log
 window = legacy.Bildirim({
-    "version": "0.22.5", "url": setup.resolve().as_uri(),
+    "version": "0.23.0", "url": setup.resolve().as_uri(),
     "sha256": hashlib.sha256(setup.read_bytes()).hexdigest(),
     "notes": "Isolated CI upgrade test",
 })

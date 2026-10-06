@@ -1,0 +1,46 @@
+DEPORIAQ 0.23.0 — YAYIN VE KABUL SIRASI
+
+Bu ZIP kaynak kod ve GitHub Desktop yayın paketidir. İçinde hazır Windows EXE yoktur.
+EXE ve Setup, mevcut GitHub Actions akışınızda Windows üzerinde üretilecektir.
+
+1. Mevcut DeporiaQ'da Veri ve Yedekleme ile bir yedek alın; programı kapatın.
+2. ZIP'i ayrı bir klasöre çıkartın. İçindeki dosyaları .github ve tests klasörleri
+   dahil DeporiaQ-Updates GitHub deposunun köküne aktarın. Aynı adlı kaynak
+   dosyalarını değiştirin. AppData içindeki müşteri veritabanını değiştirmeyin.
+3. GitHub Desktop Changes listesinde yeni deporiaq_analiz.py, deporiaq_analiz_ui.py,
+   deporiaq_runtime.py, deporiaq_restart.ps1 ve güncellenen workflow görünmeli.
+4. Summary: DeporiaQ 0.23.0 operasyon merkezi ve açılış denetimi
+   Commit to main, ardından Push origin.
+5. GitHub → Actions → DeporiaQ Windows Release → Run workflow.
+   Branch: main. Version: 0.23.0. Çalıştırın.
+6. Test ve build adımlarının tamamı yeşil olmadan yayın hazır sayılmaz.
+   Workflow: 36 işlev testi, Qt çizim testi, paket görsel doğrulaması,
+   PowerShell sözdizimi kontrolü, gerçek Windows sessiz kurulum,
+   eski 0.22.4 ve 0.22.5 güncelleyicilerinden geçiş, bozulmuş/eski PyInstaller
+   ortamından açılış ve tek pencere kontrolü yapar.
+   Başarısız adımda otomatik Release/manifest aşamalarına geçmez.
+7. Workflow başarılıysa v0.23.0 Release ve yeni manifest otomatik yayınlanır.
+   Kurulum dosyası: DeporiaQ_Setup_0.23.0.exe.
+8. Önce kendi bilgisayarındaki 0.22.5 ile güncellemeyi kabul et.
+   UAC iznini ver. Kurulumdan sonra v0.23.0 Giriş penceresinin kendiliğinden
+   açılmasını bekle (ilk EXE açılışı antivirüs taramasıyla uzayabilir).
+   En fazla iki dakikalık başlatma denetimi vardır.
+9. Ana Yönetici olarak giriş yap. Operasyon Merkezi ve Ctrl+K'yi dene.
+   Stokları yedek/önceki raporla karşılaştır. Arka planın korunduğunu kontrol et.
+10. Kendi masaüstü testi başarısızsa müşterilere önermeden önce test günlüklerini
+    inceleyin. Win+R → %LOCALAPPDATA%\DeporiaQ\logs
+    relaunch.log: başlatma/READY/hata; startup.log: Python açılış hatası;
+    installer.log: yeni güncelleyicinin kurulum günlüğü.
+    0.22.5'ten ilk geçişte installer.log oluşmayabilir; yeni başlatıcı diğerlerini üretir.
+    Hata ekranı ve bu günlüklerle sorunu somut olarak takip edebilirsiniz.
+
+Bu sürüm yeni SQL migration istemez. Eski migration dosyasını sırf bu sürüm için
+tekrar çalıştırmayın. Parola değiştirme adımı eklenmedi.
+
+TEST SINIRI
+Burada Windows erişimi olmadığı için yerel testler Linux/Qt üzerindedir.
+GitHub Actions Windows Server 2022 testi, gerçek masaüstü UAC/antivirüs koşullarını
+bütünüyle taklit etmez. Bu nedenle 8 ve 9. adımlar son kabul kontrolüdür.
+
+tests/test_windows_install.py yalnızca izole GitHub Actions Windows ortamında
+çalıştırılır. Müşteri bilgisayarında çalıştırılacak bir onarım aracı değildir.

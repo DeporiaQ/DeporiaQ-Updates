@@ -1,11 +1,9 @@
-"""DeporiaQ 0.23.0 görünür ilerlemeli güvenli güncelleme yardımcısı."""
+"""DeporiaQ 0.22.5 görünür ilerlemeli güvenli güncelleme yardımcısı."""
 import ctypes
 import hashlib
 import json
 import os
 import secrets
-import re
-from deporiaq_runtime import clean_environment, startup_error, log_directory
 import subprocess
 import sys
 import tempfile
@@ -16,7 +14,7 @@ from tkinter import ttk
 import urllib.request
 from pathlib import Path
 
-MEVCUT_SURUM = "0.23.0"
+MEVCUT_SURUM = "0.22.5"
 PROGRAM_ADI = "DeporiaQ"
 AZAMI_GUNCELLEME_BOYUTU = 1024 * 1024 * 1024
 
@@ -67,8 +65,6 @@ def manifest_getir():
     yeni = str(veri.get("version", "0"))
     url = str(veri.get("download_url", ""))
     ozet = str(veri.get("sha256", "")).lower()
-    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){2}", yeni):
-        return None
     if surum_parcalari(yeni) <= surum_parcalari(MEVCUT_SURUM):
         return None
     if not url.lower().startswith("https://") or len(ozet) != 64 or any(c not in "0123456789abcdef" for c in ozet):
@@ -145,18 +141,23 @@ class Bildirim:
                 if not secrets.compare_digest(ozet.hexdigest(), self.manifest["sha256"]):
                     raise ValueError("Güvenlik doğrulaması başarısız.")
                 os.replace(gecici, hedef)
-                self.ilerleme_ayarla(88,"DeporiaQ güncelleniyor • Kurulum hazırlanıyor…")
+                self.ilerleme_ayarla(88,"DeporiaQ güncelleniyor • Uygulama güvenle kapatılıyor…")
                 time.sleep(.7)
+                if os.name=="nt":
+                    subprocess.run(["taskkill","/F","/IM","DeporiaQ.exe"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+                ortam = os.environ.copy()
+                for anahtar in ("_MEIPASS2", "_PYI_APPLICATION_HOME_DIR", "PYINSTALLER_RESET_ENVIRONMENT"):
+                    ortam.pop(anahtar, None)
+                ortam["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
                 self.ilerleme_ayarla(94,"DeporiaQ güncelleniyor • Windows izni ve kurulum bekleniyor…")
                 self.kurulum_suruyor=True;self.root.after(700,self.kurulum_animasyonu)
-                sonuc=kurulumu_calistir(hedef)
+                sonuc=subprocess.run([str(hedef),"/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CLOSEAPPLICATIONS","/FORCECLOSEAPPLICATIONS"],env=ortam,close_fds=True)
                 self.kurulum_suruyor=False
                 if sonuc.returncode!=0:raise RuntimeError(f"Kurulum tamamlanamadı (kod {sonuc.returncode}).")
                 self.ilerleme_ayarla(100,"Güncelleme tamamlandı • DeporiaQ yeniden açılıyor…")
                 # Setup owns relaunch, including upgrades from older notifiers.
                 self.root.after(1000,self.kapat)
             except Exception as hata:
-                startup_error(type(hata),hata,hata.__traceback__)
                 self.kurulum_suruyor=False
                 try: gecici.unlink(missing_ok=True)
                 except OSError: pass
@@ -169,20 +170,6 @@ class Bildirim:
 
     def calistir(self):
         self.root.mainloop()
-
-
-def kurulumu_calistir(hedef):
-    log = log_directory() / "installer.log"
-    # External executables must not inherit the frozen application's DLL search path.
-    if os.name == "nt":
-        ctypes.windll.kernel32.SetDllDirectoryW(None)
-    try:
-        return subprocess.run([str(hedef),"/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART",
-                               "/CLOSEAPPLICATIONS","/FORCECLOSEAPPLICATIONS",f"/LOG={log}"],
-                              env=clean_environment(),close_fds=True)
-    finally:
-        if os.name == "nt" and getattr(sys,"frozen",False):
-            ctypes.windll.kernel32.SetDllDirectoryW(getattr(sys,"_MEIPASS",None))
 
 
 def sessiz_indir_ve_kur(manifest):
@@ -201,7 +188,12 @@ def sessiz_indir_ve_kur(manifest):
     if not secrets.compare_digest(ozet.hexdigest(),manifest["sha256"]):
         gecici.unlink(missing_ok=True);raise ValueError("Güncelleme güvenlik doğrulaması başarısız.")
     os.replace(gecici,hedef);time.sleep(2)
-    sonuc=kurulumu_calistir(hedef)
+    if os.name=="nt":
+        subprocess.run(["taskkill","/F","/IM","DeporiaQ.exe"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+    ortam=os.environ.copy()
+    for anahtar in ("_MEIPASS2","_PYI_APPLICATION_HOME_DIR","PYINSTALLER_RESET_ENVIRONMENT"):ortam.pop(anahtar,None)
+    ortam["PYINSTALLER_RESET_ENVIRONMENT"]="1"
+    sonuc=subprocess.run([str(hedef),"/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CLOSEAPPLICATIONS","/FORCECLOSEAPPLICATIONS"],env=ortam,close_fds=True)
     if sonuc.returncode != 0:raise RuntimeError(f"Kurulum tamamlanamadı (kod {sonuc.returncode}).")
     # Setup owns relaunch. Never start a duplicate application here.
 
@@ -211,5 +203,5 @@ if __name__ == "__main__" and tek_ornek_calissin():
         bilgi = manifest_getir()
         if bilgi and "--install-now" in sys.argv:sessiz_indir_ve_kur(bilgi)
         elif bilgi and "--notify" in sys.argv:Bildirim(bilgi).calistir()
-    except Exception as hata:
-        startup_error(type(hata),hata,hata.__traceback__)
+    except Exception:
+        pass

@@ -1,4 +1,4 @@
-"""DeporiaQ 0.22.5 - güvenli abonelik, doğru roller ve yenilenen görünüm."""
+"""DeporiaQ 0.23.0 - güvenli abonelik, doğru roller ve yenilenen görünüm."""
 import csv
 import json
 import os
@@ -6,11 +6,17 @@ import secrets
 import subprocess
 import sys
 import shutil
+import sqlite3
+import webbrowser
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
+
+from deporiaq_runtime import clean_environment, acknowledge_startup, startup_error
+sys.excepthook = startup_error
+from deporiaq_analiz_ui import AnalysisWindow, CommandPalette
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QIntValidator,
@@ -30,7 +36,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.22.5"
+SURUM = "0.23.0"
 
 
 def kaynak_yolu(ad):
@@ -383,7 +389,7 @@ class GirisPenceresi(QWidget):
                 if getattr(sys, "frozen", False)
                 else Path(__file__).resolve().parent / "DeporiaQUpdate.exe")
         if arac.exists():
-            subprocess.Popen([str(arac), "--notify"], close_fds=True)
+            subprocess.Popen([str(arac), "--notify"], close_fds=True, env=clean_environment())
 
     def giris(self):
         girilen = self.kullanici.text().strip()
@@ -811,7 +817,8 @@ class YardimMerkezi(QDialog):
         "Stok İşlemleri":"""STOK GİRİŞİ\nMerkez depoya gelen ürünün barkodunu okutun ve miktarı girin.\n\nTRANSFER\nKaynak ve hedef konumu seçin. Ürün ve miktar doğrulandıktan sonra işlem hareket geçmişine kaydedilir.\n\nŞUBEDE SATIŞ\nSatış yapılan şubeyi seçin, barkodu okutun ve miktarı girin. Stok otomatik düşer ve ciro/kâr raporuna işlenir.\n\nSTOK SAYIMI\nProfesyonel Araçlar > Stok Sayımı ile sistem miktarını fiziksel sayımla eşitleyin.""",
         "Cloud ve Kullanıcılar":"""Cloud hesabı, yerel kullanıcı hesabından ayrıdır.\n\nCloud e-posta/parolası işletmenin bulut verilerine erişir. Yerel Kullanıcılar ekranındaki hesaplar ise bu bilgisayarda programa giriş ve yetki kontrolü içindir.\n\nAyarlar > Cloud ve Senkronizasyon bölümünden giriş yapabilirsiniz. Parola açık biçimde kaydedilmez. Durum göstergesindeki yeşil nokta verilerin güncel olduğunu belirtir.""",
         "Raporlar ve Yazdır":"""Raporlar ve Yazdır bölümünde genel stok, kritik stok, kâr, denetim ve oturum kayıtları bulunur.\n\nYazdır düğmesi Windows yazıcı ekranını açar. CSV Dışa Aktar seçeneği raporu Excel ile açılabilecek biçimde kaydeder.\n\nSipariş Önerileri, kritik seviyedeki ürünler için hedef stoğu kritik seviyenin iki katına tamamlayacak öneri üretir.""",
-        "Kısayollar":"""F5 — Ekranı ve stokları yenile\nCtrl+T — Stok Transferi ekranını aç\nEnter — Barkod alanlarında ürünü sorgula veya sonraki adıma geç\nEsc — Açık pencereyi kapat""",
+        "Operasyon Merkezi":"""Ana Yönetici için 9 analiz ekranı: tüm depolarda arama, tükenme, ABC, hareketsiz stok, transfer önerisi, satın alma planı, konum karşılaştırması, günlük satış ve sayım listesi.\n\nSonuçlar yerel veriye dayanır. Cloud eşitlemesi tamamlandıktan sonra Verileri Yenile düğmesini kullanın. Öneriler otomatik stok değişikliği yapmaz.\n\nDestek: deporiaq@gmail.com\nInstagram: @deporiaq\nYouTube: @DeporiaQ""",
+        "Kısayollar":"""Ctrl+K — Hızlı komut menüsü\nCtrl+F — Tüm depolarda arama (Ana Yönetici)\nF5 — Ekranı ve stokları yenile\nCtrl+T — Stok Transferi ekranını aç\nEnter — Barkod alanlarında ürünü sorgula veya sonraki adıma geç\nEsc — Açık pencereyi kapat""",
         "Sorun Giderme":"""ÜRÜN BULUNAMADI\nDoğru konumun seçili olduğunu ve ürünün o konumda stok kaydı bulunduğunu kontrol edin.\n\nCLOUD BAĞLI DEĞİL\nİnternet bağlantısını, Project URL'yi ve publishable/anon anahtarını kontrol edin. Cloud parolası güvenlik nedeniyle her zaman ekranda tutulmaz.\n\nGÜNCELLEME GELMİYOR\nAyarlar dosyasındaki manifest adresini, internet bağlantısını ve DeporiaQUpdate.exe dosyasının kurulum klasöründe bulunduğunu kontrol edin.\n\nVERİ SORUNU\nÖnce Veri ve Yedekleme ile yedek alın. Ardından VERITABANI_ONAR aracını kullanın.""",
     }
     def __init__(self,vt,parent=None):
@@ -822,6 +829,7 @@ class YardimMerkezi(QDialog):
         for ad,metin in self.KONULAR.items():
             alan=QPlainTextEdit(metin);alan.setReadOnly(True);sek.addTab(alan,ad)
         destek=QWidget();f=QFormLayout(destek);self.tur=QComboBox();self.tur.addItems(["Teknik Sorun","Kullanım Sorusu","Öneri","Cloud Sorunu"]);self.konu=QLineEdit();self.mesaj=QPlainTextEdit();self.iletisim=QLineEdit()
+        f.addRow(QLabel("Müşteri desteği: deporiaq@gmail.com\nBu form yerel kayıt oluşturur; otomatik e-posta göndermez."))
         g=QPushButton("Destek Kaydı Oluştur");g.setObjectName("birincil");g.clicked.connect(self.gonder)
         f.addRow("Talep türü:",self.tur);f.addRow("Konu:",self.konu);f.addRow("Açıklama:",self.mesaj);f.addRow("İletişim:",self.iletisim);f.addRow(g);sek.addTab(destek,"Destek")
         a=QHBoxLayout();surum=QLabel(f"Sürüm {SURUM} • © 2026 DeporiaQ");surum.setObjectName("soluk");k=QPushButton("Kapat");k.clicked.connect(self.accept);a.addWidget(surum);a.addStretch();a.addWidget(k);d.addLayout(a)
@@ -884,6 +892,8 @@ class AnaPencere(QMainWindow):
         ana.addWidget(self.alt_cubuk())
         self.dashboard_kur()
         QShortcut(QKeySequence("Ctrl+T"), self, activated=self.transfer_ac)
+        QShortcut(QKeySequence("Ctrl+K"), self, activated=self.komut_paleti_ac)
+        QShortcut(QKeySequence("Ctrl+F"), self, activated=self.operasyon_ac)
         QShortcut(QKeySequence("F5"), self, activated=self.yenile)
         QTimer.singleShot(50, self.yenile)
         self.canli_zamanlayici=QTimer(self);self.canli_zamanlayici.timeout.connect(self.canli_yenile);self.canli_zamanlayici.start(15000)
@@ -917,7 +927,8 @@ class AnaPencere(QMainWindow):
         d = QVBoxLayout(menu); d.setContentsMargins(10, 14, 10, 12); d.setSpacing(5)
         d.addWidget(QLabel("MENÜ"))
         for ad, komut in (
-            ("Gösterge Paneli", self.yenile), ("Stok Girişi", self.stok_girisi_ac),
+            ("Gösterge Paneli", self.yenile), ("Operasyon Merkezi", self.operasyon_ac),
+            ("Hızlı Komutlar · Ctrl+K", self.komut_paleti_ac), ("Stok Girişi", self.stok_girisi_ac),
             ("Ürün Yönetimi", self.urun_yonetimi_ac), ("Şubede Satış", self.satis_ac),
             ("Stok Transferi", self.transfer_ac),
             ("Depo ve Şubeler", self.konum_yonetimi_ac), ("Kritik Stoklar", self.kritikleri_ac),
@@ -1172,7 +1183,25 @@ class AnaPencere(QMainWindow):
         self.kur_durumu.setText("İnternet bağlantınızı kontrol edip yeniden deneyin.")
 
     def sosyal_yakinda(self, platform):
-        QMessageBox.information(self, f"DeporiaQ {platform}", f"DeporiaQ {platform} hesabı henüz açılmadı.\nHesap açıldığında bağlantı bu düğmeye eklenecek.")
+        adres = {"Instagram": "https://www.instagram.com/deporiaq/", "YouTube": "https://www.youtube.com/@DeporiaQ"}.get(platform)
+        if adres: webbrowser.open(adres)
+
+    def operasyon_ac(self, initial="search"):
+        if self.kullanici["rol"] != "ANA_YONETICI" or self.lisans_kilitli:
+            QMessageBox.warning(self,"Yetki gerekli","Operasyon Merkezi için aktif Ana Yönetici oturumu gerekir.")
+            return
+        AnalysisWindow(self.vt,self,initial if isinstance(initial,str) else "search").exec()
+
+    def komut_paleti_ac(self):
+        if self.lisans_kilitli:return
+        commands = [("Gösterge Panelini Yenile",self.yenile),("Yardım Merkezi",self.yardim_ac),
+                    ("Stok Transferi",self.transfer_ac),("Şubede Satış",self.satis_ac)]
+        if self.kullanici["rol"] == "ANA_YONETICI":
+            from deporiaq_analiz import REPORTS
+            commands += [(title,lambda key=key:self.operasyon_ac(key)) for key,title in REPORTS]
+            commands += [("Stok Girişi",self.stok_girisi_ac),("Ürün Yönetimi",self.urun_yonetimi_ac),
+                         ("Güvenli Yedek Al",self.yedek_al),("Ayarlar",self.ayarlar_ac)]
+        CommandPalette(commands,self).exec()
 
     def transfer_ac(self):
         if self.kullanici["rol"] not in ("ANA_YONETICI", "DEPO_PERSONELI"):
@@ -1229,7 +1258,7 @@ class AnaPencere(QMainWindow):
         notlar=str(manifest.get("notes","")).strip();mesaj=f"DeporiaQ {yeni} hazır.\n\n{notlar[:500]}\n\nGüvenli güncelleme aracını şimdi açalım mı?"
         arac=Path(sys.executable).resolve().parent/"DeporiaQUpdate.exe" if getattr(sys,"frozen",False) else Path(__file__).resolve().parent/"DeporiaQUpdate.exe"
         if not arac.exists():QMessageBox.warning(self,"Güncelleme aracı bulunamadı","DeporiaQUpdate.exe kurulum klasöründe bulunamadı.");return
-        subprocess.Popen([str(arac),"--notify"],close_fds=True)
+        subprocess.Popen([str(arac),"--notify"],close_fds=True,env=clean_environment())
 
     def yedek_al(self):
         if self.kullanici["rol"] != "ANA_YONETICI":
@@ -1237,8 +1266,14 @@ class AnaPencere(QMainWindow):
         varsayilan=f"DeporiaQ_Yedek_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
         yol,_=QFileDialog.getSaveFileName(self,"Veritabanı yedeğini kaydet",varsayilan,"DeporiaQ Veritabanı (*.db)")
         if not yol:return
-        try:self.vt.baglanti.commit();shutil.copy2(VERITABANI_YOLU,yol)
-        except OSError as e:QMessageBox.warning(self,"Yedek alınamadı",str(e));return
+        try:
+            if Path(yol).resolve() == Path(self.vt.yol).resolve():
+                raise ValueError("Yedek için asıl veritabanından farklı bir dosya seçin.")
+            with sqlite3.connect(yol) as hedef:
+                self.vt.baglanti.backup(hedef)
+                if hedef.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                    raise ValueError("Yedek bütünlük kontrolünden geçemedi.")
+        except (OSError,sqlite3.Error,ValueError) as e:QMessageBox.warning(self,"Yedek alınamadı",str(e));return
         QMessageBox.information(self,"Yedek tamamlandı",f"Veritabanı yedeği kaydedildi:\n{yol}")
 
     def kullanicilar_ac(self):
@@ -1356,9 +1391,11 @@ def main():
     app.setWindowIcon(QIcon(kaynak_yolu("deporiaq_icon.svg"))); app.setStyleSheet(STIL); app.setFont(QFont("Segoe UI", 10))
     if vt.ilk_kurulum_gerekli():
         kurulum = IlkKurulumPenceresi(vt)
+        QTimer.singleShot(250, lambda: acknowledge_startup(SURUM) if kurulum.isVisible() else None)
         if not kurulum.exec():
             vt.kapat(); return 0
     giris = GirisPenceresi(vt); giris.show()
+    QTimer.singleShot(250, lambda: acknowledge_startup(SURUM) if giris.isVisible() else None)
     sonuc = app.exec(); vt.kapat(); return sonuc
 
 

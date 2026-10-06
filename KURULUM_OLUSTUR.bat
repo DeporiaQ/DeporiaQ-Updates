@@ -13,5 +13,5 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo Kurulum hazir: kurulum\DeporiaQ_Setup_0.22.5.exe
+echo Kurulum hazir: kurulum\DeporiaQ_Setup_0.23.0.exe
 pause
