@@ -1,6 +1,6 @@
 {
-  "version": "0.22.5",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.22.5/DeporiaQ_Setup_0.22.5.exe",
-  "sha256": "687a53a894bd59c022a541f3b2817c725181521a2a38a9ef245f82b72a9a05cc",
-  "notes": "Kurulum sonrası yeniden açılma kurulum dosyasına taşındı. Depo arka planının çizim hatası ve panellerin görseli örtmesi düzeltildi."
+  "version": "0.23.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.23.0/DeporiaQ_Setup_0.23.0.exe",
+  "sha256": "913354461c800ce171fccad35959e73cce829aa7ad3fc412caee9847bbdd1714",
+  "notes": "Bağımsız ve açılış onaylı güncelleme başlatıcısı, 9 operasyon analizi ve Ctrl+K hızlı komut menüsü."
 }
