@@ -1,6 +1,6 @@
 # DeporiaQ 0.24.0 — geliştirme / inceleme adayı
 
-Bu paket **müşteriye kurulacak tamamlanmış sürüm değildir**. 0.23.0'ı mevcut işletmede kullanmaya devam edin. Bu pakette Windows EXE veya Setup yoktur; kaynak, SQL, testler ve gerçek Qt ekranlarından alınmış örnek görüntüler vardır. Üretim Supabase projesine değişiklik uygulanmadı; GitHub'a gönderilmedi.
+Bu paket **müşteriye kurulacak tamamlanmış sürüm değildir**. 0.23.0'ı mevcut işletmede kullanmaya devam edin. Kaynak paketinden ayrı olarak GitHub Actions üzerinde Windows Setup adayı oluşturuldu. İndirme: https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/37670521579 — Artifacts → DeporiaQ-0.24.0-candidate-setup. Bu aday canlı işletmeye kurulmaya hazır değildir. Üretim Supabase projesine değişiklik uygulanmadı; GitHub test dalına gönderildi; üretim dalı değiştirilmedi.
 
 ## Yapılanlar
 
@@ -22,12 +22,12 @@ Bu paket **müşteriye kurulacak tamamlanmış sürüm değildir**. 0.23.0'ı me
 ## Test kanıtları
 
 `test-results/unit-results.xml`: 54 Python/Qt testi (yeniden çalıştırmanın sonucu esas alınmalıdır).
-`test-results/server-tests.json`: 22 PostgreSQL işlev senaryosu PGlite motorunda. Bu gerçek PostgreSQL sorgu yürütmesidir fakat TEK BAĞLANTILI ortamdır; çok oturumlu yarış testi yerine geçmez.
+`test-results/server-tests.json`: 22 PostgreSQL işlev senaryosu. İlk yerel çalışma PGlite üzerinde yapıldı; 7 Ekim 2026 tarihinde GitHub Actions PostgreSQL 16 üzerinde de geçti. Ayrıca 12 bağımsız bağlantıyla cihaz kotası, son stok için kasa/rezervasyon yarışı ve aynı isteğin 12 kez gönderilmesi testleri geçti. Kanıt: https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/37670111657
 `test-results/dashboard-test.log`: 3 pencere boyutunda depo arka planı ve panel görünürlüğü testi.
 `test-results/*.png`: gerçek Qt pencereleri; müşteri verisi değil örnek veriler.
 
-`tests/server/concurrency.mjs`: yerel PostgreSQL'de 12 ayrı oturumla cihaz kotası, kasa/internet son ürün yarışı ve aynı satışın 12 eşzamanlı tekrarı. Bu ortamda native PostgreSQL sunucusu başlatılamadığı için **çalıştırılmadı**. CI tanımı hazırdır.
-`tests/test_windows_install.py`: temiz kurulum; 0.22.4/0.22.5/0.23.0 güncelleyicilerinden geçiş; bağımsız yeniden açılma; tek pencere ve READY kaydı. Linux ortamında **çalıştırılmadı**.
+`tests/server/concurrency.mjs`: yerel PostgreSQL'de 12 ayrı oturumla cihaz kotası, kasa/internet son ürün yarışı ve aynı satışın 12 eşzamanlı tekrarı. GitHub Actions PostgreSQL 16 üzerinde 7 Ekim 2026 tarihinde **geçti**.
+`tests/test_windows_install.py`: temiz kurulum; 0.22.4/0.22.5/0.23.0 güncelleyicilerinden geçiş; bağımsız yeniden açılma; tek pencere ve READY kaydı. Windows Server 2022 üzerinde 7 Ekim 2026 tarihinde **geçti**. Bozuk PyInstaller ortamından açılma senaryosu da geçti. Bu kanıt, kullanıcının kendi Windows bilgisayarındaki uçtan uca Cloud giriş testinin yerine geçmez.
 
 ## Yayından önce tamamlanması gerekenler
 
@@ -37,7 +37,7 @@ Bu paket **müşteriye kurulacak tamamlanmış sürüm değildir**. 0.23.0'ı me
 4. **Yeni müşteri kaydı:** 30 günlük deneme başlangıç fonksiyonu yalnızca güvenilir sunucu içindir. Kimlik doğrulama/onboarding servisi ve yeni hesaplarla tekrarlı deneme kötüye kullanımını önleme henüz uçtan uca tamamlanmadı. Masaüstünden gelişigüzel yeni deneme açılmaz.
 5. **Ödeme:** Paket fiyatları ve satıcı hesabı belirtilmedi. Satın alma/yükseltme düğmesi bilerek devre dışıdır. Sunucu ödeme kaydı sadece doğrulanmış sağlayıcı adaptörüne izin verecek şekilde hazırdır; sağlayıcı imza doğrulaması, ödeme sayfası ve uçtan uca tahsilat entegrasyonu henüz YOKTUR. Ödeme dekontu/istemci bildirimi abonelik açamaz. Karttan otomatik tahsilat yapılmaz; yenileme düğmesi şimdilik sunucudaki tercihi kaydeder.
 6. **Destek e-postası:** Talep sunucuda kaydedilir, mail durumu `pending` olur. `server/support_worker.py` SMTP TLS ve sunucu servis anahtarı yapılandırılınca çalıştırılmalıdır. Gerçek e-posta teslimi yapılmadı/test edilmedi. SMTP kabulü ile son alıcı posta kutusuna teslim aynı şey değildir. İşçi kesintisinde aynı Message-ID ile tekrar gönderim olabilir.
-7. **Windows + gerçek PostgreSQL:** Aşağıdaki CI işleri başarıyla tamamlanmalı; cihaz ve canlı entegrasyon testleriyle birlikte sonuçlar incelenmeli.
+7. **Windows + gerçek PostgreSQL:** CI işleri başarıyla tamamlandı. Donanıma bağlı cihaz ve canlı entegrasyon testleri hâlâ gereklidir.
 
 ## Güvenli doğrulama akışı
 
