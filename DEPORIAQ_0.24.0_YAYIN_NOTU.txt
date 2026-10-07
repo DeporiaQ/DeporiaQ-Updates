@@ -1,0 +1,5 @@
+DeporiaQ 0.24.0 ADAY — MÜŞTERİ YAYINI HENÜZ KAPALI
+Paket/abonelik ekranları, sunucu stok rezervasyonu, elle internet siparişleri,
+sade menü ve Ayarlar → Gizli Komutlar'da beş geçiş.
+Ödeme, cihaz kimliği, yeni müşteri deneme kaydı, gerçek e-posta,
+canlı Supabase geçişi ve Windows doğrulaması için ONCE_OKU_0.24.0.md esas alınır.
