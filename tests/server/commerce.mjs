@@ -10,6 +10,7 @@ if(process.env.DPQ_TEST_DATABASE_URL){
  db={query:(...a)=>pg.query(...a),exec:(s)=>pg.query(s),close:()=>pg.end()};
 }else db=new PGlite();
 await db.exec(fs.readFileSync(path.join(import.meta.dirname,'fixture.sql'),'utf8'));
+await db.exec(fs.readFileSync(path.join(import.meta.dirname,'exported_legacy.sql'),'utf8'));
 await db.exec(fs.readFileSync(path.join(root,'DEPORIAQ_CLOUD_0.24.0_MIGRATION.sql'),'utf8'));
 const C=randomUUID(),U=randomUUID(),P=randomUUID(),L=[randomUUID(),randomUUID(),randomUUID(),randomUUID()];
 await db.query('insert into companies values($1,$2)',[C,'Test']);
@@ -98,6 +99,47 @@ await test('Client table-wide privileges removed; truncate denied and rows prese
   await db.exec('reset role');
  }
  assert.equal((await db.query('select count(*)::int n from inventory')).rows[0].n,before);
+});
+await test('Exported legacy RPCs cannot bypass migrated-company guard',async()=>{
+ await db.exec('reset role');
+ const before=(await db.query('select location_id,quantity from inventory where company_id=$1 order by location_id',[C])).rows;
+ await db.exec('set role authenticated');
+ await rejects(()=>db.query("select apply_stock_movement($1,$2,$3,'increase',1)",[C,L[1],P]),'DPQ_SERVER_ONLY');
+ await rejects(()=>db.query("select apply_stock_movement_v2($1,$2,$3,1,'increase','purchase',$4)",[C,P,L[1],randomUUID()]),'DPQ_SERVER_ONLY');
+ await rejects(()=>db.query("select apply_stock_transfer_v2($1,$2,$3,$4,1,$5)",[C,P,L[1],L[2],randomUUID()]),'DPQ_SERVER_ONLY');
+ await db.exec('reset role');
+ assert.deepEqual((await db.query('select location_id,quantity from inventory where company_id=$1 order by location_id',[C])).rows,before);
+ assert.equal(Number((await db.query('select count(*) n from cloud_operations')).rows[0].n),0);
+ assert.equal(Number((await db.query('select count(*) n from stock_movements')).rows[0].n),0);
+});
+await test('Enabling standard subscription preserves paid expiry',async()=>{
+ await db.exec('reset role');const c=randomUUID(),l=randomUUID();
+ await db.query("insert into companies values($1,'Existing paid company')",[c]);
+ await db.query("insert into locations values($1,$2,'Merkez Depo','center',true)",[l,c]);
+ await db.query("insert into company_subscriptions(company_id,status,valid_until,plan_code) values($1,'active','2027-09-30T21:15:17Z','standard')",[c]);
+ const before=(await db.query('select status,valid_until from company_subscriptions where company_id=$1',[c])).rows[0];
+ await db.exec('set role service_role');await db.query('select dpq_enable($1,$2,$3)',[c,'single',l]);
+ await db.exec('reset role');const after=(await db.query('select status,valid_until,plan_code from company_subscriptions where company_id=$1',[c])).rows[0];
+ assert.deepEqual({status:after.status,valid_until:after.valid_until},before);assert.equal(after.plan_code,'single');
+});
+await test('Unmigrated legacy RPC denies expired, viewer and foreign location writes',async()=>{
+ await db.exec('reset role');const c=randomUUID(),u=randomUUID(),p=randomUUID(),l=randomUUID();
+ await db.query("insert into companies values($1,'Legacy paid')",[c]);
+ await db.query("insert into company_members values($1,$2,'owner',true,now())",[c,u]);
+ await db.query("insert into company_subscriptions(company_id,status,valid_until,plan_code) values($1,'active',now()+interval '1 day','standard')",[c]);
+ await db.query("insert into locations values($1,$2,'Center','center',true)",[l,c]);
+ await db.query("insert into products values($1,$2,'TEST','Test',1,1,0,true)",[p,c]);
+ await db.query("select set_config('request.jwt.claim.sub',$1,false)",[u]);await db.exec('set role authenticated');
+ const old=()=>db.query("select apply_stock_movement_v2($1,$2,$3,1,'increase','purchase',$4)",[c,p,l,randomUUID()]);
+ await old();
+ await rejects(()=>db.query("select apply_stock_movement_v2($1,$2,$3,1,'increase','purchase',$4)",[c,p,L[0],randomUUID()]),'DPQ_LOCATION');
+ await db.exec('reset role');await db.query("update company_members set role='viewer' where company_id=$1",[c]);await db.exec('set role authenticated');
+ await rejects(()=>db.query("select apply_stock_movement($1,$2,$3,'increase',1)",[c,l,p]),'DPQ_ROLE');
+ await db.exec('reset role');await db.query("update company_members set role='owner' where company_id=$1",[c]);await db.query("update company_subscriptions set valid_until=now()-interval '1 second' where company_id=$1",[c]);await db.exec('set role authenticated');
+ await rejects(old,'DPQ_LICENSE');
+ await rejects(()=>db.query("select apply_stock_transfer_v2($1,$2,$3,$4,1,$5)",[c,p,l,L[0],randomUUID()]),'DPQ_LICENSE');
+ await rejects(()=>db.query("select apply_stock_movement($1,$2,$3,'increase',1)",[c,l,p]),'DPQ_LICENSE');
+ await db.exec('reset role');assert.equal(Number((await db.query('select quantity from inventory where company_id=$1',[c])).rows[0].quantity),1);
 });
 await db.close();
 fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results','server-tests.json'),JSON.stringify({engine:process.env.DPQ_TEST_DATABASE_URL?'PostgreSQL native':'PGlite PostgreSQL WASM; single connection, NOT multi-session concurrency proof',passed:passes},null,2));
