@@ -1,0 +1,14 @@
+{
+  "version": "0.24.0",
+  "candidate_only": true,
+  "required_evidence": {
+    "native_postgres_concurrency": true,
+    "live_supabase_schema_and_rls_review": false,
+    "existing_customer_data_reconciliation": false,
+    "windows_install_and_restart": true,
+    "payment_provider_sandbox_end_to_end": false,
+    "support_email_delivery": false,
+    "device_identity_clone_test": false,
+    "new_trial_onboarding_end_to_end": false
+  }
+}

@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.23.0"
+PROGRAM_SURUMU = "0.24.0"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -681,13 +681,13 @@ class Veritabani:
             parametreler.append(simdi.strftime("%m.%Y"))
         return self.baglanti.execute(
             """
-            SELECT h.tarih_saat, u.ad AS urun, h.miktar,
+            SELECT h.tarih_saat, u.ad AS urun, case when h.hareket_turu='IADE' then -h.miktar else h.miktar end as miktar,
                    COALESCE(h.birim_fiyat,0) AS satis_fiyati,
                    COALESCE(h.alis_fiyati,u.alis_fiyati,0) AS alis_fiyati,
                    COALESCE(h.toplam_tutar,0) AS ciro,
-                   (COALESCE(h.birim_fiyat,0)-COALESCE(h.alis_fiyati,u.alis_fiyati,0))*h.miktar AS brut_kar
+                   (COALESCE(h.birim_fiyat,0)-COALESCE(h.alis_fiyati,u.alis_fiyati,0))*h.miktar*case when h.hareket_turu='IADE' then -1 else 1 end AS brut_kar
             FROM stok_hareketleri h JOIN urunler u ON u.id=h.urun_id
-            WHERE h.hareket_turu='SATIS'
+            WHERE h.hareket_turu in ('SATIS','IADE')
             """ + kosul + " ORDER BY h.id DESC",
             parametreler
         ).fetchall()
@@ -1760,7 +1760,8 @@ class DeporiaQCloud:
     def yapilandir(self, url, anahtar):
         self.url = str(url).strip().rstrip("/")
         self.anahtar = str(anahtar).strip()
-        if not self.url.startswith("https://") or ".supabase.co" not in self.url:
+        parsed=urllib.parse.urlparse(self.url)
+        if parsed.scheme!='https' or not (parsed.hostname or '').endswith('.supabase.co') or parsed.username or parsed.password or parsed.path not in ('','/') or parsed.query or parsed.fragment or parsed.port not in (None,443):
             raise ValueError("Geçerli Supabase Project URL giriniz.")
         if len(self.anahtar) < 20:
             raise ValueError("Geçerli publishable/anon key giriniz.")
@@ -1863,54 +1864,21 @@ class DeporiaQCloud:
         }.get(str(rol or "").lower(), "GORUNTULEYICI")
 
     def lisans_dogrula(self):
-        """Abonelik kararını yalnızca Supabase sunucu saatine göre doğrular."""
-        sonuc = self._istek("/rest/v1/rpc/get_my_entitlement", "POST", {}) or []
-        kayit = sonuc[0] if isinstance(sonuc, list) and sonuc else (sonuc if isinstance(sonuc, dict) else {})
-        if not kayit or str(kayit.get("company_id", "")) != self.company_id:
-            raise RuntimeError("[LISANS] Bu işletme için geçerli bir DeporiaQ lisansı bulunamadı.")
-        if not bool(kayit.get("allowed")):
-            durum = str(kayit.get("status") or "inactive")
-            raise RuntimeError(
-                f"[LISANS] DeporiaQ aboneliği etkin değil ({durum}). "
-                "İşletme yöneticinizin DeporiaQ ile iletişime geçmesi gerekir."
-            )
-        self.entitlement = dict(kayit)
-        return self.entitlement
+        from deporiaq_commerce import CommerceClient
+        status=CommerceClient(self).status()
+        if not status.get('enabled'):
+            raise RuntimeError('0.24 sunucu geçişi bu işletme için tamamlanmamış. Mevcut sürümünüzü kullanın.')
+        self.entitlement=status
+        return status
 
     def cikis_yap(self):
         self.access_token = self.refresh_token = self.user_id = self.company_id = ""
         self.company_name = self.role = ""
 
     def _cihazi_kaydet(self):
-        mevcut = self._istek(
-            f"/rest/v1/cloud_devices?select=id,active&company_id=eq.{self.company_id}&device_code=eq.{urllib.parse.quote(self.cihaz_kimligi)}&limit=1"
-        ) or []
-        if mevcut and not mevcut[0].get("active", True):
-            raise RuntimeError("Bu cihazın Cloud erişimi işletme yöneticisi tarafından kapatıldı.")
-        veri = [{
-            "company_id": self.company_id,
-            "user_id": self.user_id,
-            "device_code": self.cihaz_kimligi,
-            "device_name": os.getenv("COMPUTERNAME", "Windows PC"),
-            "app_version": PROGRAM_SURUMU,
-            "last_seen_at": datetime.now().astimezone().isoformat(),
-            "active": True,
-            "local_username": self.local_username or os.getenv("USERNAME", "DeporiaQ Kullanıcısı"),
-            "location_name": self.location_name or "Atanmamış",
-        }]
-        try:
-            self._istek(
-                "/rest/v1/cloud_devices?on_conflict=company_id,device_code",
-                "POST", veri, "resolution=merge-duplicates,return=minimal"
-            )
-        except RuntimeError as hata:
-            if "local_username" not in str(hata) and "location_name" not in str(hata):
-                raise
-            veri[0].pop("local_username", None); veri[0].pop("location_name", None)
-            self._istek(
-                "/rest/v1/cloud_devices?on_conflict=company_id,device_code",
-                "POST", veri, "resolution=merge-duplicates,return=minimal"
-            )
+        from deporiaq_commerce import CommerceClient
+        if getattr(self,'entitlement',{}).get('allowed'):
+            CommerceClient(self).register()
 
     def _liste(self, tablo, select="*"):
         secim = urllib.parse.quote(select, safe="*,()")
@@ -1988,79 +1956,12 @@ class DeporiaQCloud:
             self._durum_kaydet("son_hareket_id", son)
 
     def bekleyen_hareketleri_atomik_gonder(self):
-        """Yeni yerel stok hareketlerini idempotent Supabase RPC'lerine yollar."""
-        kayitli = self._durum_getir("son_hareket_id")
-        if not kayitli:
-            son = self.vt.baglanti.execute("SELECT COALESCE(MAX(id),0) FROM stok_hareketleri").fetchone()[0]
-            self._durum_kaydet("son_hareket_id", son)
-            return 0
-        son = int(kayitli)
-        hareketler = self.vt.baglanti.execute(
-            """SELECT h.*,u.barkod,k1.ad kaynak,k2.ad hedef FROM stok_hareketleri h
-               JOIN urunler u ON u.id=h.urun_id LEFT JOIN konumlar k1 ON k1.id=h.kaynak_konum_id
-               LEFT JOIN konumlar k2 ON k2.id=h.hedef_konum_id WHERE h.id>? ORDER BY h.id""", (son,)
-        ).fetchall()
-        if not hareketler: return 0
-        uzak_k = {x["name"]: x["id"] for x in self._liste("locations", "id,name")}
-        uzak_u = {x["barcode"]: x["id"] for x in self._liste("products", "id,barcode")}
-        if any(h["barkod"] not in uzak_u or (h["kaynak"] and h["kaynak"] not in uzak_k)
-               or (h["hedef"] and h["hedef"] not in uzak_k) for h in hareketler):
-            # Yeni ürün/konum önce tam anlık görüntüyle oluşturulmalıdır.
-            return -1
-        sayi = 0
-        for h in hareketler:
-            anahtar = f"{self.cihaz_kimligi}-{h['id']}"
-            ortak = {"p_company_id": self.company_id, "p_product_id": uzak_u.get(h["barkod"]),
-                     "p_quantity": float(h["miktar"]), "p_device_id": self.cihaz_kimligi,
-                     "p_note": h["aciklama"] or "DeporiaQ 0.12 otomatik senkron"}
-            if h["kaynak"] and h["hedef"]:
-                veri = dict(ortak, p_source_location_id=uzak_k.get(h["kaynak"]),
-                            p_target_location_id=uzak_k.get(h["hedef"]), p_operation_key=anahtar)
-                self._istek("/rest/v1/rpc/apply_stock_transfer_v2", "POST", veri)
-            else:
-                konum = h["hedef"] or h["kaynak"]
-                veri = dict(ortak, p_location_id=uzak_k.get(konum),
-                            p_direction="increase" if h["hedef"] else "decrease",
-                            p_movement_type=h["hareket_turu"], p_operation_key=anahtar)
-                self._istek("/rest/v1/rpc/apply_stock_movement_v2", "POST", veri)
-            self._durum_kaydet("son_hareket_id", h["id"]); sayi += 1
-        return sayi
+        raise RuntimeError('Yerel satış kuyruğu otomatik gönderilemez. Eski veriler geçiş sırasında uzlaştırılmalıdır.')
 
     def akilli_senkronize(self):
-        if not self.bagli:
-            return "BAGLI_DEGIL", None
-        atomik_sonuc = 0
-        if self.role in ("owner", "admin", "manager"):
-            atomik_sonuc = self.bekleyen_hareketleri_atomik_gonder()
-        yerel = self._yerel_kanonik(); bulut = self._bulut_kanonik()
-        yerel_ozet, bulut_ozet = self._ozet(yerel), self._ozet(bulut)
-        son_yerel = self._durum_getir("son_yerel_ozet")
-        son_bulut = self._durum_getir("son_bulut_ozet")
-        if not son_yerel or not son_bulut:
-            if yerel_ozet == bulut_ozet:
-                self.senkron_baslangic_noktasi_kaydet()
-                return "GUNCEL", None
-            return self._cakisma_ekle(yerel_ozet, bulut_ozet)
-        yerel_degisti = yerel_ozet != son_yerel
-        bulut_degisti = bulut_ozet != son_bulut
-        if yerel_degisti and bulut_degisti and yerel_ozet != bulut_ozet:
-            return self._cakisma_ekle(yerel_ozet, bulut_ozet)
-        if yerel_degisti:
-            if self.role not in ("owner", "admin", "manager"):
-                return "YETKI_BEKLIYOR", None
-            sonuc = self.yereli_buluta_gonder()
-            if atomik_sonuc == -1:
-                son = self.vt.baglanti.execute("SELECT COALESCE(MAX(id),0) FROM stok_hareketleri").fetchone()[0]
-                self._durum_kaydet("son_hareket_id", son)
-            self.senkron_baslangic_noktasi_kaydet()
-            return "YUKLENDI", sonuc
-        if bulut_degisti:
-            sonuc = self.buluttan_yere_indir()
-            self.senkron_baslangic_noktasi_kaydet()
-            return "INDIRILDI", sonuc
-        self._durum_kaydet("son_senkron", datetime.now().astimezone().isoformat())
-        self._cihazi_kaydet()
-        return "GUNCEL", None
+        from deporiaq_commerce import CommerceClient
+        CommerceClient(self).sync_cache()
+        return 'INDIRILDI',None
 
     def _cakisma_ekle(self, yerel_ozet, bulut_ozet):
         kimlik = hashlib.sha256(f"{yerel_ozet}:{bulut_ozet}".encode()).hexdigest()[:24]
@@ -2096,10 +1997,8 @@ class DeporiaQCloud:
         self.senkron_baslangic_noktasi_kaydet()
 
     def cihazlari_getir(self):
-        try:
-            return self._liste("cloud_devices", "id,device_code,device_name,app_version,last_seen_at,active,user_id,local_username,location_name")
-        except RuntimeError:
-            return self._liste("cloud_devices", "id,device_code,device_name,app_version,last_seen_at,active,user_id")
+        from deporiaq_commerce import CommerceClient
+        return CommerceClient(self).read('devices') if self.role in ('owner','admin') else []
 
     def uyeleri_getir(self):
         """Oturum açmış kullanıcının görebildiği işletme üyeliklerini getirir."""
@@ -2108,12 +2007,7 @@ class DeporiaQCloud:
         return self._liste("company_members", "user_id,role,active")
 
     def cihaz_durumunu_degistir(self, cihaz_id, aktif):
-        if self.role not in ("owner", "admin"):
-            raise RuntimeError("Cihaz yönetimi için Ana Yönetici yetkisi gerekir.")
-        self._istek(
-            f"/rest/v1/cloud_devices?id=eq.{cihaz_id}", "PATCH",
-            {"active": bool(aktif)}, "return=minimal"
-        )
+        raise RuntimeError('Paketim ve Abonelik ekranını kullanın.')
 
     def urun_talebi_gonder(self,veri):
         if not self.bagli:return
@@ -2129,63 +2023,7 @@ class DeporiaQCloud:
         self._istek(f"/rest/v1/product_change_requests?id=eq.{talep_id}","PATCH",{"status":durum,"decided_by":self.user_id,"decided_at":datetime.now().astimezone().isoformat()},"return=minimal")
 
     def yereli_buluta_gonder(self):
-        if not self.bagli:
-            raise RuntimeError("Önce Cloud oturumu açın.")
-        konumlar = [dict(s) for s in self.vt.baglanti.execute(
-            "SELECT id, ad, tur, aktif FROM konumlar"
-        ).fetchall()]
-        konum_verisi = [{
-            "company_id": self.company_id, "name": k["ad"],
-            "location_type": {"MERKEZ":"center", "DEPO":"warehouse", "SUBE":"branch"}.get(k["tur"], "warehouse"),
-            "active": bool(k["aktif"]),
-        } for k in konumlar]
-        if konum_verisi:
-            self._istek(
-                "/rest/v1/locations?on_conflict=company_id,name", "POST",
-                konum_verisi, "resolution=merge-duplicates,return=minimal"
-            )
-
-        urunler = [dict(s) for s in self.vt.baglanti.execute(
-            "SELECT barkod, ad, fiyat, alis_fiyati, kritik_stok, aktif FROM urunler"
-        ).fetchall()]
-        urun_verisi = [{
-            "company_id": self.company_id, "barcode": u["barkod"],
-            "name": u["ad"], "purchase_price": float(u["alis_fiyati"] or 0),
-            "sale_price": float(u["fiyat"] or 0),
-            "critical_stock": float(u["kritik_stok"] or 0), "active": bool(u["aktif"]),
-        } for u in urunler]
-        if urun_verisi:
-            for baslangic in range(0, len(urun_verisi), 250):
-                self._istek(
-                    "/rest/v1/products?on_conflict=company_id,barcode", "POST",
-                    urun_verisi[baslangic:baslangic+250],
-                    "resolution=merge-duplicates,return=minimal"
-                )
-
-        uzak_konum = {k["name"]: k["id"] for k in self._liste("locations", "id,name")}
-        uzak_urun = {u["barcode"]: u["id"] for u in self._liste("products", "id,barcode")}
-        stoklar = self.vt.baglanti.execute(
-            """SELECT u.barkod, k.ad AS konum_adi, s.miktar
-               FROM stoklar s JOIN urunler u ON u.id=s.urun_id
-               JOIN konumlar k ON k.id=s.konum_id"""
-        ).fetchall()
-        stok_verisi = [{
-            "company_id": self.company_id,
-            "location_id": uzak_konum[s["konum_adi"]],
-            "product_id": uzak_urun[s["barkod"]],
-            "quantity": float(s["miktar"]),
-        } for s in stoklar if s["konum_adi"] in uzak_konum and s["barkod"] in uzak_urun]
-        for baslangic in range(0, len(stok_verisi), 250):
-            self._istek(
-                "/rest/v1/inventory?on_conflict=company_id,location_id,product_id",
-                "POST", stok_verisi[baslangic:baslangic+250],
-                "resolution=merge-duplicates,return=minimal"
-            )
-        self.vt.baglanti.execute("UPDATE senkron_kuyrugu SET gonderildi=1")
-        self.vt.ayar_kaydet("cloud_etkin", "1")
-        self.vt.baglanti.commit()
-        self._cihazi_kaydet()
-        return len(urun_verisi), len(konum_verisi), len(stok_verisi)
+        raise RuntimeError('Toplu yerel stok yüklemesi güvenlik için kaldırıldı. Sunucu stok işlemlerini kullanın.')
 
     def buluttan_yere_indir(self):
         if not self.bagli:
@@ -6106,6 +5944,5 @@ class TeknoStokUygulamasi:
 
 
 if __name__ == "__main__":
-    uygulama = TeknoStokUygulamasi()
-    if uygulama.hazir:
-        uygulama.baslat()
+    from deporiaq_qt import main
+    main()

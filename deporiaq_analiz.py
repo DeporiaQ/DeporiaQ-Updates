@@ -75,7 +75,7 @@ class Analysis:
 
     def sales(self, days, location=None):
         start = (self.now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        return [h for h in self.movements if h['hareket_turu'] == 'SATIS'
+        return [dict(h,miktar=-h['miktar']) if h['hareket_turu']=='IADE' else h for h in self.movements if h['hareket_turu'] in ('SATIS','IADE')
                 and h['date'] >= start
                 and (location is None or h['kaynak_konum_id'] == location)]
 
@@ -104,7 +104,7 @@ class Analysis:
                        if kind == 'runway' else ['Konum', 'Barkod', 'Ürün', 'Stok', 'Hedef stok', 'Önerilen adet', 'Tahmini alış tutarı'])
             for loc, p, qty in self.entries(location):
                 sold = demand[(p['id'], loc['id'])]
-                rate = sold / days
+                rate = max(0,sold) / days
                 remaining = qty/rate if rate else None
                 if kind == 'runway':
                     state = 'Stok yok' if qty == 0 else ('Satış verisi yok' if remaining is None else ('7 gün içinde' if remaining <= 7 else 'İzle'))
