@@ -83,5 +83,21 @@ await test('Strict read gate expires even with old grace period',async()=>{
  await db.exec('reset role');await db.query("update company_subscriptions set status='past_due',valid_until=now()-interval '1 day',grace_until=now()+interval '1 day' where company_id=$1",[C]);await db.exec('set role authenticated');
  assert.equal((await db.query('select dpq_read_allows($1) r',[C])).rows[0].r,false);
 });
+await test('Client table-wide privileges removed; truncate denied and rows preserved',async()=>{
+ await db.exec('reset role');
+ const before=(await db.query('select count(*)::int n from inventory')).rows[0].n;
+ for(const role of ['anon','authenticated']) {
+  for(const table of ['companies','company_members','company_subscriptions','locations','products','inventory','cloud_devices']) {
+   for(const privilege of ['TRUNCATE','REFERENCES','TRIGGER']) {
+    const result=await db.query('select has_table_privilege($1,$2,$3) allowed',[role,'public.'+table,privilege]);
+    assert.equal(result.rows[0].allowed,false,`${role} ${table} ${privilege}`);
+   }
+  }
+  await db.exec('set role '+role);
+  await rejects(()=>db.query('truncate public.inventory'),'permission denied');
+  await db.exec('reset role');
+ }
+ assert.equal((await db.query('select count(*)::int n from inventory')).rows[0].n,before);
+});
 await db.close();
 fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results','server-tests.json'),JSON.stringify({engine:process.env.DPQ_TEST_DATABASE_URL?'PostgreSQL native':'PGlite PostgreSQL WASM; single connection, NOT multi-session concurrency proof',passed:passes},null,2));

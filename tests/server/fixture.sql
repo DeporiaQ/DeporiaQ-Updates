@@ -12,3 +12,7 @@ create table public.locations(id uuid primary key default gen_random_uuid(),comp
 create table public.products(id uuid primary key default gen_random_uuid(),company_id uuid references companies(id),barcode text,name text,sale_price numeric,purchase_price numeric,critical_stock numeric,active boolean,unique(company_id,barcode));
 create table public.inventory(company_id uuid references companies(id),product_id uuid references products(id),location_id uuid references locations(id),quantity numeric not null check(quantity>=0),updated_at timestamptz default now(),unique(company_id,location_id,product_id));
 create table public.cloud_devices(id uuid primary key default gen_random_uuid(),company_id uuid,device_code text,active boolean);
+
+-- Reproduce unnecessary privileges observed in the supplied schema export.
+grant truncate, references, trigger on all tables in schema public to anon, authenticated;
+grant truncate, references, trigger on public.inventory to public;
