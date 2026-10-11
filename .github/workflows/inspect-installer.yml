@@ -47,3 +47,34 @@ jobs:
         with:
           name: installer-security-evidence
           path: evidence/
+
+  clamav:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install scanner and installer extractor
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clamav innoextract
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam
+      - name: Download and extract exact candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p evidence package extracted
+          gh api repos/DeporiaQ/DeporiaQ-Updates/actions/artifacts/11699384116/zip > candidate.zip
+          echo '23dd3d1ac80570b4343938b320ac372d27f20d6f699631f1195c0e19cd39ce43  candidate.zip' | sha256sum -c -
+          unzip candidate.zip -d package
+          innoextract package/DeporiaQ_Setup_0.24.1.exe -d extracted
+          find package extracted -type f -exec sha256sum {} + > evidence/files-sha256.txt
+      - name: Scan archive, installer, and extracted payload
+        run: |
+          clamscan --version | tee evidence/scanner-version.txt
+          set -o pipefail
+          clamscan --recursive --max-filesize=200M --max-scansize=600M candidate.zip package extracted | tee evidence/clamav.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-clamav-evidence
+          path: evidence/
