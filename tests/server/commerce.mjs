@@ -12,6 +12,7 @@ if(process.env.DPQ_TEST_DATABASE_URL){
 await db.exec(fs.readFileSync(path.join(import.meta.dirname,'fixture.sql'),'utf8'));
 await db.exec(fs.readFileSync(path.join(import.meta.dirname,'exported_legacy.sql'),'utf8'));
 await db.exec(fs.readFileSync(path.join(root,'DEPORIAQ_CLOUD_0.24.0_MIGRATION.sql'),'utf8'));
+await db.exec(fs.readFileSync(path.join(root,'server/007_counter_sales.sql'),'utf8'));
 const C=randomUUID(),U=randomUUID(),P=randomUUID(),L=[randomUUID(),randomUUID(),randomUUID(),randomUUID()];
 await db.query('insert into companies values($1,$2)',[C,'Test']);
 await db.query("insert into company_members values($1,$2,'owner',true,now())",[C,U]);
@@ -140,6 +141,56 @@ await test('Unmigrated legacy RPC denies expired, viewer and foreign location wr
  await rejects(()=>db.query("select apply_stock_transfer_v2($1,$2,$3,$4,1,$5)",[c,p,l,L[0],randomUUID()]),'DPQ_LICENSE');
  await rejects(()=>db.query("select apply_stock_movement($1,$2,$3,'increase',1)",[c,l,p]),'DPQ_LICENSE');
  await db.exec('reset role');assert.equal(Number((await db.query('select quantity from inventory where company_id=$1',[c])).rows[0].quantity),1);
+});
+
+await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[U]);
+await db.query("update company_subscriptions set status='active',valid_until=now()+interval '30 days' where company_id=$1",[C]);
+await db.exec('set role authenticated');
+await cmd('receive',{product_id:P,location_id:L[1],quantity:10});
+const counterPayload={product_id:P,location_id:L[0],target_id:L[1],quantity:2,delivery:'pickup',customer:'Test Customer',contact:'5551234567'};
+let counter;
+await test('Counter reservation blocks POS and exact retry is idempotent',async()=>{
+ const before=Number((await call('snapshot')).inventory.find(i=>i.location_id===L[1]).available);
+ const payload={...counterPayload,request_id:randomUUID()};counter=await call('counter_reserve',payload);
+ assert.equal((await call('counter_reserve',payload)).id,counter.id);
+ assert.equal(Number((await call('snapshot')).inventory.find(i=>i.location_id===L[1]).available),before-2);
+ await rejects(()=>cmd('sale',{product_id:P,location_id:L[1],quantity:before}),'DPQ_STOCK');
+ await rejects(()=>cmd('count',{product_id:P,location_id:L[1],quantity:0}),'DPQ_RESERVED');
+});
+await test('Pickup requires payment, correct mode, records one sale',async()=>{
+ await rejects(()=>cmd('counter_collect',{order_id:counter.id}),'DPQ_PAYMENT');
+ await rejects(()=>cmd('counter_ship',{order_id:counter.id,paid:true}),'DPQ_STATE');
+ const payload={order_id:counter.id,paid:true,request_id:randomUUID()};const done=await call('counter_collect',payload);
+ assert.equal(done.status,'completed');assert.equal((await call('counter_collect',payload)).status,'completed');
+ await rejects(()=>cmd('counter_collect',{order_id:counter.id,paid:true}),'DPQ_STATE');
+ assert.equal((await call('snapshot')).sales.filter(s=>s.id===payload.request_id).length,1);
+});
+await test('Cargo requires address and tracking; cancel cannot release shipped stock',async()=>{
+ await rejects(()=>cmd('counter_reserve',{...counterPayload,delivery:'cargo'}),'DPQ_INPUT');
+ const o=await cmd('counter_reserve',{...counterPayload,quantity:1,delivery:'cargo',address:'Test address 123'});
+ await rejects(()=>cmd('counter_ship',{order_id:o.id,paid:true}),'DPQ_INPUT');
+ const ship=await cmd('counter_ship',{order_id:o.id,paid:true,carrier:'Test',tracking:'123'});assert.equal(ship.status,'shipped');
+ await rejects(()=>cmd('counter_cancel',{order_id:o.id}),'DPQ_STATE');
+ assert.equal((await cmd('counter_complete',{order_id:o.id})).status,'completed');
+});
+await test('Counter cancel and expiry release reservations, foreign target denied',async()=>{
+ await rejects(()=>cmd('counter_reserve',{...counterPayload,target_id:randomUUID()}),'DPQ_LOCATION');
+ const o=await cmd('counter_reserve',counterPayload);assert.equal((await cmd('counter_cancel',{order_id:o.id})).status,'cancelled');
+ const e=await cmd('counter_reserve',counterPayload);
+ await db.exec('reset role');await db.query("update dpq.counter_orders set expires_at=now()-interval '1 second' where id=$1",[e.id]);await db.exec('set role authenticated');
+ assert.equal((await call('snapshot')).counter_orders.find(x=>x.id===e.id).status,'expired');
+ await rejects(()=>cmd('counter_collect',{order_id:e.id,paid:true}),'DPQ_STATE');
+});
+await test('Branch employee can reserve another store but only assigned store can deliver',async()=>{
+ await db.exec('reset role');await db.query("update company_members set role='employee' where user_id=$1",[U]);
+ await db.query('insert into dpq.staff_locations values($1,$2,$3)',[C,U,L[0]]);await db.exec('set role authenticated');
+ assert.deepEqual((await call('snapshot')).sale_locations,[L[0]]);
+ await rejects(()=>cmd('counter_reserve',{...counterPayload,location_id:L[1]}),'DPQ_LOCATION_ROLE');
+ const o=await cmd('counter_reserve',counterPayload);
+ await rejects(()=>cmd('counter_collect',{order_id:o.id,paid:true}),'DPQ_LOCATION_ROLE');
+ await cmd('counter_cancel',{order_id:o.id});
+ await db.exec('reset role');await db.query("update company_members set role='viewer' where user_id=$1",[U]);await db.exec('set role authenticated');
+ await rejects(()=>cmd('counter_reserve',counterPayload),'DPQ_ROLE');
 });
 await db.close();
 fs.mkdirSync(path.join(root,'test-results'),{recursive:true});fs.writeFileSync(path.join(root,'test-results','server-tests.json'),JSON.stringify({engine:process.env.DPQ_TEST_DATABASE_URL?'PostgreSQL native':'PGlite PostgreSQL WASM; single connection, NOT multi-session concurrency proof',passed:passes},null,2));

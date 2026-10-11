@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.24.0"
+PROGRAM_SURUMU = "0.24.1"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -1752,6 +1752,8 @@ class DeporiaQCloud:
         self.local_username = ""
         self.location_name = ""
         self.entitlement = {}
+        self._session_lock = threading.RLock()
+        self.on_token_rotated = None
 
     @property
     def bagli(self):
@@ -1767,6 +1769,25 @@ class DeporiaQCloud:
             raise ValueError("Geçerli publishable/anon key giriniz.")
 
     def _istek(self, yol, method="GET", veri=None, tercih=None, auth=True):
+        # One session owns refresh-token rotation across timers and cashier requests.
+        with self._session_lock:
+            try:
+                return self._ham_istek(yol, method, veri, tercih, auth)
+            except RuntimeError as error:
+                if not auth or '(401)' not in str(error) or not self.refresh_token:
+                    raise
+                result = self._ham_istek('/auth/v1/token?grant_type=refresh_token',
+                    'POST', {'refresh_token': self.refresh_token}, auth=False)
+                if result.get('user', {}).get('id') != self.user_id or not result.get('access_token'):
+                    raise RuntimeError('Cloud oturumu aynı kullanıcı için yenilenemedi. Yeniden giriş yapın.')
+                self.access_token = result['access_token']
+                self.refresh_token = result.get('refresh_token', self.refresh_token)
+                if self.on_token_rotated:
+                    self.on_token_rotated(self)
+                # Only an explicit authentication rejection is retried. Timeouts are not.
+                return self._ham_istek(yol, method, veri, tercih, auth)
+
+    def _ham_istek(self, yol, method="GET", veri=None, tercih=None, auth=True):
         govde = None if veri is None else json.dumps(veri).encode("utf-8")
         basliklar = {
             "apikey": self.anahtar,

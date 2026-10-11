@@ -1,5 +1,7 @@
 """0.24 commerce dialogs. All mutations go through checked server RPCs."""
-from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtCore import QThread, Signal, Qt, QUrl
+from PySide6.QtGui import QDesktopServices
+from urllib.parse import urlencode
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QPushButton,QComboBox,
  QLineEdit,QSpinBox,QDoubleSpinBox,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,
  QMessageBox,QInputDialog,QTabWidget,QWidget,QCheckBox,QPlainTextEdit)
@@ -226,7 +228,171 @@ class SupportDialog(ServerDialog):
         self.body.addWidget(QLabel('Müşteri desteği: deporiaq@gmail.com'))
         f=QFormLayout();self.subject=QLineEdit();self.message=QPlainTextEdit();self.contact=QLineEdit()
         f.addRow('Konu',self.subject);f.addRow('Açıklama',self.message);f.addRow('İletişim',self.contact);self.body.addLayout(f)
-        self.button('Talebi Sunucuya Gönder',self.send)
+        self.subject.setPlaceholderText('En az 3 karakter: ör. Satış ekranı sorunu')
+        self.message.setPlaceholderText('En az 5 karakter: ne yaptığınızı ve gördüğünüz hatayı yazın')
+        self.body.addWidget(QLabel('Talep kaydı ile e-posta gönderimi ayrı işlemlerdir.'))
+        self.button('Destek Talebini Kaydet',self.send)
+        self.button('E-posta Uygulamasında Taslak Aç',self.email_draft)
+    def valid(self):
+        for value,minimum,maximum,label in [(self.subject.text().strip(),3,200,'Konu'),(self.message.toPlainText().strip(),5,10000,'Açıklama'),(self.contact.text().strip(),3,300,'İletişim')]:
+            if not minimum<=len(value)<=maximum:
+                self.status_label.setText(f'{label} {minimum}–{maximum} karakter olmalı.');return False
+        return True
+    def email_draft(self):
+        if not self.valid():return
+        query=urlencode({'subject':self.subject.text().strip(),'body':self.message.toPlainText().strip()+'\n\nİletişim: '+self.contact.text().strip()})
+        opened=QDesktopServices.openUrl(QUrl('mailto:deporiaq@gmail.com?'+query.replace('+','%20')))
+        self.status_label.setText('E-posta uygulamasında taslak açıldı; göndermek için uygulamanızdaki Gönder düğmesini kullanın.' if opened else 'E-posta uygulaması açılamadı. deporiaq@gmail.com adresine kendiniz yazabilirsiniz.')
     def send(self):
-        self.mutation('support',{'subject':self.subject.text(),'message':self.message.toPlainText(),'contact':self.contact.text()},self.sent)
+        if not self.valid():return
+        self.mutation('support',{'subject':self.subject.text().strip(),'message':self.message.toPlainText().strip(),'contact':self.contact.text().strip()},self.sent)
     def sent(self,result):self.status_label.setText(f"Talep kaydedildi: {result['id']}\nE-posta bildirimi: gönderim bekliyor. Bu durum e-postanın teslim edildiği anlamına gelmez.")
+
+class SaleDialog(ServerDialog):
+    """Cashier starts with an exact barcode. Other stores are an explicit lookup."""
+    def __init__(self,client,location_name='',parent=None):
+        super().__init__(client,'Kasa · Barkodlu Satış',parent);self.resize(900,650)
+        self.data={};self.selected_product=None;self.location_name=location_name;self.other_ids=[]
+        f=QFormLayout();self.location=QComboBox();self.barcode=QLineEdit();self.barcode.setPlaceholderText('Ürün barkodunu okutun veya barkod girip Enter’a basın')
+        self.quantity=QSpinBox();self.quantity.setRange(1,1000000)
+        f.addRow('Satış yapılan mağaza / depo',self.location);f.addRow('Ürün barkodu',self.barcode);f.addRow('Adet',self.quantity);self.body.addLayout(f)
+        self.info=QLabel('Satışa başlamak için barkod okutun.');self.info.setWordWrap(True);self.info.setMinimumHeight(70);self.body.addWidget(self.info)
+        bar=QHBoxLayout();self.body.addLayout(bar)
+        self.button('Ürünü Bul',self.lookup,bar);self.sell=self.button('Satışı Tamamla',self.commit,bar);self.sell.setObjectName('basari');self.sell.setEnabled(False)
+        self.button('Satışı İptal / Temizle',self.clear_sale,bar)
+        bar=QHBoxLayout();self.body.addLayout(bar)
+        self.button('Ürün Adıyla Bul',self.find_by_name,bar);self.button('Şube / Depo Stoklarını Sorgula',self.other_stock,bar)
+        self.button('Rezervasyonlar ve Teslimatlar',lambda:CounterOrdersDialog(client,self).exec(),bar)
+        self.other=QWidget();v=QVBoxLayout(self.other);v.setContentsMargins(0,0,0,0)
+        v.addWidget(QLabel('Seçili ürünün diğer konumlardaki güncel stoğu'))
+        self.grid=table(['Şube / Depo','Satılabilir adet','Ayrılan adet']);v.addWidget(self.grid)
+        bar=QHBoxLayout();v.addLayout(bar)
+        self.pickup=self.button('Seçili Şubeden Teslim · Rezerve Et',lambda:self.reserve('pickup'),bar)
+        self.cargo=self.button('Seçili Konumdan Kargo · Rezerve Et',lambda:self.reserve('cargo'),bar)
+        self.body.addWidget(self.other);self.other.hide()
+        self.barcode.returnPressed.connect(self.lookup);self.barcode.textEdited.connect(self.invalidate)
+        self.location.currentIndexChanged.connect(self.render_product);self.quantity.valueChanged.connect(self.render_product)
+        self.refresh()
+    def refresh(self):self.run(self.client.snapshot,self.populate)
+    def populate(self,data):
+        self.data=data;old=self.location.currentData();self.location.blockSignals(True);self.location.clear()
+        allowed=data.get('sale_locations')
+        for l in data['locations']:
+            if l['active'] and (allowed is None or l['id'] in allowed):self.location.addItem(l['name'],l['id'])
+        idx=self.location.findData(old) if old else self.location.findText(self.location_name)
+        if idx>=0:self.location.setCurrentIndex(idx)
+        self.location.blockSignals(False)
+        self.resolve_product();self.barcode.setFocus()
+    def invalidate(self,*_):
+        self.selected_product=None;self.sell.setEnabled(False);self.other.hide();self.info.setText('Barkodu doğrulamak için Enter’a basın.')
+    def lookup(self):
+        if not self.barcode.text().strip():self.info.setText('Önce ürün barkodu girin.');self.barcode.setFocus();return
+        self.refresh()
+    def resolve_product(self):
+        code=self.barcode.text().strip()
+        self.selected_product=next((p for p in self.data.get('products',[]) if p['active'] and p['barcode']==code),None)
+        self.render_product()
+    def stock(self,location):
+        pid=(self.selected_product or {}).get('id')
+        return next((i for i in self.data.get('inventory',[]) if i['product_id']==pid and i['location_id']==location),{'quantity':0,'available':0})
+    def render_product(self,*_):
+        p=self.selected_product;self.sell.setEnabled(False)
+        if not p:
+            self.info.setText('Barkod kayıtlı ürünlerde bulunamadı. Barkodu kontrol edin veya ürün adıyla bulun.' if self.barcode.text().strip() else 'Satışa başlamak için barkod okutun.')
+            return
+        stock=self.stock(self.location.currentData());available=float(stock['available']);qty=self.quantity.value();price=float(p.get('sale_price',0))
+        text=f"{p['name']}  ·  Barkod: {p['barcode']}\nBirim fiyat: {price:,.2f} TL  ·  {qty} adet toplam: {price*qty:,.2f} TL\n"
+        if self.location.currentData() is None:text+='Bu hesap için satış konumu atanmamış. Yöneticinizle görüşün.'
+        elif available<=0:text+='Ürün seçili mağaza / depo stoklarında satılabilir durumda bulunmamaktadır. Şube / Depo Stoklarını Sorgula seçeneğini kullanın.'
+        elif qty>available:text+=f'Satılabilir stok: {available:g} adet. İstenen adet yetersiz stok nedeniyle satılamaz.'
+        else:text+=f'Satılabilir stok: {available:g} adet.';self.sell.setEnabled(True)
+        self.info.setText(text)
+        if self.other.isVisible():self.show_other()
+    def clear_sale(self):
+        self.barcode.clear();self.quantity.setValue(1);self.selected_product=None;self.other.hide();self.render_product();self.barcode.setFocus()
+    def find_by_name(self):
+        products=[p for p in self.data.get('products',[]) if p['active']]
+        names=[p['name']+' · '+p['barcode'] for p in products]
+        name,ok=QInputDialog.getItem(self,'Ürün Adıyla Bul','Ürün adı yazın veya listeden seçin:',names,0,True)
+        if not ok:return
+        matches=[p for p in products if name in (p['name'],p['name']+' · '+p['barcode']) or name.casefold() in p['name'].casefold()]
+        if len(matches)!=1:self.status_label.setText('Tek bir ürün seçin; aramayı daraltın.');return
+        self.barcode.setText(matches[0]['barcode']);self.lookup()
+    def other_stock(self):
+        if not self.barcode.text().strip():self.info.setText('Barkod girin veya ürün adıyla bulun.');return
+        def ready(data):self.populate(data);self.other.show();self.show_other()
+        self.run(self.client.snapshot,ready)
+    def show_other(self):
+        values=[];self.other_ids=[]
+        if self.selected_product:
+            for loc in self.data.get('locations',[]):
+                if not loc['active'] or loc['id']==self.location.currentData():continue
+                row=self.stock(loc['id']);available=float(row['available'])
+                if available<=0:continue
+                self.other_ids.append(loc['id']);values.append((loc['name'],f'{available:g}',f"{float(row['quantity'])-available:g}"))
+        rows(self.grid,values);self.pickup.setEnabled(bool(values));self.cargo.setEnabled(bool(values))
+        if not values:self.status_label.setText('Ürün diğer mağaza ve depo stoklarında da satılabilir durumda bulunmamaktadır.')
+    def commit(self):
+        if not self.selected_product or not self.sell.isEnabled():return
+        payload={'product_id':self.selected_product['id'],'location_id':self.location.currentData(),'quantity':self.quantity.value()}
+        if QMessageBox.question(self,'Satışı Tamamla',self.info.text()+'\n\nÖdemeyi aldınız mı? Satışı kaydedelim mi?')!=QMessageBox.StandardButton.Yes:return
+        def done(result):
+            QMessageBox.information(self,'Satış Tamamlandı',f"Satış kaydedildi. Toplam: {result.get('total',0)} TL")
+            self.clear_sale();self.refresh()
+        self.mutation('sale',payload,done)
+    def reserve(self,kind):
+        r=self.grid.currentRow()
+        if r<0 or not self.selected_product:self.status_label.setText('Önce stok bulunan şube / depo satırını seçin.');return
+        loc=self.other_ids[r]
+        if float(self.stock(loc)['available'])<self.quantity.value():self.status_label.setText('Seçili konumda bu adet için yeterli stok yok.');return
+        d=QDialog(self);d.setWindowTitle('Şubeden Teslim Rezervasyonu' if kind=='pickup' else 'Kargo Rezervasyonu');f=QFormLayout(d)
+        customer=QLineEdit();contact=QLineEdit();address=QPlainTextEdit()
+        f.addRow('Müşteri adı',customer);f.addRow('Telefon / e-posta',contact)
+        if kind=='cargo':f.addRow('Teslimat adresi',address)
+        note=QLabel('Ürün 24 saat ayrılır. Bu adım ödeme veya teslimat kaydı oluşturmaz.');note.setWordWrap(True);f.addRow(note)
+        b=QPushButton('Rezervasyonu Kaydet');f.addRow(b)
+        def accept():
+            if len(customer.text().strip())<2 or len(contact.text().strip())<3 or (kind=='cargo' and len(address.toPlainText().strip())<5):
+                note.setText('Müşteri adı, iletişim ve kargo için açık adres girin.');return
+            d.accept()
+        b.clicked.connect(accept)
+        if d.exec()!=QDialog.DialogCode.Accepted:return
+        payload={'product_id':self.selected_product['id'],'location_id':self.location.currentData(),'target_id':loc,'quantity':self.quantity.value(),'delivery':kind,'customer':customer.text().strip(),'contact':contact.text().strip(),'address':address.toPlainText().strip()}
+        def done(result):
+            QMessageBox.information(self,'Rezervasyon Hazır',f"Rezervasyon numarası: {result['id']}\nSon teslim / kargolama zamanı: {result['expires_at']}\nRezervasyonlar ve Teslimatlar ekranından takip edebilirsiniz.")
+            self.refresh()
+        self.mutation('counter_reserve',payload,done)
+
+class CounterOrdersDialog(ServerDialog):
+    def __init__(self,client,parent=None):
+        super().__init__(client,'Rezervasyonlar ve Teslimatlar',parent);self.entries=[]
+        self.grid=table(['Numara','Müşteri','Teslim Konumu','Ürün / Adet','Teslimat','Durum']);self.body.addWidget(self.grid)
+        self.details=QLabel('Bir rezervasyon seçin.');self.details.setWordWrap(True);self.body.addWidget(self.details);self.grid.itemSelectionChanged.connect(self.selected_details)
+        bar=QHBoxLayout();self.body.addLayout(bar)
+        for label,act in [('Şubeden Teslim Et','counter_collect'),('Kargoya Ver','counter_ship'),('Kargo Teslim Edildi','counter_complete'),('Rezervasyonu İptal Et','counter_cancel')]:
+            self.button(label,lambda checked=False,a=act:self.action(a),bar)
+        self.button('Yenile',self.refresh);self.button('Bekleyen İşlem Sonucunu Kontrol Et',lambda:self.run(self.client.reconcile,lambda _:self.refresh()));self.refresh()
+    def refresh(self):self.run(self.client.snapshot,self.populate)
+    def populate(self,data):
+        self.entries=data.get('counter_orders',[]);ps={p['id']:p['name'] for p in data['products']};ls={l['id']:l['name'] for l in data['locations']}
+        labels={'reserved':'Ayrıldı','shipped':'Kargoda','completed':'Teslim edildi','cancelled':'İptal','expired':'Süresi doldu'}
+        rows(self.grid,[(o['id'][:8],o['customer'],ls.get(o['location_id'],''),f"{ps.get(o['product_id'],'')} / {o['quantity']}",'Şubeden teslim' if o['delivery']=='pickup' else 'Kargo',labels[o['status']]) for o in self.entries])
+    def selected_details(self):
+        r=self.grid.currentRow()
+        if r<0:return
+        o=self.entries[r];self.details.setText(f"Numara: {o['id']}\nİletişim: {o['contact']}  •  Son zaman: {o['expires_at']}\nAdres: {o.get('address','')}\nKargo: {o.get('carrier','')} {o.get('tracking','')}")
+    def action(self,action):
+        r=self.grid.currentRow()
+        if r<0:return
+        payload={'order_id':self.entries[r]['id']}
+        if action=='counter_ship':
+            carrier,ok=QInputDialog.getText(self,'Kargo','Kargo firması:')
+            if not ok:return
+            tracking,ok=QInputDialog.getText(self,'Kargo','Takip numarası:')
+            if not ok:return
+            if not carrier.strip() or not tracking.strip():self.status_label.setText('Kargo firması ve takip numarası gerekli.');return
+            payload.update(carrier=carrier.strip(),tracking=tracking.strip())
+        message='Seçili rezervasyona işlemi uygulayalım mı?'
+        if action in ('counter_collect','counter_ship'):message='Ödemeyi aldınız ve ürünleri fiziksel olarak müşteriye / kargoya teslim ettiniz mi? Bu işlem stoğu düşürüp satış kaydeder.';payload['paid']=True
+        if QMessageBox.question(self,'Teslimat işlemi',message)!=QMessageBox.StandardButton.Yes:return
+        self.mutation(action,payload,lambda _:self.refresh())

@@ -28,7 +28,15 @@ await admin.query("select set_config('dpq.internal','',false)");
 const payload={request_id:randomUUID(),product_id:p2,location_id:L,quantity:1};
 const retries=await Promise.all(clients.map(c=>call(c,'sale',payload,device)));
 assert.equal(retries.length,12);assert.equal(Number((await admin.query('select quantity from inventory where product_id=$1',[p2])).rows[0].quantity),9,'12 retries must sell once');
+const p3=randomUUID();await admin.query("select set_config('dpq.internal',$1,false)",[C]);
+await admin.query("insert into products values($1,$2,'COUNTER','Pickup item',100,50,0,true)",[p3,C]);
+await admin.query('insert into inventory(company_id,product_id,location_id,quantity) values($1,$2,$3,1)',[C,p3,L]);
+await admin.query("select set_config('dpq.internal','',false)");
+const counterRace=await Promise.allSettled(clients.map((c,i)=>i%2
+ ?call(c,'sale',{request_id:randomUUID(),product_id:p3,location_id:L,quantity:1},device)
+ :call(c,'counter_reserve',{request_id:randomUUID(),product_id:p3,location_id:L,target_id:L,quantity:1,delivery:'pickup',customer:'Test',contact:'55512345'},device)));
+assert.equal(counterRace.filter(x=>x.status==='fulfilled').length,1,'Counter reservations and POS must share the last stock');
 await Promise.all(clients.map(c=>c.end()));await admin.end();
 const out=path.resolve(import.meta.dirname,'../../test-results');fs.mkdirSync(out,{recursive:true});
-fs.writeFileSync(path.join(out,'concurrency.json'),JSON.stringify({engine:'native PostgreSQL, twelve separate sessions',passed:['one device slot','POS versus reservation last item','12 simultaneous retries sell once']},null,2));
-console.log('PASS: three native PostgreSQL concurrency scenarios');
+fs.writeFileSync(path.join(out,'concurrency.json'),JSON.stringify({engine:'native PostgreSQL, twelve separate sessions',passed:['one device slot','POS versus reservation last item','12 simultaneous retries sell once','counter reservation versus POS last item']},null,2));
+console.log('PASS: four native PostgreSQL concurrency scenarios');
