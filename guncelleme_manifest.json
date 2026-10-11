@@ -1,6 +1,6 @@
 {
-  "version": "0.23.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.23.0/DeporiaQ_Setup_0.23.0.exe",
-  "sha256": "913354461c800ce171fccad35959e73cce829aa7ad3fc412caee9847bbdd1714",
-  "notes": "Bağımsız ve açılış onaylı güncelleme başlatıcısı, 9 operasyon analizi ve Ctrl+K hızlı komut menüsü."
+  "version": "0.24.1",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.24.1/DeporiaQ_Setup_0.24.1.exe",
+  "sha256": "ff06d5aab6f339056f437abbc41e10934ec82d9ee5d47fbfbfdc7708e91bf94e",
+  "notes": "Barkodlu satış, şube stok sorgulama, rezervasyon/kargo ve Cloud oturum düzeltmeleri. Önce 0.24.0 Cloud migration ve 0.24.1 UPDATE SQL uygulanmalıdır. Defender ve ClamAV tehdit bulmadı. Paket imzasızdır; Chrome ZIP indirmesini engellemiştir. Güvenlik korumalarını kapatmayın. Otomatik destek e-postası sunucu yapılandırması gerektirir."
 }
