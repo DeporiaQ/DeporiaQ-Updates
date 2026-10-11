@@ -1,0 +1,49 @@
+name: Inspect existing 0.24.1 installer
+on:
+  push:
+    branches: ['codex/deporiaq-0.24.0-validation']
+    paths: ['.github/workflows/inspect-installer.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  defender:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Download exact previously built artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory evidence,package | Out-Null
+          gh api repos/DeporiaQ/DeporiaQ-Updates/actions/artifacts/11699384116/zip > candidate.zip
+          if ($LASTEXITCODE -ne 0) { throw "Artifact download failed" }
+          $hash = (Get-FileHash candidate.zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "23dd3d1ac80570b4343938b320ac372d27f20d6f699631f1195c0e19cd39ce43") { throw "Original artifact digest mismatch" }
+          Expand-Archive candidate.zip package
+          Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | Format-List | Out-File evidence/hashes.txt
+          Get-Content evidence/hashes.txt
+          Get-ChildItem package -Recurse -Filter *.exe | Get-AuthenticodeSignature | Select-Object Path,Status,StatusMessage | ConvertTo-Json | Tee-Object evidence/signatures.json
+      - name: Update and run Microsoft Defender
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-Service WinDefend | Format-List
+          Start-Service WinDefend
+          Update-MpSignature
+          $status = Get-MpComputerStatus
+          $status | Select-Object AMServiceEnabled,AntivirusEnabled,AMRunningMode,AntivirusSignatureVersion,AntivirusSignatureLastUpdated | ConvertTo-Json | Tee-Object evidence/defender-status.json
+          if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) { throw "Defender unavailable; no clean verdict" }
+          $cmd = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $cmd) { $cmd = "$env:ProgramFiles/Windows Defender/MpCmdRun.exe" }
+          & $cmd -Scan -ScanType 3 -File "$PWD/package" -DisableRemediation 2>&1 | Tee-Object evidence/defender-scan.txt
+          $scanExit = $LASTEXITCODE
+          Get-MpThreatDetection | ConvertTo-Json -Depth 6 | Out-File evidence/detections.json
+          "Defender scan exit code: $scanExit" | Tee-Object -Append evidence/defender-scan.txt
+          if ($scanExit -ne 0) { throw "Defender did not return a clean scan; inspect evidence" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-security-evidence
+          path: evidence/
