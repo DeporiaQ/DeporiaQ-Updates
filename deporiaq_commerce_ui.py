@@ -19,7 +19,7 @@ class ServerDialog(QDialog):
         super().__init__(parent);self.client=client;self.job=None;self.setWindowTitle(title);self.resize(960,650)
         self.layout_=QVBoxLayout(self);self.heading=QLabel(title);self.heading.setObjectName('sayfaBaslik');self.layout_.addWidget(self.heading)
         self.content=QWidget();self.body=QVBoxLayout(self.content);self.layout_.addWidget(self.content)
-        self.status_label=QLabel('Sunucu bağlantısı gerekli.');self.status_label.setWordWrap(True);self.layout_.addWidget(self.status_label)
+        self.status_label=QLabel('İşlem yapıldığında sunucuda doğrulanır.');self.status_label.setWordWrap(True);self.layout_.addWidget(self.status_label)
     def run(self,fn,done=None):
         if self.job is not None:return
         self.content.setEnabled(False);self.status_label.setText('Sunucudan yanıt bekleniyor…')
@@ -230,9 +230,8 @@ class SupportDialog(ServerDialog):
         f.addRow('Konu',self.subject);f.addRow('Açıklama',self.message);f.addRow('İletişim',self.contact);self.body.addLayout(f)
         self.subject.setPlaceholderText('En az 3 karakter: ör. Satış ekranı sorunu')
         self.message.setPlaceholderText('En az 5 karakter: ne yaptığınızı ve gördüğünüz hatayı yazın')
-        self.body.addWidget(QLabel('Talep kaydı ile e-posta gönderimi ayrı işlemlerdir.'))
-        self.button('Destek Talebini Kaydet',self.send)
-        self.button('E-posta Uygulamasında Taslak Aç',self.email_draft)
+        self.body.addWidget(QLabel('Destek adresi: deporiaq@gmail.com · Gönderim durumu aşağıda gösterilir.'))
+        self.send_button=self.button('Gönder',self.send);self.send_button.setObjectName('birincil')
     def valid(self):
         for value,minimum,maximum,label in [(self.subject.text().strip(),3,200,'Konu'),(self.message.toPlainText().strip(),5,10000,'Açıklama'),(self.contact.text().strip(),3,300,'İletişim')]:
             if not minimum<=len(value)<=maximum:
@@ -255,7 +254,17 @@ class SaleDialog(ServerDialog):
         self.data={};self.selected_product=None;self.location_name=location_name;self.other_ids=[]
         f=QFormLayout();self.location=QComboBox();self.barcode=QLineEdit();self.barcode.setPlaceholderText('Ürün barkodunu okutun veya barkod girip Enter’a basın')
         self.quantity=QSpinBox();self.quantity.setRange(1,1000000)
-        f.addRow('Satış yapılan mağaza / depo',self.location);f.addRow('Ürün barkodu',self.barcode);f.addRow('Adet',self.quantity);self.body.addLayout(f)
+        self.quantity.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self.quantity.setAlignment(Qt.AlignmentFlag.AlignCenter);self.quantity.setFixedWidth(130)
+        self.quantity.setAccessibleName('Satış adedi')
+        quantity_row=QWidget();quantity_layout=QHBoxLayout(quantity_row);quantity_layout.setContentsMargins(0,0,0,0)
+        self.decrease=QPushButton('−');self.increase=QPushButton('+')
+        for button,label in ((self.decrease,'Adedi azalt'),(self.increase,'Adedi artır')):
+            button.setFixedSize(48,44);button.setAccessibleName(label);button.setToolTip(label)
+            button.setAutoDefault(False);button.setStyleSheet('QPushButton {font-size:24px; border-radius:8px; padding:0px;}')
+        self.decrease.clicked.connect(self.quantity.stepDown);self.increase.clicked.connect(self.quantity.stepUp)
+        quantity_layout.addWidget(self.decrease);quantity_layout.addWidget(self.quantity);quantity_layout.addWidget(self.increase);quantity_layout.addStretch()
+        f.addRow('Satış yapılan mağaza / depo',self.location);f.addRow('Ürün barkodu',self.barcode);f.addRow('Adet',quantity_row);self.body.addLayout(f)
         self.info=QLabel('Satışa başlamak için barkod okutun.');self.info.setWordWrap(True);self.info.setMinimumHeight(70);self.body.addWidget(self.info)
         bar=QHBoxLayout();self.body.addLayout(bar)
         self.button('Ürünü Bul',self.lookup,bar);self.sell=self.button('Satışı Tamamla',self.commit,bar);self.sell.setObjectName('basari');self.sell.setEnabled(False)

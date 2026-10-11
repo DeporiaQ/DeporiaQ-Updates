@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.24.1"
+PROGRAM_SURUMU = "0.24.2"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -1597,7 +1597,13 @@ def eski_veritabanini_tasi():
     return sonuc
 
 
+_AYAR_KILIDI = threading.RLock()
+
 def ayarlari_oku():
+    with _AYAR_KILIDI:
+        return _ayarlari_oku()
+
+def _ayarlari_oku():
     """Kullanıcı ayarlarını ve kurulumla gelen güncelleme adresini okur."""
     varsayilan = {
         "guncelleme_manifest_url": (
@@ -1619,6 +1625,10 @@ def ayarlari_oku():
 
 
 def yerel_ayari_kaydet(anahtar, deger):
+    with _AYAR_KILIDI:
+        return _yerel_ayari_kaydet(anahtar, deger)
+
+def _yerel_ayari_kaydet(anahtar, deger):
     """Parola saklamadan bu bilgisayara ait küçük tercihleri kaydeder."""
     VERI_KLASORU.mkdir(parents=True, exist_ok=True)
     veri = {}
@@ -1752,6 +1762,7 @@ class DeporiaQCloud:
         self.local_username = ""
         self.location_name = ""
         self.entitlement = {}
+        self.auth_required = False
         self._session_lock = threading.RLock()
         self.on_token_rotated = None
 
@@ -1776,8 +1787,14 @@ class DeporiaQCloud:
             except RuntimeError as error:
                 if not auth or '(401)' not in str(error) or not self.refresh_token:
                     raise
-                result = self._ham_istek('/auth/v1/token?grant_type=refresh_token',
-                    'POST', {'refresh_token': self.refresh_token}, auth=False)
+                try:
+                    result = self._ham_istek('/auth/v1/token?grant_type=refresh_token',
+                        'POST', {'refresh_token': self.refresh_token}, auth=False)
+                except RuntimeError as refresh_error:
+                    if any('('+str(code)+')' in str(refresh_error) for code in (400,401,403)):
+                        self.auth_required = True
+                    raise
+                self.auth_required = False
                 if result.get('user', {}).get('id') != self.user_id or not result.get('access_token'):
                     raise RuntimeError('Cloud oturumu aynı kullanıcı için yenilenemedi. Yeniden giriş yapın.')
                 self.access_token = result['access_token']

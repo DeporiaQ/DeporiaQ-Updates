@@ -79,3 +79,56 @@ def test_saved_configuration_is_not_reapplied_to_live_session(monkeypatch):
     w=SimpleNamespace(cloud_client=c,kullanici={'id':1},cloud_sonucu=lambda *a:None,cloud_hatasi=lambda *a:None)
     ui.AnaPencere.cloud_oturumunu_yenile(w)
     assert seen==[c]
+
+def test_quantity_buttons_receive_real_clicks(application,window,monkeypatch):
+    from PySide6.QtTest import QTest
+    from PySide6.QtCore import Qt
+    monkeypatch.setattr(ServerDialog,'run',lambda self,fn,done=None:done(fn()) if done else fn())
+    d=SaleDialog(Client(),'Merkez Depo',window);d.show();application.processEvents()
+    QTest.mouseClick(d.increase,Qt.MouseButton.LeftButton)
+    assert d.quantity.value()==2
+    QTest.mouseClick(d.decrease,Qt.MouseButton.LeftButton)
+    QTest.mouseClick(d.decrease,Qt.MouseButton.LeftButton)
+    assert d.quantity.value()==1
+    d.quantity.setValue(1000000);QTest.mouseClick(d.increase,Qt.MouseButton.LeftButton)
+    assert d.quantity.value()==1000000
+    assert d.grab().save(str(Path(__file__).resolve().parents[1]/'test-results'/'cashier-0.24.2.png'))
+    d.close()
+
+def test_background_cache_error_does_not_revoke_license(application,window):
+    window.lisans_kilitli=False
+    window.cloud.setText('Cloud bağlı · Abonelik doğrulandı')
+    window.cloud_senkron_hatasi('database is locked')
+    assert not window.lisans_kilitli and 'Cloud bağlı' in window.cloud.text()
+    window.cloud_hatasi('Cloud sunucusuna ulaşılamadı')
+    assert not window.lisans_kilitli and 'yeniden denenecek' in window.cloud.text()
+    window.cloud_hatasi('Cloud isteği reddedildi (401)')
+    assert window.lisans_kilitli
+
+def test_settings_reuses_session_without_password_login(application,window,monkeypatch):
+    c=window.cloud_client;c.access_token='access';c.company_id='company';c.entitlement={'allowed':True}
+    calls=[]
+    monkeypatch.setattr(c,'lisans_dogrula',lambda:calls.append('status'))
+    monkeypatch.setattr(ui.DeporiaQCloud,'giris_yap',lambda *a:pytest.fail('must reuse active session'))
+    d=ui.AyarlarPenceresi(window.vt,c,lambda:None,window)
+    assert not d.pw.isEnabled() and 'tekrar parola' in d.connection_label.text()
+    d.cloud_giris();assert calls==['status'];d.close()
+
+def test_parallel_settings_writes_preserve_tokens(tmp_path,monkeypatch):
+    import stok_programi_v2 as core
+    monkeypatch.setattr(core,'VERI_KLASORU',tmp_path)
+    monkeypatch.setattr(core,'AYARLAR_YOLU',tmp_path/'settings.json')
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda i:core.yerel_ayari_kaydet('setting_'+str(i),str(i)),range(40)))
+    settings=core.ayarlari_oku()
+    assert all(settings['setting_'+str(i)]==str(i) for i in range(40))
+
+def test_support_has_send_below_fields_and_footer_email(application,window):
+    from PySide6.QtWidgets import QPushButton,QLabel
+    d=SupportDialog(Client(),window)
+    assert d.send_button.text()=='Gönder'
+    assert 'bağlantısı gerekli' not in d.status_label.text()
+    assert window.support_mail.text()=='deporiaq@gmail.com'
+    assert not any(w.text()=='DeporiaQ Sosyal' for w in window.findChildren(QLabel))
+    assert not any(w.text()=='deporiaq@gmail.com' for w in window.sosyal.findChildren(QPushButton))
+    d.close()

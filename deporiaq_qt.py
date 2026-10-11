@@ -38,7 +38,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.24.1"
+SURUM = "0.24.2"
 
 
 def kaynak_yolu(ad):
@@ -136,7 +136,11 @@ class CloudKontrolu(QThread):
             if self.refresh_token and not self.cloud.bagli:self.cloud.oturumu_yenile(self.refresh_token)
             if not self.cloud.bagli:raise RuntimeError("Cloud oturumu gerekli")
             self.cloud.lisans_dogrula()
-            self.cloud._cihazi_kaydet(); self.tamamlandi.emit(self.cloud.cihazlari_getir(),self.cloud.refresh_token)
+            self.cloud._cihazi_kaydet()
+            # Device inventory is optional; a listing failure cannot revoke a verified session.
+            try: devices=self.cloud.cihazlari_getir()
+            except Exception: devices=[]
+            self.tamamlandi.emit(devices,self.cloud.refresh_token)
         except Exception as e:self.hata.emit(str(e))
 
 
@@ -767,9 +771,12 @@ class AyarlarPenceresi(QDialog):
         bulut=QWidget(); c=QFormLayout(bulut); a=ayarlari_oku(); config_url,config_key=cloud_yapilandirmasi_oku(); self.url=QLineEdit(cloud.url or config_url); self.key=QLineEdit(cloud.anahtar or config_key); self.key.setEchoMode(QLineEdit.EchoMode.Password); self.email=QLineEdit(a.get("cloud_email","")); self.pw=QLineEdit(); self.pw.setEchoMode(QLineEdit.EchoMode.Password)
         self.cloud_hatirla=QCheckBox("Bu cihazdaki Cloud oturumunu hatırla"); self.cloud_hatirla.setChecked(bool(a.get("cloud_refresh_token_dpapi","")))
         self.cloud_goster=QCheckBox("Cloud parolasını göster"); self.cloud_goster.toggled.connect(lambda acik:self.pw.setEchoMode(QLineEdit.EchoMode.Normal if acik else QLineEdit.EchoMode.Password))
-        cb=QPushButton("Cloud Giriş ve Senkronizasyon"); cb.setObjectName("birincil"); cb.clicked.connect(self.cloud_giris)
-        self.connection_label=QLabel("Cloud oturumu açık" if cloud.bagli else "Cloud oturumu kapalı"); c.addRow(self.connection_label)
+        cb=QPushButton("Bağlantıyı Doğrula" if cloud.bagli and not getattr(cloud,"auth_required",False) else "Cloud Giriş ve Senkronizasyon"); cb.setObjectName("birincil"); cb.clicked.connect(self.cloud_giris)
+        self.connection_label=QLabel("Cloud bağlı · Uygulama girişiniz kullanılıyor; tekrar parola girmeniz gerekmez." if cloud.bagli else "Cloud oturumu kapalı"); c.addRow(self.connection_label)
         c.addRow("Project URL:",self.url); c.addRow("Publishable / anon key:",self.key); c.addRow("Cloud e-posta:",self.email); c.addRow("Cloud parola:",self.pw); c.addRow(self.cloud_goster); c.addRow(self.cloud_hatirla); c.addRow(cb); sek.addTab(bulut,"Cloud ve Senkronizasyon")
+        if cloud.bagli and not getattr(cloud,"auth_required",False):
+            for field in (self.url,self.key,self.email,self.pw,self.cloud_goster,self.cloud_hatirla):field.setEnabled(False)
+            self.pw.setPlaceholderText('Açık oturum otomatik yenilenir')
         guv=QWidget(); q=QFormLayout(guv); self.kilit=QComboBox(); self.kilit.addItems(["0","5","10","15","30","60"]); self.kilit.setCurrentText(vt.ayar_getir("otomatik_kilit_dakika","30")); qb=QPushButton("Güvenlik Ayarını Kaydet"); qb.clicked.connect(self.guvenlik_kaydet); q.addRow("Otomatik kilit (dakika):",self.kilit);q.addRow(qb);sek.addTab(guv,"Güvenlik")
         bild=QWidget(); n=QFormLayout(bild); self.kritik=QCheckBox("Kritik stok uyarılarını göster"); self.kritik.setChecked(vt.ayar_getir("kritik_bildirim","1")=="1"); nb=QPushButton("Bildirim Ayarını Kaydet"); nb.clicked.connect(self.bildirim_kaydet); n.addRow(self.kritik);n.addRow(nb);sek.addTab(bild,"Bildirimler")
         gizli=QWidget();gl=QVBoxLayout(gizli)
@@ -786,6 +793,14 @@ class AyarlarPenceresi(QDialog):
     def guvenlik_kaydet(self):self.vt.ayar_kaydet("otomatik_kilit_dakika",self.kilit.currentText());self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Güvenlik ayarı kaydedildi.")
     def bildirim_kaydet(self):self.vt.ayar_kaydet("kritik_bildirim","1" if self.kritik.isChecked() else "0");self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Bildirim ayarı kaydedildi.")
     def cloud_giris(self):
+        if self.cloud.bagli and not getattr(self.cloud,"auth_required",False):
+            try:
+                self.cloud.lisans_dogrula()
+                self.connection_label.setText('Cloud bağlı · Oturumunuz doğrulandı.')
+                self.cloud_yenile()
+            except Exception as e:
+                self.connection_label.setText('Bağlantı doğrulanamadı; oturum korunuyor. '+str(e))
+            return
         try:
             candidate=DeporiaQCloud(self.vt,self.cloud.cihaz_kimligi)
             candidate.yapilandir(self.url.text(),self.key.text())
@@ -795,7 +810,7 @@ class AyarlarPenceresi(QDialog):
             if self.cloud.bagli and (candidate.user_id!=self.cloud.user_id or candidate.company_id!=self.cloud.company_id):
                 raise ValueError('Ayarlar üzerinden kullanıcı veya işletme değiştirilemez. Çıkış yapıp giriş ekranını kullanın.')
             with self.cloud._session_lock:
-                for field in ('url','anahtar','access_token','refresh_token','user_id','company_id','company_name','role','entitlement'):
+                for field in ('url','anahtar','access_token','refresh_token','user_id','company_id','company_name','role','entitlement','auth_required'):
                     setattr(self.cloud,field,getattr(candidate,field))
                 if self.cloud.on_token_rotated:self.cloud.on_token_rotated(self.cloud)
             sonuc,_=self.cloud.akilli_senkronize()
@@ -957,6 +972,7 @@ class AnaPencere(QMainWindow):
         self.kur_zamanlayici=QTimer(self);self.kur_zamanlayici.timeout.connect(self.kurlari_yenile);self.kur_zamanlayici.start(300000)
         self.lisans_kilitli=False
         self.schedule(900,self.cloud_oturumunu_yenile)
+        self.schedule(1200,self.cloud_senkronize)
         self.schedule(0,self.duyarli_yerlesimi_guncelle)
 
     def schedule(self,delay,fn):
@@ -1053,8 +1069,10 @@ class AnaPencere(QMainWindow):
     def alt_cubuk(self):
         alt = QFrame(); alt.setObjectName("altCubuk")
         d = QHBoxLayout(alt); d.setContentsMargins(18, 8, 18, 8)
-        durum = QLabel("0.24.1 ADAY • Özetler yerel önbellektir"); durum.setObjectName("durum")
-        d.addWidget(durum); d.addStretch()
+        durum = QLabel("0.24.2 • Özetler yerel önbellektir"); durum.setObjectName("durum")
+        d.addWidget(durum)
+        self.support_mail=QPushButton('deporiaq@gmail.com');self.support_mail.setFlat(True)
+        self.support_mail.clicked.connect(lambda:SupportDialog(self.commerce,self).exec());d.addWidget(self.support_mail);d.addStretch()
         guncelle=QPushButton("Güncellemeleri Denetle");guncelle.clicked.connect(lambda:self.guncelleme_denetle(False));d.addWidget(guncelle)
         cikis = QPushButton("Çıkış Yap"); cikis.clicked.connect(self.cikis_yap)
         kapat = QPushButton("Programı Kapat"); kapat.setObjectName("tehlike"); kapat.clicked.connect(QApplication.quit)
@@ -1070,11 +1088,9 @@ class AnaPencere(QMainWindow):
         self.konum.currentIndexChanged.connect(self.yenile)
         self.yenile_dugmesi = QPushButton("Yenile"); self.yenile_dugmesi.clicked.connect(self.yenile)
         self.sosyal = QWidget(); self.sosyal.setObjectName("dashboardSosyal"); sosyal = QHBoxLayout(self.sosyal); sosyal.setContentsMargins(0,0,0,0); sosyal.setSpacing(8)
-        sosyal_yazi=QLabel("DeporiaQ Sosyal"); sosyal_yazi.setObjectName("soluk"); sosyal.addWidget(sosyal_yazi)
         youtube=QPushButton(QIcon(kaynak_yolu("youtube_icon.svg")),"DeporiaQ"); youtube.setToolTip("DeporiaQ YouTube • Yakında")
         instagram=QPushButton(QIcon(kaynak_yolu("instagram_icon.svg")),"DeporiaQ"); instagram.setToolTip("DeporiaQ Instagram • Yakında")
         youtube.clicked.connect(lambda:self.sosyal_yakinda("YouTube")); instagram.clicked.connect(lambda:self.sosyal_yakinda("Instagram"))
-        mail=QPushButton("deporiaq@gmail.com");mail.clicked.connect(lambda:SupportDialog(self.commerce,self).exec());sosyal.addWidget(mail)
         sosyal.addWidget(youtube); sosyal.addWidget(instagram); d.addLayout(self.ust_yerlesim)
         self.kart_yerlesim = QGridLayout(); self.kart_yerlesim.setSpacing(8); self.kartlar = []; self.kart_widgetlari=[]
         for bas in ("Ürün çeşidi", "Seçili konum stoğu", "Toplam stok değeri", "Kritik stok"):
@@ -1196,7 +1212,7 @@ class AnaPencere(QMainWindow):
     def cloud_oturumunu_yenile(self):
         if hasattr(self,"cloud_iscisi") and self.cloud_iscisi.isRunning():return
         a=ayarlari_oku(); url,key=cloud_yapilandirmasi_oku()
-        if not url or not key:
+        if not self.cloud_client.bagli and (not url or not key):
             self.online.setText("0 online");self.cloud.setText('<span style="color:#F45B76">●</span> <span style="color:#FFFFFF">Cloud çevrimdışı</span>');return
         try:
             if not self.cloud_client.bagli:self.cloud_client.yapilandir(url,key)
@@ -1216,19 +1232,26 @@ class AnaPencere(QMainWindow):
         self.lisans_kilitli=not bool(getattr(self.cloud_client,'entitlement',{}).get('allowed'))
         self.online.setText(f"{len(cihazlar)} kayıtlı cihaz")
         self.aktif_kullanicilar.setText("\n".join(c.get('name','Bilgisayar') for c in cihazlar) or 'Cihaz bilgisi yöneticiye açıktır.')
-        self.cloud.setText('Abonelik doğrulandı' if not self.lisans_kilitli else 'Abonelik etkin değil')
+        self.cloud.setText('Cloud bağlı · Abonelik doğrulandı' if not self.lisans_kilitli else 'Cloud bağlı · Abonelik etkin değil')
+        self.cloud.setToolTip('')
 
     def cloud_hatasi(self,hata):
-        self.lisans_kilitli=True
-        self.online.setText("Doğrulanamadı")
-        self.aktif_kullanicilar.setText("Bağlantı veya abonelik doğrulanamadı.")
-        self.cloud.setText("Bağlantı doğrulanamadı · yeniden deneniyor")
+        # Preserve credentials on temporary network failures. Server RPCs still authorize every operation.
+        self.cloud.setText("Cloud bağlantısı bekleniyor · otomatik yeniden denenecek")
         self.cloud.setToolTip(str(hata))
-        # Support and package dialogs remain available. Every mutation checks the server.
+        if getattr(self.cloud_client,'auth_required',False) or '(401)' in str(hata):
+            self.lisans_kilitli=True
+            self.cloud.setText('Cloud oturumu yenilenemedi · girişinizi doğrulayın')
+
+    def cloud_senkron_hatasi(self,hata):
+        # Local cache errors are not authentication or subscription failures.
+        if getattr(self.cloud_client,'auth_required',False):
+            self.cloud_hatasi(hata)
+        else:self.cloud.setToolTip('Özetler henüz güncellenemedi: '+str(hata))
 
     def cloud_senkronize(self):
         if not self.cloud_client.bagli or (hasattr(self,"senkron_iscisi") and self.senkron_iscisi.isRunning()):return
-        self.senkron_iscisi=CloudSenkronIsci(self.cloud_client,self);self.senkron_iscisi.tamamlandi.connect(lambda _:self.tablo_yenile());self.senkron_iscisi.hata.connect(self.cloud_hatasi);self.senkron_iscisi.start()
+        self.senkron_iscisi=CloudSenkronIsci(self.cloud_client,self);self.senkron_iscisi.tamamlandi.connect(lambda _:self.tablo_yenile());self.senkron_iscisi.hata.connect(self.cloud_senkron_hatasi);self.senkron_iscisi.start()
 
     def tablo_yenile(self):
         konum = self.konum.currentData()
