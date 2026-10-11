@@ -42,6 +42,21 @@ jobs:
           Get-MpThreatDetection | ConvertTo-Json -Depth 6 | Out-File evidence/detections.json
           "Defender scan exit code: $scanExit" | Tee-Object -Append evidence/defender-scan.txt
           if ($scanExit -ne 0) { throw "Defender did not return a clean scan; inspect evidence" }
+      - name: Inspect installed payload on isolated runner
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "DeporiaQ Security Inspection"
+          $process = Start-Process "$PWD/package/DeporiaQ_Setup_0.24.1.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$stage`"" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Isolated installation failed" }
+          $cmd = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          & $cmd -Scan -ScanType 3 -File $stage -DisableRemediation 2>&1 | Tee-Object evidence/defender-payload.txt
+          if ($LASTEXITCODE -ne 0) { throw "Payload scan failed" }
+          Get-ChildItem $stage -Recurse -File | Get-FileHash -Algorithm SHA256 | Format-List | Out-File evidence/payload-hashes.txt
+          Copy-Item $stage extracted -Recurse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inspected-installed-payload
+          path: extracted/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -49,30 +64,27 @@ jobs:
           path: evidence/
 
   clamav:
+    needs: defender
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Install scanner and installer extractor
+      - uses: actions/download-artifact@v4
+        with:
+          name: inspected-installed-payload
+          path: extracted/
+      - name: Install and update scanner
         run: |
+          mkdir evidence
           sudo apt-get update -qq
-          sudo apt-get install -y clamav innoextract
+          sudo apt-get install -y clamav
           sudo systemctl stop clamav-freshclam || true
           sudo freshclam
-      - name: Download and extract exact candidate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p evidence package extracted
-          gh api repos/DeporiaQ/DeporiaQ-Updates/actions/artifacts/11699384116/zip > candidate.zip
-          echo '23dd3d1ac80570b4343938b320ac372d27f20d6f699631f1195c0e19cd39ce43  candidate.zip' | sha256sum -c -
-          unzip candidate.zip -d package
-          innoextract package/DeporiaQ_Setup_0.24.1.exe -d extracted
-          find package extracted -type f -exec sha256sum {} + > evidence/files-sha256.txt
-      - name: Scan archive, installer, and extracted payload
+      - name: Scan installed payload with ClamAV
         run: |
           clamscan --version | tee evidence/scanner-version.txt
+          find extracted -type f -exec sha256sum {} + > evidence/files-sha256.txt
           set -o pipefail
-          clamscan --recursive --max-filesize=200M --max-scansize=600M candidate.zip package extracted | tee evidence/clamav.txt
+          clamscan --recursive --max-filesize=200M --max-scansize=600M extracted | tee evidence/clamav.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
