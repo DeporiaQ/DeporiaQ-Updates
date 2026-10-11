@@ -3,6 +3,9 @@ on:
   push:
     branches: ['codex/deporiaq-0.24.0-validation']
     paths: ['.github/workflows/inspect-installer.yml']
+concurrency:
+  group: installer-inspection
+  cancel-in-progress: true
 permissions:
   contents: read
   actions: read
@@ -46,7 +49,8 @@ jobs:
         shell: pwsh
         run: |
           $stage = Join-Path $env:RUNNER_TEMP "DeporiaQ Security Inspection"
-          $process = Start-Process "$PWD/package/DeporiaQ_Setup_0.24.1.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$stage`"" -Wait -PassThru
+          $process = Start-Process "$PWD/package/DeporiaQ_Setup_0.24.1.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$stage`"" -PassThru
+          if (-not $process.WaitForExit(180000)) { throw "Installer did not exit within 180 seconds" }
           if ($process.ExitCode -ne 0) { throw "Isolated installation failed" }
           $cmd = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
           & $cmd -Scan -ScanType 3 -File $stage -DisableRemediation 2>&1 | Tee-Object evidence/defender-payload.txt
