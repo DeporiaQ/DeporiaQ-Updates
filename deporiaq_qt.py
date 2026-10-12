@@ -18,7 +18,8 @@ from deporiaq_runtime import clean_environment, acknowledge_startup, startup_err
 sys.excepthook = startup_error
 from deporiaq_analiz_ui import AnalysisWindow, CommandPalette
 from deporiaq_commerce import CommerceClient, SHORTCUTS
-from deporiaq_commerce_ui import PlansDialog, StockDialog, OrdersDialog, SupportDialog, SaleDialog
+from deporiaq_preferences import apply_appearance,extend_settings,save_notifications,SessionGuard
+from deporiaq_commerce_ui import PlansDialog, StockDialog, OrdersDialog, SupportDialog, SaleDialog, SubscriptionClock
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QIntValidator,
@@ -38,7 +39,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.24.2"
+SURUM = "0.24.3"
 
 
 def kaynak_yolu(ad):
@@ -230,17 +231,17 @@ class SutunGrafik(QWidget):
 
 class DashboardArkaPlan(QWidget):
     def __init__(self, parent=None):
-        super().__init__(parent); self.gorsel = QPixmap(kaynak_yolu("dashboard_background.jpg"))
+        super().__init__(parent); self.gorsel = QPixmap(kaynak_yolu("dashboard_background.jpg"));self.background_enabled=True;self.overlay=85
 
     def paintEvent(self, olay):
         p = QPainter(self)
-        if not self.gorsel.isNull():
+        if self.background_enabled and not self.gorsel.isNull():
             kapla = self.gorsel.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                                       Qt.TransformationMode.SmoothTransformation)
             x = max(0, (kapla.width() - self.width()) // 2); y = max(0, (kapla.height() - self.height()) // 2)
             p.drawPixmap(QRectF(self.rect()), kapla, QRectF(x, y, self.width(), self.height()))
         # Görsel belirgin kalır; koyu katman metinlerin okunabilirliğini korur.
-        p.fillRect(self.rect(), QColor(7, 15, 28, 85))
+        p.fillRect(self.rect(), QColor(7, 15, 28, self.overlay if self.background_enabled else 255))
 
 
 class FinansOzetGrafik(QWidget):
@@ -370,7 +371,7 @@ class GirisPenceresi(QWidget):
         unuttum.clicked.connect(self.parola_yardimi)
         kapat = QPushButton("Programı Kapat")
         kapat.setObjectName("metinDugme")
-        kapat.clicked.connect(QApplication.quit)
+        kapat.clicked.connect(self.close)
         alt_dugmeler.addWidget(unuttum); alt_dugmeler.addStretch(); alt_dugmeler.addWidget(kapat)
         kutu.addLayout(alt_dugmeler)
         paket = QPushButton("30 gün ücretsiz deneyin · Paketleri incele")
@@ -386,6 +387,7 @@ class GirisPenceresi(QWidget):
         QTimer.singleShot(1400, self.guncelleme_denetle)
 
     def guncelleme_denetle(self):
+        if not self.isVisible():return
         if hasattr(self, "guncelleme_isci") and self.guncelleme_isci.isRunning():
             return
         self.guncelleme_isci = GuncellemeKontrolu(self)
@@ -789,9 +791,10 @@ class AyarlarPenceresi(QDialog):
                 if parent:QTimer.singleShot(0,getattr(parent,method))
             button.clicked.connect(navigate);gl.addWidget(button)
         gl.addStretch();sek.addTab(gizli,"Gizli Komutlar")
+        extend_settings(self,g,q,n)
     def genel_kaydet(self):self.vt.ayar_kaydet("isletme_adi",self.isletme.text().strip());self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","İşletme bilgisi kaydedildi.")
     def guvenlik_kaydet(self):self.vt.ayar_kaydet("otomatik_kilit_dakika",self.kilit.currentText());self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Güvenlik ayarı kaydedildi.")
-    def bildirim_kaydet(self):self.vt.ayar_kaydet("kritik_bildirim","1" if self.kritik.isChecked() else "0");self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Bildirim ayarı kaydedildi.")
+    def bildirim_kaydet(self):save_notifications(self);self.vt.ayar_kaydet("kritik_bildirim","1" if self.kritik.isChecked() else "0");self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Bildirim ayarı kaydedildi.")
     def cloud_giris(self):
         if self.cloud.bagli and not getattr(self.cloud,"auth_required",False):
             try:
@@ -960,6 +963,8 @@ class AnaPencere(QMainWindow):
         ana.addLayout(orta, 1)
         ana.addWidget(self.alt_cubuk())
         self.dashboard_kur()
+        self.notifications=[];self.notification_keys=set();self.session_guard=SessionGuard(self)
+        apply_appearance(self)
         self.quick_shortcuts=[]
         for key,label,method in SHORTCUTS:
             shortcut=QShortcut(QKeySequence(key),self)
@@ -973,6 +978,7 @@ class AnaPencere(QMainWindow):
         self.lisans_kilitli=False
         self.schedule(900,self.cloud_oturumunu_yenile)
         self.schedule(1200,self.cloud_senkronize)
+        if self.vt.ayar_getir("notify_update","1")=="1":self.schedule(2000,lambda:self.guncelleme_denetle(True))
         self.schedule(0,self.duyarli_yerlesimi_guncelle)
 
     def schedule(self,delay,fn):
@@ -983,7 +989,36 @@ class AnaPencere(QMainWindow):
         if any(worker is not None and worker.isRunning() for worker in workers):
             event.ignore();self.cloud.setText('Devam eden bağlantı tamamlanınca kapatın.');return
         for timer in self.startup_timers+[self.canli_zamanlayici,self.senkron_zamanlayici,self.kur_zamanlayici]:timer.stop()
+        if hasattr(self,"session_guard"):self.session_guard.timer.stop();QApplication.instance().removeEventFilter(self.session_guard)
         super().closeEvent(event)
+
+    def home(self):
+        active=QApplication.activeModalWidget()
+        if active and active is not self:
+            if getattr(active,'job',None) is not None:return
+            if QMessageBox.question(active,'Ana Sayfaya Dön','Açık pencere kapatılacak. Kaydedilmemiş girişlerden vazgeçilsin mi?')!=QMessageBox.StandardButton.Yes:return
+            active.reject()
+            if active.isVisible():return
+        self.kaydir.verticalScrollBar().setValue(0);self.yenile();self.konum.setFocus()
+
+    def notify(self,title,message,key=None,force=False):
+        if not hasattr(self,'notifications'):return
+        if key and self.vt.ayar_getir(key,'1')!='1':return
+        identity=(title,message)
+        if identity in self.notification_keys and not force:return
+        self.notification_keys.add(identity)
+        self.notifications.append((datetime.now().strftime('%H:%M:%S'),title,message))
+        self.notifications=self.notifications[-100:]
+        self.notification_button.setText(f'Bildirimler ({len(self.notifications)})')
+        self.notification_button.setToolTip(title+' · '+message)
+        if self.vt.ayar_getir('notify_sound','0')=='1':QApplication.beep()
+
+    def notification_history(self):
+        d=QDialog(self);d.setWindowTitle('Bildirim Geçmişi · Bu Oturum');d.resize(650,400);layout=QVBoxLayout(d)
+        text=QPlainTextEdit();text.setReadOnly(True);text.setPlainText('\n\n'.join(' · '.join(row) for row in reversed(self.notifications)) or 'Bu oturumda bildirim yok.');layout.addWidget(text)
+        clear=QPushButton('Geçmişi Temizle')
+        def reset():self.notifications.clear();self.notification_button.setText('Bildirimler (0)');text.setPlainText('Bildirim geçmişi temizlendi.')
+        clear.clicked.connect(reset);layout.addWidget(clear);d.exec()
 
     def grup_ac(self,title,entries):
         d=QDialog(self);d.setWindowTitle(title);d.setMinimumWidth(360);v=QVBoxLayout(d)
@@ -1047,7 +1082,7 @@ class AnaPencere(QMainWindow):
         menu = QFrame(); menu.setObjectName("yanMenu")
         d = QVBoxLayout(menu); d.setContentsMargins(10, 14, 10, 12); d.setSpacing(5)
         d.addWidget(QLabel("MENÜ"))
-        entries=[("Genel Bakış",self.yenile),("Stok ve Ürünler",self.stok_merkezi_ac),
+        entries=[("Ana Sayfa",self.home),("Stok ve Ürünler",self.stok_merkezi_ac),
                  ("Satışlar",self.satis_merkezi_ac),("Depolar ve Transferler",self.depo_merkezi_ac),
                  ("Raporlar",self.rapor_merkezi_ac)]
         if self.kullanici["rol"]=="ANA_YONETICI":entries.append(("Yönetim",self.yonetim_merkezi_ac))
@@ -1069,13 +1104,14 @@ class AnaPencere(QMainWindow):
     def alt_cubuk(self):
         alt = QFrame(); alt.setObjectName("altCubuk")
         d = QHBoxLayout(alt); d.setContentsMargins(18, 8, 18, 8)
-        durum = QLabel("0.24.2 • Özetler yerel önbellektir"); durum.setObjectName("durum")
+        durum = QLabel("0.24.3 • Özetler yerel önbellektir"); durum.setObjectName("durum")
         d.addWidget(durum)
+        self.notification_button=QPushButton("Bildirimler (0)");self.notification_button.clicked.connect(self.notification_history);d.addWidget(self.notification_button)
         self.support_mail=QPushButton('deporiaq@gmail.com');self.support_mail.setFlat(True)
         self.support_mail.clicked.connect(lambda:SupportDialog(self.commerce,self).exec());d.addWidget(self.support_mail);d.addStretch()
         guncelle=QPushButton("Güncellemeleri Denetle");guncelle.clicked.connect(lambda:self.guncelleme_denetle(False));d.addWidget(guncelle)
         cikis = QPushButton("Çıkış Yap"); cikis.clicked.connect(self.cikis_yap)
-        kapat = QPushButton("Programı Kapat"); kapat.setObjectName("tehlike"); kapat.clicked.connect(QApplication.quit)
+        kapat = QPushButton("Programı Kapat"); kapat.setObjectName("tehlike"); kapat.clicked.connect(self.close)
         d.addWidget(cikis); d.addWidget(kapat)
         return alt
 
@@ -1083,7 +1119,7 @@ class AnaPencere(QMainWindow):
         d = QVBoxLayout(self.icerik); d.setContentsMargins(14, 10, 14, 10); d.setSpacing(8)
         self.ust_yerlesim = QGridLayout(); self.ust_yerlesim.setSpacing(8)
         self.baslik = QLabel("İşletme Özeti"); self.baslik.setObjectName("sayfaBaslik")
-        self.konum = QComboBox(); self.konum.setMinimumWidth(360); self.konum.setMaximumWidth(820)
+        self.konum = QComboBox(); self.konum.setMinimumWidth(200); self.konum.setMaximumWidth(820)
         self.konum.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Fixed)
         self.konum.currentIndexChanged.connect(self.yenile)
         self.yenile_dugmesi = QPushButton("Yenile"); self.yenile_dugmesi.clicked.connect(self.yenile)
@@ -1091,7 +1127,10 @@ class AnaPencere(QMainWindow):
         youtube=QPushButton(QIcon(kaynak_yolu("youtube_icon.svg")),"DeporiaQ"); youtube.setToolTip("DeporiaQ YouTube • Yakında")
         instagram=QPushButton(QIcon(kaynak_yolu("instagram_icon.svg")),"DeporiaQ"); instagram.setToolTip("DeporiaQ Instagram • Yakında")
         youtube.clicked.connect(lambda:self.sosyal_yakinda("YouTube")); instagram.clicked.connect(lambda:self.sosyal_yakinda("Instagram"))
-        sosyal.addWidget(youtube); sosyal.addWidget(instagram); d.addLayout(self.ust_yerlesim)
+        sosyal.addWidget(youtube); sosyal.addWidget(instagram)
+        for name in ('WhatsApp','X'):
+            button=QPushButton(name);button.setToolTip(name+' hesabı henüz tanımlanmadı');button.clicked.connect(lambda checked=False,name=name:self.sosyal_yakinda(name));sosyal.addWidget(button)
+        d.addLayout(self.ust_yerlesim)
         self.kart_yerlesim = QGridLayout(); self.kart_yerlesim.setSpacing(8); self.kartlar = []; self.kart_widgetlari=[]
         for bas in ("Ürün çeşidi", "Seçili konum stoğu", "Toplam stok değeri", "Kritik stok"):
             k = QFrame(); k.setObjectName("kart"); kd = QHBoxLayout(k); kd.setContentsMargins(15,8,15,8); kd.setSpacing(12)
@@ -1227,6 +1266,7 @@ class AnaPencere(QMainWindow):
         self.cloud_iscisi=CloudKontrolu(self.cloud_client,token,self);self.cloud_iscisi.tamamlandi.connect(self.cloud_sonucu);self.cloud_iscisi.hata.connect(self.cloud_hatasi);self.cloud_iscisi.start()
 
     def cloud_tokenini_kaydet(self,cloud):
+        if getattr(self,"remember_disabled",False):return
         accounts=ayarlari_oku().get('cloud_accounts',{})
         accounts[str(self.kullanici['id'])]={'user_id':cloud.user_id,'refresh_token_dpapi':windows_sifrele(cloud.refresh_token)}
         yerel_ayari_kaydet('cloud_accounts',accounts)
@@ -1239,10 +1279,15 @@ class AnaPencere(QMainWindow):
         self.cloud_connection_state='connected'
         self.cloud_gostergesini_yenile()
         self.cloud.setToolTip('')
+        status=getattr(self.cloud_client,'entitlement',{})
+        remaining=SubscriptionClock(status).seconds()
+        if remaining is not None and remaining<=int(self.vt.ayar_getir('notify_expiry_days','7'))*86400:
+            self.notify('Paket süresi','Paket bitişi yaklaşıyor. Kalan süreyi Paketim ve Abonelik ekranından kontrol edin.','notify_expiry')
 
     def cloud_hatasi(self,hata):
         # Preserve credentials on temporary network failures. Server RPCs still authorize every operation.
         self.cloud_connection_state='retry'
+        self.notify("Cloud bağlantısı","Bağlantı geçici olarak doğrulanamadı. Yeniden denenecek.","notify_cloud")
         self.cloud.setToolTip(str(hata))
         if getattr(self.cloud_client,'auth_required',False) or '(401)' in str(hata):
             self.lisans_kilitli=True
@@ -1266,6 +1311,7 @@ class AnaPencere(QMainWindow):
         ozet = self.vt.ozet_getir(konum); kritik = len(self.vt.kritik_stoklari_getir())
         for w, v in zip(self.kartlar, (ozet["urun_sayisi"], ozet["toplam_stok"], para(ozet["toplam_deger"]), kritik)):
             w.setText(str(v))
+        if kritik:self.notify("Kritik stok",f"{kritik} ürün/konum kaydı kritik stok seviyesinde.","kritik_bildirim")
         kritik_konum = sum(1 for u in urunler if int(u["miktar"] or 0) <= int(u["kritik_stok"] or 0))
         self.halka_grafik.veri_ayarla(kritik_konum, max(0, len(urunler) - kritik_konum))
         en_degerli = sorted(((u["ad"], float(u["miktar"] or 0) * float(u["fiyat"] or 0)) for u in urunler), key=lambda x:x[1], reverse=True)[:5]
@@ -1321,7 +1367,7 @@ class AnaPencere(QMainWindow):
         AnalysisWindow(self.vt,self,initial if isinstance(initial,str) else "search").exec()
 
     def komut_paleti_ac(self):
-        commands=[('Genel Bakış',self.yenile),('Stok ve Ürünler',self.stok_merkezi_ac),
+        commands=[('Ana Sayfa',self.home),('Stok ve Ürünler',self.stok_merkezi_ac),
                   ('Şube Satış',self.satis_ac),('İnternet Siparişleri',self.internet_ac),
                   ('Paketim ve Abonelik',self.paket_ac),('Destek Talebi',self.destek_ac)]
         CommandPalette(commands,self).exec()
@@ -1457,6 +1503,9 @@ QWidget#dashboardArkaPlan, QWidget#dashboardSosyal { background:transparent; }
 HalkaGrafik, CubukGrafik, SutunGrafik, FinansOzetGrafik { background:transparent; }
 QLabel { background:transparent; }
 QLineEdit,QComboBox,QSpinBox { background:#1E2635; border:1px solid #3B4B63; padding:8px; min-height:20px; }
+QComboBox {padding-right:30px;}
+QComboBox::drop-down {subcontrol-origin:padding;subcontrol-position:top right;width:28px;border:0;}
+QComboBox::down-arrow {image:url(__CHEVRON__);width:12px;height:8px;}
 QTableWidget { background:#1E2635; border:1px solid #3B4B63; alternate-background-color:#293344; }
 QTableWidget::item { padding:6px 8px; border:0; }
 QTableWidget::item:selected { background:#2563EB; color:#FFFFFF; }
@@ -1498,6 +1547,8 @@ QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal { width:0; backg
 QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal { background:transparent; }
 """
 
+
+STIL=STIL.replace("__CHEVRON__",kaynak_yolu("chevron.svg").replace("\\","/"))
 
 def main():
     eski_veritabanini_tasi(); veritabani_butunlugunu_kurtar(); veritabani_yedegi_al()

@@ -9,7 +9,7 @@ from pathlib import Path
 PLANS = [('demo','Demo',1,'30 gün • stok girişi ve satış'),('single','Single',1,'Tek bilgisayar'),
          ('duo','Duo',3,'Patron dahil 3 bilgisayar'),('plus','Plus',6,'Patron dahil 6 bilgisayar'),
          ('ultra','Ultra',20,'Patron dahil 20 bilgisayar')]
-SHORTCUTS = [('Ctrl+K','Komut arama','komut_paleti_ac'),('Ctrl+1','Genel Bakış','yenile'),
+SHORTCUTS = [('Ctrl+K','Komut arama','komut_paleti_ac'),('Ctrl+1','Ana Sayfa','home'),
              ('Ctrl+2','Stok ve Ürünler','stok_merkezi_ac'),('Ctrl+3','Şube Satış','satis_ac'),
              ('Ctrl+4','İnternet Siparişleri','internet_ac')]
 

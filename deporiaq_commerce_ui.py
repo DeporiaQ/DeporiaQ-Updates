@@ -1,11 +1,39 @@
 """0.24 commerce dialogs. All mutations go through checked server RPCs."""
-from PySide6.QtCore import QThread, Signal, Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QThread, Signal, Qt, QUrl, QTimer
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal
+import time
+import csv
+from PySide6.QtGui import QDesktopServices,QShortcut,QKeySequence
 from urllib.parse import urlencode
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QPushButton,QComboBox,
  QLineEdit,QSpinBox,QDoubleSpinBox,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,
- QMessageBox,QInputDialog,QTabWidget,QWidget,QCheckBox,QPlainTextEdit,QSizePolicy)
+ QMessageBox,QInputDialog,QTabWidget,QWidget,QCheckBox,QPlainTextEdit,QSizePolicy,QApplication,QFileDialog)
 from deporiaq_commerce import PLANS,CommerceError
+
+def quantity_text(value):
+    number=Decimal(str(value))
+    return format(number,'f').rstrip('0').rstrip('.') if '.' in format(number,'f') else format(number,'f')
+
+def csv_cell(value):
+    text=str(value)
+    return "'"+text if text.startswith(('=','+','-','@','\t','\r')) else text
+
+class SubscriptionClock:
+    def __init__(self,status,clock=time.monotonic):
+        self.status=status;self.clock=clock;self.started=clock()
+        parse=lambda value:datetime.fromisoformat(str(value).replace('Z','+00:00'))
+        self.end=parse(status['valid_until']) if status.get('valid_until') else None
+        self.server=parse(status['server_time']) if status.get('server_time') else None
+    def seconds(self):
+        if self.end is None or self.server is None:return None
+        return max(0,int((self.end-self.server).total_seconds()-(self.clock()-self.started)))
+    def text(self):
+        seconds=self.seconds()
+        if seconds is None:return 'Geri sayım için sunucu saati bekleniyor.'
+        if seconds==0:return 'Paket süresi doldu.'
+        days,seconds=divmod(seconds,86400);hours,seconds=divmod(seconds,3600);minutes,_=divmod(seconds,60)
+        return f'Kalan süre: {days} gün {hours} saat {minutes} dakika'
 
 class Job(QThread):
     def __init__(self,fn,parent):
@@ -17,6 +45,7 @@ class Job(QThread):
 class ServerDialog(QDialog):
     def __init__(self,client,title,parent=None):
         super().__init__(parent);self.client=client;self.job=None;self.setWindowTitle(title);self.resize(960,650)
+        self.refresh_shortcut=QShortcut(QKeySequence('F5'),self);self.refresh_shortcut.activated.connect(lambda:getattr(self,'refresh',lambda:None)())
         self.layout_=QVBoxLayout(self);self.heading=QLabel(title);self.heading.setObjectName('sayfaBaslik');self.heading.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Maximum);self.layout_.addWidget(self.heading)
         self.content=QWidget();self.body=QVBoxLayout(self.content);self.layout_.addWidget(self.content,1)
         self.status_label=QLabel('');self.status_label.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Maximum);self.status_label.setWordWrap(True);self.layout_.addWidget(self.status_label)
@@ -57,6 +86,7 @@ def quantity_control(quantity):
 def table(headers):
     t=QTableWidget(0,len(headers));t.setHorizontalHeaderLabels(headers)
     t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+    t.verticalHeader().hide();t.setAlternatingRowColors(True);t.setWordWrap(False)
     t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     t.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);return t
@@ -64,29 +94,43 @@ def table(headers):
 def rows(t,data):
     t.setRowCount(len(data))
     for r,values in enumerate(data):
-        for c,value in enumerate(values):t.setItem(r,c,QTableWidgetItem(str(value)))
+        for c,value in enumerate(values):t.setItem(r,c,QTableWidgetItem(str(value)));t.item(r,c).setToolTip(str(value))
 
 class PlansDialog(ServerDialog):
     def __init__(self,client=None,parent=None):
-        super().__init__(client,'Paketim ve Abonelik',parent);self.resize(760,550)
+        super().__init__(client,'Paketim ve Abonelik',parent);self.resize(820,760)
         info=QLabel('İşletmenize uygun bilgisayar sayısını seçin. Demo: 30 gün, 1 bilgisayar.');info.setWordWrap(True);self.body.addWidget(info)
-        t=table(['Paket','Bilgisayar','Kullanım']);rows(t,[(name,n,desc) for code,name,n,desc in PLANS]);self.body.addWidget(t)
+        t=table(['Paket','Bilgisayar','Kullanım']);t.setMinimumHeight(205);rows(t,[(name,n,desc) for code,name,n,desc in PLANS]);self.body.addWidget(t)
         self.summary=QLabel('Fiyatlar ve ödeme sağlayıcısı henüz yapılandırılmadı. Satın alma kapalı.');self.summary.setWordWrap(True);self.body.addWidget(self.summary)
         self.purchase=self.button('Paket Satın Al / Yükselt',lambda:None);self.purchase.setEnabled(False)
         self.cancel=self.button('Otomatik Yenilemeyi Sonlandır',self.cancel_renewal);self.cancel.setEnabled(False)
         self.device_table=table(['Cihaz','Durum','Kod']);self.body.addWidget(self.device_table)
         self.remove=self.button('Seçili Cihazın Erişimini Kapat',self.disable_device);self.remove.setEnabled(False)
+        self.countdown=QLabel('');self.body.insertWidget(2,self.countdown)
+        self.clock_timer=QTimer(self);self.clock_timer.timeout.connect(self.tick);self.clock_timer.start(1000)
+        self.status_timer=QTimer(self);self.status_timer.timeout.connect(lambda:self.refresh() if self.client else None);self.status_timer.start(60000)
         if client:
             self.button('Destek Talebi',lambda:SupportDialog(client,self).exec())
             self.button('Bilgileri Yenile',self.refresh);self.refresh()
         else:self.status_label.setText('Paket bilgileri bilgilendirme amaçlıdır. Hesabınızla giriş yapın.')
     def refresh(self):self.run(self.client.status,self.show_status)
     def show_status(self,s):
-        self.summary.setText(f"Paket: {s.get('plan') or 'Atanmamış'}  •  Cihaz: {s.get('devices_used',0)}/{s.get('device_limit') or '—'}\n"
-            f"Bitiş: {s.get('valid_until') or '—'}\n"+('Kullanım etkin.' if s.get('allowed') else 'İşletme işlemleri kapalı. Verileriniz korunur.')+
-            '\nÖdeme entegrasyonu tamamlanmadığı için satın alma henüz açık değil.')
+        self.subscription_clock=SubscriptionClock(s)
+        end=self.subscription_clock.end
+        date=end.astimezone(timezone(timedelta(hours=3))).strftime('%d.%m.%Y %H:%M')+' (Türkiye)' if end else '—'
+        plan=next((name for code,name,*_ in PLANS if code==s.get('plan')),s.get('plan') or 'Atanmamış')
+        self.summary.setText(f"Paket: {plan}  •  Cihaz: {s.get('devices_used',0)}/{s.get('device_limit') or '—'}\n"
+            f"Bitiş: {date}\n"+('Kullanım etkin.' if s.get('allowed') else 'İşletme işlemleri kapalı. Verileriniz korunur.'))
+        self.tick()
         admin=s.get('role') in ('owner','admin');self.cancel.setEnabled(admin and bool(s.get('enabled')));self.remove.setEnabled(admin and bool(s.get('enabled')))
         if admin and s.get('enabled'):self.run(lambda:self.client.read('devices'),lambda ds:rows(self.device_table,[(d['name'],'Etkin' if d['active'] else 'Kapalı',d['code']) for d in ds]))
+    def tick(self):
+        clock=getattr(self,'subscription_clock',None)
+        if clock is None:return
+        self.countdown.setText(clock.text())
+        seconds=clock.seconds();parent=self.parentWidget()
+        if seconds is not None and parent and hasattr(parent,'notify') and seconds<=int(parent.vt.ayar_getir('notify_expiry_days','7'))*86400:
+            parent.notify('Paket süresi','Paket bitişi yaklaşıyor. Kalan süreyi Paketim ve Abonelik ekranından kontrol edin.','notify_expiry')
     def cancel_renewal(self):
         if QMessageBox.question(self,'Yenilemeyi sonlandır','Ödenmiş sürenin sonuna kadar kullanım sürer. Veriler silinmez. Yenileme tercihini kapatalım mı?')!=QMessageBox.StandardButton.Yes:return
         self.mutation('renewal',{'renew':False},lambda _:self.refresh())
@@ -101,7 +145,15 @@ class StockDialog(ServerDialog):
     def __init__(self,client,mode='sale',parent=None):
         titles={'sale':'Şube Satış','receive':'Stok Girişi','transfer':'Stok Transferi','count':'Stok Sayımı','catalog':'Stok ve Ürünler'}
         super().__init__(client,titles[mode],parent);self.mode=mode;self.data={}
-        self.grid=table(['Konum','Barkod','Ürün','Fiziksel','Ayrılan','Satılabilir']);self.body.addWidget(self.grid)
+        filters=QHBoxLayout();self.search=QLineEdit();self.search.setPlaceholderText('Ürün adı veya barkod ara…');self.search.setClearButtonEnabled(True)
+        self.filter_location=QComboBox();self.filter_location.addItem('Tüm konumlar',None)
+        self.filter_state=QComboBox();self.filter_state.addItems(['Tüm stoklar','Satılabilir stok var','Satılabilir stok yok','Rezervasyon var'])
+        filters.addWidget(self.search,2);filters.addWidget(self.filter_location);filters.addWidget(self.filter_state);self.body.addLayout(filters)
+        self.grid=table(['Konum','Barkod','Ürün','Fiziksel','Ayrılan','Satılabilir']);self.body.addWidget(self.grid,1)
+        self.stock_summary=QLabel('');self.body.addWidget(self.stock_summary)
+        actions=QHBoxLayout();self.button('Barkodu Kopyala',self.copy_barcode,actions);self.button('Görünen Stokları CSV Aktar',self.export_stock,actions);self.body.addLayout(actions)
+        self.search.textChanged.connect(self.filter_stock);self.filter_location.currentIndexChanged.connect(self.filter_stock);self.filter_state.currentIndexChanged.connect(self.filter_stock)
+        self.grid.itemSelectionChanged.connect(self.select_stock)
         f=QFormLayout();self.product=QComboBox();self.location=QComboBox();self.target=QComboBox();self.quantity=QSpinBox();self.quantity.setRange(0 if mode=='count' else 1,1000000)
         f.addRow('Ürün:',self.product);f.addRow('Kaynak / satış konumu:',self.location)
         if mode=='transfer':f.addRow('Hedef:',self.target)
@@ -117,7 +169,10 @@ class StockDialog(ServerDialog):
     def refresh(self):self.run(self.client.snapshot,self.populate)
     def populate(self,s):
         self.data=s;ps={p['id']:p for p in s['products']};ls={l['id']:l for l in s['locations']}
-        rows(self.grid,[(ls[i['location_id']]['name'],ps[i['product_id']]['barcode'],ps[i['product_id']]['name'],i['quantity'],float(i['quantity'])-float(i['available']),i['available']) for i in s['inventory']])
+        self.stock_rows=[(i['product_id'],i['location_id'],ls[i['location_id']]['name'],ps[i['product_id']]['barcode'],ps[i['product_id']]['name'],i['quantity'],Decimal(str(i['quantity']))-Decimal(str(i['available'])),i['available']) for i in s['inventory']]
+        previous=self.filter_location.currentData();self.filter_location.blockSignals(True);self.filter_location.clear();self.filter_location.addItem('Tüm konumlar',None)
+        for location in s['locations']:self.filter_location.addItem(location['name'],location['id'])
+        self.filter_location.setCurrentIndex(max(0,self.filter_location.findData(previous)));self.filter_location.blockSignals(False)
         old=[self.product.currentData(),self.location.currentData(),self.target.currentData()]
         self.product.clear();self.location.clear();self.target.clear()
         for p in s['products']:
@@ -126,7 +181,39 @@ class StockDialog(ServerDialog):
             if l['active']:self.location.addItem(l['name'],l['id']);self.target.addItem(l['name'],l['id'])
         for combo,value in zip([self.product,self.location,self.target],old):
             if combo.findData(value)>=0:combo.setCurrentIndex(combo.findData(value))
+        self.filter_stock()
         self.status_label.setText('Fiziksel: toplam stok · Ayrılan: rezervasyonlar · Satılabilir: satışa uygun stok.')
+    def filter_stock(self,*_):
+        query=self.search.text().strip().casefold();loc=self.filter_location.currentData();mode=self.filter_state.currentIndex()
+        self.visible_stock=[]
+        for row in getattr(self,'stock_rows',[]):
+            if query and query not in (row[3]+' '+row[4]).casefold():continue
+            if loc is not None and row[1]!=loc:continue
+            available=Decimal(str(row[7]));reserved=Decimal(str(row[6]))
+            if (mode==1 and available<=0) or (mode==2 and available>0) or (mode==3 and reserved<=0):continue
+            self.visible_stock.append(row)
+        rows(self.grid,[(r[2],r[3],r[4],quantity_text(r[5]),quantity_text(r[6]),quantity_text(r[7])) for r in self.visible_stock])
+        total=sum((Decimal(str(r[7])) for r in self.visible_stock),Decimal(0))
+        self.stock_summary.setText(f'{len(self.visible_stock)} kayıt · Satılabilir toplam: {quantity_text(total)} adet')
+    def select_stock(self):
+        r=self.grid.currentRow()
+        if r<0 or r>=len(getattr(self,'visible_stock',[])):return
+        row=self.visible_stock[r]
+        for combo,value in ((self.product,row[0]),(self.location,row[1])):
+            combo.setCurrentIndex(combo.findData(value))
+    def copy_barcode(self):
+        r=self.grid.currentRow()
+        if r<0:self.status_label.setText('Önce stok tablosundan bir satır seçin.');return
+        QApplication.clipboard().setText(self.grid.item(r,1).text());self.status_label.setText('Barkod kopyalandı.')
+    def export_stock(self):
+        path,_=QFileDialog.getSaveFileName(self,'Görünen stokları kaydet','DeporiaQ_Stok.csv','CSV (*.csv)')
+        if not path:return
+        try:
+            with open(path,'w',newline='',encoding='utf-8-sig') as stream:
+                writer=csv.writer(stream,delimiter=';');writer.writerow(['Konum','Barkod','Ürün','Fiziksel','Ayrılan','Satılabilir'])
+                for r in range(self.grid.rowCount()):writer.writerow([csv_cell(self.grid.item(r,c).text()) for c in range(6)])
+        except OSError as e:self.status_label.setText('Dosya kaydedilemedi: '+str(e));return
+        self.status_label.setText('Görünen stoklar CSV dosyasına kaydedildi.')
     def commit(self):
         payload={'product_id':self.product.currentData(),'location_id':self.location.currentData(),'quantity':self.quantity.value()}
         if self.mode=='transfer':payload['target_id']=self.target.currentData()
@@ -286,6 +373,10 @@ class SaleDialog(ServerDialog):
         self.pickup=self.button('Seçili Şubeden Teslim · Rezerve Et',lambda:self.reserve('pickup'),bar)
         self.cargo=self.button('Seçili Konumdan Kargo · Rezerve Et',lambda:self.reserve('cargo'),bar)
         self.body.addWidget(self.other);self.other.hide()
+        self.cash_shortcuts=[]
+        for key,action in [('F2',lambda:self.barcode.setFocus()),('F8',lambda:self.sell.click())]:
+            shortcut=QShortcut(QKeySequence(key),self);shortcut.activated.connect(action);self.cash_shortcuts.append(shortcut)
+        self.barcode.setToolTip('F2: barkod alanına dön · Enter: ürünü bul · F8: satışı tamamla')
         self.barcode.returnPressed.connect(self.lookup);self.barcode.textEdited.connect(self.invalidate)
         self.location.currentIndexChanged.connect(self.render_product);self.quantity.valueChanged.connect(self.render_product)
         self.refresh()

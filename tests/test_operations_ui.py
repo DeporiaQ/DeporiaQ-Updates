@@ -18,6 +18,8 @@ from PySide6.QtTest import QTest
 def application():
     app=ui.QApplication.instance() or ui.QApplication([])
     app.setStyleSheet(ui.STIL)
+    original_update_run=ui.GuncellemeKontrolu.run
+    ui.GuncellemeKontrolu.run=lambda self:None  # isolate external update service
     yield app
     from PySide6.QtCore import QCoreApplication,QEvent
     for widget in app.topLevelWidgets():
@@ -25,6 +27,7 @@ def application():
         widget.deleteLater()
     QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
     app.processEvents()
+    ui.GuncellemeKontrolu.run=original_update_run
 
 @pytest.fixture
 def window(application,tmp_path,monkeypatch):
@@ -35,6 +38,7 @@ def window(application,tmp_path,monkeypatch):
     user=db.baglanti.execute('SELECT * FROM kullanicilar LIMIT 1').fetchone()
     monkeypatch.setattr(ui.AnaPencere,'cloud_oturumunu_yenile',lambda self:None)
     monkeypatch.setattr(ui.AnaPencere,'kurlari_yenile',lambda self:None)
+    monkeypatch.setattr(ui.AnaPencere,'guncelleme_denetle',lambda *a:None)
     w=ui.AnaPencere(db,user,None);w.yenile()
     db.urun_ekle('0012345','İzmir Kitap',120,70,10)
     uid=db.baglanti.execute('SELECT id FROM urunler LIMIT 1').fetchone()[0]

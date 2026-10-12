@@ -1,5 +1,5 @@
 #define MyAppName "DeporiaQ"
-#define MyAppVersion "0.24.2"
+#define MyAppVersion "0.24.3"
 #define MyAppPublisher "DeporiaQ"
 #define MyAppExeName "DeporiaQ.exe"
 
