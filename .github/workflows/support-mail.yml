@@ -1,0 +1,53 @@
+name: DeporiaQ support email delivery
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: deporiaq-support-mail
+  cancel-in-progress: false
+jobs:
+  deliver:
+    if: vars.DPQ_SUPPORT_MAIL_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Load reviewed mail worker
+        uses: actions/checkout@v5
+        with:
+          ref: 19aa7296463c65159f3cbca04d042e787d199571
+          persist-credentials: false
+          sparse-checkout: server
+      - name: Deliver queued support tickets
+        env:
+          DPQ_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          DPQ_SERVICE_ROLE_KEY: ${{ secrets.DPQ_SERVICE_ROLE_KEY }}
+          DPQ_SMTP_HOST: smtp.gmail.com
+          DPQ_SMTP_PORT: '465'
+          DPQ_SMTP_USER: deporiaq@gmail.com
+          DPQ_SMTP_PASSWORD: ${{ secrets.DPQ_SMTP_PASSWORD }}
+          DPQ_MAIL_FROM: deporiaq@gmail.com
+        run: |
+          python - <<'PY'
+          import os,sys
+          for name in ('DPQ_SUPABASE_URL','DPQ_SERVICE_ROLE_KEY','DPQ_SMTP_PASSWORD'):
+              if not os.environ.get(name):
+                  raise SystemExit('Missing GitHub Actions secret: '+name)
+          from server.support_worker import rpc,run_once
+          failures=[]
+          def checked_rpc(action,payload):
+              result=rpc(action,payload)
+              if action=='dpq_finish_support':
+                  if not payload['p_sent'] or not result:
+                      failures.append(True)
+              return result
+          count=0
+          for _ in range(10):
+              if not run_once(rpc_fn=checked_rpc):break
+              count+=1
+          print('SMTP accepted support messages:',count)
+          if failures:
+              raise SystemExit('A support message could not be sent or acknowledged; retry is queued.')
+          PY
