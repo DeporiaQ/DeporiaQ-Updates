@@ -4,7 +4,7 @@ from PySide6.QtGui import QDesktopServices
 from urllib.parse import urlencode
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QPushButton,QComboBox,
  QLineEdit,QSpinBox,QDoubleSpinBox,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,
- QMessageBox,QInputDialog,QTabWidget,QWidget,QCheckBox,QPlainTextEdit)
+ QMessageBox,QInputDialog,QTabWidget,QWidget,QCheckBox,QPlainTextEdit,QSizePolicy)
 from deporiaq_commerce import PLANS,CommerceError
 
 class Job(QThread):
@@ -17,9 +17,9 @@ class Job(QThread):
 class ServerDialog(QDialog):
     def __init__(self,client,title,parent=None):
         super().__init__(parent);self.client=client;self.job=None;self.setWindowTitle(title);self.resize(960,650)
-        self.layout_=QVBoxLayout(self);self.heading=QLabel(title);self.heading.setObjectName('sayfaBaslik');self.layout_.addWidget(self.heading)
-        self.content=QWidget();self.body=QVBoxLayout(self.content);self.layout_.addWidget(self.content)
-        self.status_label=QLabel('İşlem yapıldığında sunucuda doğrulanır.');self.status_label.setWordWrap(True);self.layout_.addWidget(self.status_label)
+        self.layout_=QVBoxLayout(self);self.heading=QLabel(title);self.heading.setObjectName('sayfaBaslik');self.heading.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Maximum);self.layout_.addWidget(self.heading)
+        self.content=QWidget();self.body=QVBoxLayout(self.content);self.layout_.addWidget(self.content,1)
+        self.status_label=QLabel('');self.status_label.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Maximum);self.status_label.setWordWrap(True);self.layout_.addWidget(self.status_label)
     def run(self,fn,done=None):
         if self.job is not None:return
         self.content.setEnabled(False);self.status_label.setText('Sunucudan yanıt bekleniyor…')
@@ -28,7 +28,7 @@ class ServerDialog(QDialog):
         job=self.job;self.job=None;self.content.setEnabled(True)
         if job.error:self.status_label.setText(job.error)
         else:
-            self.status_label.setText('Sunucuda doğrulandı.')
+            self.status_label.clear()
             if done:done(job.result)
         job.deleteLater()
     def closeEvent(self,event):
@@ -40,6 +40,19 @@ class ServerDialog(QDialog):
         b=QPushButton(text);b.clicked.connect(fn);(layout or self.body).addWidget(b);return b
     def mutation(self,action,payload,done=None):
         self.run(lambda:self.client.mutate(action,payload),done)
+
+def quantity_control(quantity):
+    quantity.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+    quantity.setAlignment(Qt.AlignmentFlag.AlignCenter);quantity.setFixedWidth(130)
+    quantity.setAccessibleName('Miktar')
+    quantity_row=QWidget();quantity_layout=QHBoxLayout(quantity_row);quantity_layout.setContentsMargins(0,0,0,0)
+    decrease=QPushButton('−');increase=QPushButton('+')
+    for button,label in ((decrease,'Adedi azalt'),(increase,'Adedi artır')):
+        button.setFixedSize(48,44);button.setAccessibleName(label);button.setToolTip(label)
+        button.setAutoDefault(False);button.setStyleSheet('QPushButton {font-size:24px; border-radius:8px; padding:0px;}')
+    decrease.clicked.connect(quantity.stepDown);increase.clicked.connect(quantity.stepUp)
+    quantity_layout.addWidget(decrease);quantity_layout.addWidget(quantity);quantity_layout.addWidget(increase);quantity_layout.addStretch()
+    return quantity_row,decrease,increase
 
 def table(headers):
     t=QTableWidget(0,len(headers));t.setHorizontalHeaderLabels(headers)
@@ -92,9 +105,11 @@ class StockDialog(ServerDialog):
         f=QFormLayout();self.product=QComboBox();self.location=QComboBox();self.target=QComboBox();self.quantity=QSpinBox();self.quantity.setRange(0 if mode=='count' else 1,1000000)
         f.addRow('Ürün:',self.product);f.addRow('Kaynak / satış konumu:',self.location)
         if mode=='transfer':f.addRow('Hedef:',self.target)
-        if mode!='catalog':f.addRow('Miktar:',self.quantity)
+        if mode!='catalog':
+            quantity_row,self.decrease,self.increase=quantity_control(self.quantity)
+            f.addRow('Miktar:',quantity_row)
         self.body.addLayout(f)
-        if mode!='catalog':self.submit=self.button('Sunucuda İşlemi Tamamla',self.commit)
+        if mode!='catalog':self.submit=self.button({'sale':'Satışı Tamamla','receive':'Stok Girişini Kaydet','transfer':'Transferi Tamamla','count':'Sayımı Kaydet'}[mode],self.commit)
         else:
             self.button('Ürün Ekle / Fiyat Güncelle',self.product_edit)
             self.button('Depo / Şube Ekle',self.location_edit)
@@ -111,7 +126,7 @@ class StockDialog(ServerDialog):
             if l['active']:self.location.addItem(l['name'],l['id']);self.target.addItem(l['name'],l['id'])
         for combo,value in zip([self.product,self.location,self.target],old):
             if combo.findData(value)>=0:combo.setCurrentIndex(combo.findData(value))
-        self.status_label.setText('Fiziksel ve satılabilir stok ayrı gösterilir. İşlem anında sunucuda yeniden kontrol edilir.')
+        self.status_label.setText('Fiziksel: toplam stok · Ayrılan: rezervasyonlar · Satılabilir: satışa uygun stok.')
     def commit(self):
         payload={'product_id':self.product.currentData(),'location_id':self.location.currentData(),'quantity':self.quantity.value()}
         if self.mode=='transfer':payload['target_id']=self.target.currentData()
@@ -250,20 +265,12 @@ class SupportDialog(ServerDialog):
 class SaleDialog(ServerDialog):
     """Cashier starts with an exact barcode. Other stores are an explicit lookup."""
     def __init__(self,client,location_name='',parent=None):
-        super().__init__(client,'Kasa · Barkodlu Satış',parent);self.resize(900,650)
+        super().__init__(client,'Kasa · Barkodlu Satış',parent);self.resize(900,360)
+        self.body.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.data={};self.selected_product=None;self.location_name=location_name;self.other_ids=[]
         f=QFormLayout();self.location=QComboBox();self.barcode=QLineEdit();self.barcode.setPlaceholderText('Ürün barkodunu okutun veya barkod girip Enter’a basın')
         self.quantity=QSpinBox();self.quantity.setRange(1,1000000)
-        self.quantity.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.quantity.setAlignment(Qt.AlignmentFlag.AlignCenter);self.quantity.setFixedWidth(130)
-        self.quantity.setAccessibleName('Satış adedi')
-        quantity_row=QWidget();quantity_layout=QHBoxLayout(quantity_row);quantity_layout.setContentsMargins(0,0,0,0)
-        self.decrease=QPushButton('−');self.increase=QPushButton('+')
-        for button,label in ((self.decrease,'Adedi azalt'),(self.increase,'Adedi artır')):
-            button.setFixedSize(48,44);button.setAccessibleName(label);button.setToolTip(label)
-            button.setAutoDefault(False);button.setStyleSheet('QPushButton {font-size:24px; border-radius:8px; padding:0px;}')
-        self.decrease.clicked.connect(self.quantity.stepDown);self.increase.clicked.connect(self.quantity.stepUp)
-        quantity_layout.addWidget(self.decrease);quantity_layout.addWidget(self.quantity);quantity_layout.addWidget(self.increase);quantity_layout.addStretch()
+        quantity_row,self.decrease,self.increase=quantity_control(self.quantity)
         f.addRow('Satış yapılan mağaza / depo',self.location);f.addRow('Ürün barkodu',self.barcode);f.addRow('Adet',quantity_row);self.body.addLayout(f)
         self.info=QLabel('Satışa başlamak için barkod okutun.');self.info.setWordWrap(True);self.info.setMinimumHeight(70);self.body.addWidget(self.info)
         bar=QHBoxLayout();self.body.addLayout(bar)
