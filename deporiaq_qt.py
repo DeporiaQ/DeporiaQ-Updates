@@ -1196,14 +1196,18 @@ class AnaPencere(QMainWindow):
 
     def yenile(self):
         self.konumlari_yenile(); self.tablo_yenile()
-        etkin = self.cloud_client.bagli
-        bekleyen = self.vt.baglanti.execute("SELECT COUNT(*) FROM senkron_kuyrugu WHERE gonderildi=0").fetchone()[0]
-        if etkin and bekleyen:
-            nokta, metin = "#FBBF24", f"{bekleyen} işlem bekliyor"
-        elif etkin:
-            nokta, metin = "#4ADE80", "Sunucu bağlı · önbellek"
+        self.cloud_gostergesini_yenile()
+
+    def cloud_gostergesini_yenile(self):
+        state=getattr(self,'cloud_connection_state','connected' if self.cloud_client.bagli else 'offline')
+        if state=='auth_required':
+            nokta,metin='#F45B76','Cloud oturumu yenilenemedi · girişinizi doğrulayın'
+        elif state=='retry':
+            nokta,metin='#FBBF24','Cloud bağlantısı bekleniyor · otomatik yeniden denenecek'
+        elif self.cloud_client.bagli:
+            nokta,metin=('#FBBF24','Cloud bağlı · Abonelik etkin değil') if getattr(self,'lisans_kilitli',False) else ('#4ADE80','Cloud bağlı · Abonelik doğrulandı')
         else:
-            nokta, metin = "#94A3B8", "Yerel çalışma"
+            nokta,metin='#94A3B8','Cloud oturumu kapalı'
         self.cloud.setText(f'<span style="color:{nokta}">●</span> <span style="color:#FFFFFF">{metin}</span>')
 
     def canli_yenile(self):
@@ -1232,16 +1236,18 @@ class AnaPencere(QMainWindow):
         self.lisans_kilitli=not bool(getattr(self.cloud_client,'entitlement',{}).get('allowed'))
         self.online.setText(f"{len(cihazlar)} kayıtlı cihaz")
         self.aktif_kullanicilar.setText("\n".join(c.get('name','Bilgisayar') for c in cihazlar) or 'Cihaz bilgisi yöneticiye açıktır.')
-        self.cloud.setText('Cloud bağlı · Abonelik doğrulandı' if not self.lisans_kilitli else 'Cloud bağlı · Abonelik etkin değil')
+        self.cloud_connection_state='connected'
+        self.cloud_gostergesini_yenile()
         self.cloud.setToolTip('')
 
     def cloud_hatasi(self,hata):
         # Preserve credentials on temporary network failures. Server RPCs still authorize every operation.
-        self.cloud.setText("Cloud bağlantısı bekleniyor · otomatik yeniden denenecek")
+        self.cloud_connection_state='retry'
         self.cloud.setToolTip(str(hata))
         if getattr(self.cloud_client,'auth_required',False) or '(401)' in str(hata):
             self.lisans_kilitli=True
-            self.cloud.setText('Cloud oturumu yenilenemedi · girişinizi doğrulayın')
+            self.cloud_connection_state='auth_required'
+        self.cloud_gostergesini_yenile()
 
     def cloud_senkron_hatasi(self,hata):
         # Local cache errors are not authentication or subscription failures.

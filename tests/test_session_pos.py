@@ -132,3 +132,16 @@ def test_support_has_send_below_fields_and_footer_email(application,window):
     assert not any(w.text()=='DeporiaQ Sosyal' for w in window.findChildren(QLabel))
     assert not any(w.text()=='deporiaq@gmail.com' for w in window.sosyal.findChildren(QPushButton))
     d.close()
+
+
+def test_green_cloud_indicator_survives_status_check_and_navigation(application,window):
+    c=window.cloud_client;c.access_token='access';c.company_id='company';c.entitlement={'allowed':True}
+    window.cloud_sonucu([], '')
+    verified=window.cloud.text()
+    assert '#4ADE80' in verified and '●' in verified and 'Cloud bağlı' in verified
+    window.yenile()
+    assert window.cloud.text()==verified
+    window.cloud_hatasi('Network timeout')
+    waiting=window.cloud.text();assert '#FBBF24' in waiting
+    window.yenile();assert window.cloud.text()==waiting
+    window.cloud_sonucu([], '');assert window.cloud.text()==verified
