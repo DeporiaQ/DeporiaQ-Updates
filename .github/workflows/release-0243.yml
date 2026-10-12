@@ -1,0 +1,196 @@
+name: Validate and publish DeporiaQ 0.24.3
+on:
+  push:
+    branches: ['codex/deporiaq-0.24.0-validation']
+    paths: ['.github/workflows/release-0243.yml']
+concurrency:
+  group: release-0243
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: DeporiaQ/DeporiaQ-Updates
+    steps:
+      - name: Wait for exact source build and tests
+        run: |
+          set -euo pipefail
+          for run in 38279554939 38279554945; do
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)" = ed1184a259b292d82c493d62e6b3bbff19675537
+            gh run watch "$run" --exit-status --interval 30
+          done
+  defender:
+    needs: gates
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Download exact previously built artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory evidence,package | Out-Null
+          $artifacts = gh api repos/DeporiaQ/DeporiaQ-Updates/actions/runs/38279554939/artifacts | ConvertFrom-Json
+          $artifact = $artifacts.artifacts | Where-Object name -eq 'DeporiaQ-0.24.3-candidate-setup'
+          if (-not $artifact.id -or $artifact.expired) { throw "Verified artifact unavailable" }
+          gh api "repos/DeporiaQ/DeporiaQ-Updates/actions/artifacts/$($artifact.id)/zip" > candidate.zip
+          if ($LASTEXITCODE -ne 0) { throw "Artifact download failed" }
+          $hash = (Get-FileHash candidate.zip -Algorithm SHA256).Hash.ToLower()
+          if ("sha256:$hash" -ne $artifact.digest) { throw "Artifact digest mismatch" }
+          Expand-Archive candidate.zip package
+          Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | Format-List | Out-File evidence/hashes.txt
+          Get-Content evidence/hashes.txt
+          Get-ChildItem package -Recurse -Filter *.exe | Get-AuthenticodeSignature | Select-Object Path,Status,StatusMessage | ConvertTo-Json | Tee-Object evidence/signatures.json
+      - name: Update and run Microsoft Defender
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-Service WinDefend | Format-List
+          Start-Service WinDefend
+          Update-MpSignature
+          $status = Get-MpComputerStatus
+          $status | Select-Object AMServiceEnabled,AntivirusEnabled,AMRunningMode,AntivirusSignatureVersion,AntivirusSignatureLastUpdated | ConvertTo-Json | Tee-Object evidence/defender-status.json
+          if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) { throw "Defender unavailable; no clean verdict" }
+          $cmd = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $cmd) { $cmd = "$env:ProgramFiles/Windows Defender/MpCmdRun.exe" }
+          & $cmd -Scan -ScanType 3 -File "$PWD/package" -DisableRemediation 2>&1 | Tee-Object evidence/defender-scan.txt
+          $scanExit = $LASTEXITCODE
+          Get-MpThreatDetection | ConvertTo-Json -Depth 6 | Out-File evidence/detections.json
+          "Defender scan exit code: $scanExit" | Tee-Object -Append evidence/defender-scan.txt
+          if ($scanExit -ne 0) { throw "Defender did not return a clean scan; inspect evidence" }
+      - name: Inspect installed payload on isolated runner
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "DeporiaQ Security Inspection"
+          $process = Start-Process "$PWD/package/DeporiaQ_Setup_0.24.3.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$stage`"" -PassThru
+          if (-not $process.WaitForExit(180000)) { throw "Installer did not exit within 180 seconds" }
+          if ($process.ExitCode -ne 0) { throw "Isolated installation failed" }
+          $cmd = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          & $cmd -Scan -ScanType 3 -File $stage -DisableRemediation 2>&1 | Tee-Object evidence/defender-payload.txt
+          if ($LASTEXITCODE -ne 0) { throw "Payload scan failed" }
+          Get-ChildItem $stage -Recurse -File | Get-FileHash -Algorithm SHA256 | Format-List | Out-File evidence/payload-hashes.txt
+          Copy-Item $stage extracted -Recurse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inspected-installed-payload
+          path: extracted/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-security-evidence
+          path: evidence/
+
+  clamav:
+    needs: defender
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: inspected-installed-payload
+          path: extracted/
+      - name: Install and update scanner
+        run: |
+          mkdir evidence
+          sudo apt-get update -qq
+          sudo apt-get install -y clamav
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam
+      - name: Scan installed payload with ClamAV
+        run: |
+          clamscan --version | tee evidence/scanner-version.txt
+          find extracted -type f -exec sha256sum {} + > evidence/files-sha256.txt
+          set -o pipefail
+          clamscan --recursive --max-filesize=200M --max-scansize=600M extracted | tee evidence/clamav.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-clamav-evidence
+          path: evidence/
+
+  publish:
+    needs: [gates, defender, clamav]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: DeporiaQ/DeporiaQ-Updates
+    steps:
+      - name: Download tested and scanned installer
+        run: |
+          set -euo pipefail
+          gh api repos/$GH_REPO/actions/runs/38279554939/artifacts > artifacts.json
+          id=$(jq -r '.artifacts[] | select(.name=="DeporiaQ-0.24.3-candidate-setup" and .expired==false) | .id' artifacts.json)
+          digest=$(jq -r '.artifacts[] | select(.name=="DeporiaQ-0.24.3-candidate-setup" and .expired==false) | .digest' artifacts.json)
+          test -n "$id"
+          gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > candidate.zip
+          echo "${digest#sha256:}  candidate.zip" | sha256sum -c -
+          unzip candidate.zip
+          sha256sum DeporiaQ_Setup_0.24.3.exe > SHA256SUMS.txt
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          # DeporiaQ 0.24.3
+          
+          ## İstenen düzenlemeler
+          - Tam adet stokları 80.0 yerine 80 gösterilir. Kesirli tutarsız kayıtlar gizlenmez; stok girişinde tam adet zorunluluğu sürer.
+          - Paket bitişi Türkiye saatiyle gösterilir; kalan süre sunucu saati ve monoton zamanla hesaplanır. İstemci güncellemesi abonelik kaydını değiştirmez.
+          - Gece Mavisi, Grafit ve Yüksek Kontrast temaları; özel arka plan, karartma ve yazı boyutu.
+          - Otomatik/manuel ekran kilidi, hatırlanan girişi silme ve yerel yedek bağlantısı.
+          - Kritik stok, bağlantı, paket bitişi ve açılış güncelleme tercihleri; ses seçimi.
+          - Ctrl+1 açık pencereden onayla Ana Sayfaya döner; çalışan işlemi kesmez.
+          - Genel Bakış adı Ana Sayfa oldu; konum seçme oku yenilendi.
+          - WhatsApp ve X düğmeleri eklendi. Hesaplar henüz tanımlanmadığından Yakında bilgisi gösterir.
+          - Satış penceresi daraltıldı; gereksiz sunucu doğrulama yazısı kaldırıldı. Stok miktar kontrolleri büyük −/+ düğmelerini kullanır.
+          
+          ## Ek işlevler
+          1. Stok tablosunda ürün adı ve barkodla anlık arama.
+          2. Konuma göre stok filtresi.
+          3. Satılabilir, tükenmiş ve ayrılmış stok filtreleri.
+          4. Yalnız görünen stokları CSV aktarma.
+          5. Seçili barkodu panoya kopyalama.
+          6. Tablo satırından işlem ürününü ve konumunu seçme.
+          7. Filtrelenmiş kayıt sayısı ve satılabilir adet toplamı.
+          8. Kasa F2 barkoda odaklanma ve F8 satış düğmesi kısayolları.
+          9. İşlem pencerelerinde F5 ile yenileme.
+          10. Bu oturumun bildirim geçmişi ve temizleme.
+          11. Parola, anahtar ve müşteri verisi içermeyen tanılama raporu.
+          12. Ürün adı kesilirse üzerine gelerek tam adını görme.
+          
+          0.24.2 üzerinden yeni SQL gerekmez. Arayüz ayarları yerel olarak korunur. Cloud ve yerel kullanıcı parolaları ayrı kavramlardır; ekran kilidi yerel kullanıcı parolasını kullanır.
+          
+          Kurulum ve güncelleyici sürümleri eşitlendi. Yayın, aynı kaynak sürümünün istemci/sunucu testleri ve açık uygulamada Windows kurulum/yeniden açılma kontrolünden sonra etkinleştirilir.
+          
+          NOTES
+          gh release create v0.24.3 DeporiaQ_Setup_0.24.3.exe SHA256SUMS.txt --target ed1184a259b292d82c493d62e6b3bbff19675537 --title 'DeporiaQ 0.24.3' --notes-file release-notes.md --latest
+      - name: Enable normal in-app update using optimistic file revision
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/contents/guncelleme_manifest.json?ref=main" > current-manifest.json
+          python - <<'PY'
+          import base64,hashlib,json
+          from pathlib import Path
+          current=json.loads(Path('current-manifest.json').read_text())
+          old=json.loads(base64.b64decode(current['content']))
+          if tuple(map(int,old['version'].split('.'))) >= (0,24,3):
+              raise SystemExit('A newer or equal manifest exists; refusing to overwrite')
+          manifest={
+              'version':'0.24.3',
+              'download_url':'https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.24.3/DeporiaQ_Setup_0.24.3.exe',
+              'sha256':hashlib.sha256(Path('DeporiaQ_Setup_0.24.3.exe').read_bytes()).hexdigest(),
+              'notes':'Tema ve arka plan seçenekleri, ekran kilidi, bildirim merkezi, paket geri sayımı, Ana Sayfa ve Ctrl+1 düzeltmesi. Stok arama, filtre, CSV ve barkod kopyalama dahil 12 ek işlev. 0.24.2 üzerinden yeni SQL gerekmez.'
+          }
+          payload={'message':'Publish verified 0.24.3 in-app update','branch':'main','sha':current['sha'],
+                   'content':base64.b64encode((json.dumps(manifest,ensure_ascii=False,indent=2)+'\n').encode()).decode()}
+          Path('manifest-update.json').write_text(json.dumps(payload))
+          PY
+          gh api "repos/$GH_REPO/contents/guncelleme_manifest.json" -X PUT --input manifest-update.json --silent
