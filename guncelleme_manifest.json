@@ -1,6 +1,6 @@
 {
-  "version": "0.24.1",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.24.1/DeporiaQ_Setup_0.24.1.exe",
-  "sha256": "ff06d5aab6f339056f437abbc41e10934ec82d9ee5d47fbfbfdc7708e91bf94e",
-  "notes": "Barkodlu satış, şube stok sorgulama, rezervasyon/kargo ve Cloud oturum düzeltmeleri. Önce 0.24.0 Cloud migration ve 0.24.1 UPDATE SQL uygulanmalıdır. Defender ve ClamAV tehdit bulmadı. Paket imzasızdır; Chrome ZIP indirmesini engellemiştir. Güvenlik korumalarını kapatmayın. Otomatik destek e-postası sunucu yapılandırması gerektirir."
+  "version": "0.24.2",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.24.2/DeporiaQ_Setup_0.24.2.exe",
+  "sha256": "61d12311dd0294937191de9289feb27524c70e8275b0181a2f3e1e14cebfd21c",
+  "notes": "Cloud göstergesi ve oturum yönetimi düzeltildi. Büyük adet düğmeleri, alt çubukta destek e-postası ve Gönder düğmesi eklendi. 0.24.1 üzerinden yeni SQL gerekmez. Otomatik destek e-postası için sunucu posta ayarı gerekir."
 }
