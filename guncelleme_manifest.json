@@ -1,6 +1,6 @@
 {
-  "version": "0.24.2",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.24.2/DeporiaQ_Setup_0.24.2.exe",
-  "sha256": "61d12311dd0294937191de9289feb27524c70e8275b0181a2f3e1e14cebfd21c",
-  "notes": "Cloud göstergesi ve oturum yönetimi düzeltildi. Büyük adet düğmeleri, alt çubukta destek e-postası ve Gönder düğmesi eklendi. 0.24.1 üzerinden yeni SQL gerekmez. Otomatik destek e-postası için sunucu posta ayarı gerekir."
+  "version": "0.24.3",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.24.3/DeporiaQ_Setup_0.24.3.exe",
+  "sha256": "26a0432ad05f2b71445299d30349d4fb0d2f6cd58535944ef90354630bd6707e",
+  "notes": "Tema ve arka plan seçenekleri, ekran kilidi, bildirim merkezi, paket geri sayımı, Ana Sayfa ve Ctrl+1 düzeltmesi. Stok arama, filtre, CSV ve barkod kopyalama dahil 12 ek işlev. 0.24.2 üzerinden yeni SQL gerekmez."
 }
