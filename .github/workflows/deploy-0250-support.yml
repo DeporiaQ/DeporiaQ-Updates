@@ -1,0 +1,45 @@
+name: DeporiaQ 0.25 Support Deployment
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/deporiaq-0.25.0']
+    paths: ['.github/workflows/deploy-0250-support.yml']
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      DPQ_SMTP_PASSWORD: ${{ secrets.DPQ_SMTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sunucu geçişini ve kurulum erişimini denetle
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.parse,sys
+          base=os.environ.get('SUPABASE_URL','').rstrip('/')
+          host=urllib.parse.urlparse(base).hostname or ''
+          if not host.endswith('.supabase.co'):sys.exit('SUPABASE_URL doğrulanamadı.')
+          req=urllib.request.Request(base+'/rest/v1/rpc/dpq_0250_ready',data=b'{}',headers={'apikey':os.environ['SUPABASE_PUBLISHABLE_KEY'],'Content-Type':'application/json'})
+          try:
+              with urllib.request.urlopen(req,timeout=20) as response:version=json.load(response)
+          except Exception:sys.exit('Önce DEPORIAQ_CLOUD_0.25.0_UPDATE.sql dosyasını Supabase SQL Editor üzerinden çalıştırın.')
+          if version!='0.25.0':sys.exit('0.25.0 sunucu geçişi doğrulanamadı.')
+          for key in ['SUPABASE_ACCESS_TOKEN','DPQ_SMTP_PASSWORD']:
+              if not os.environ.get(key):sys.exit(key+' GitHub Actions secret olarak tanımlanmalı; değeri sohbete yazmayın.')
+          with open(os.environ['GITHUB_ENV'],'a') as file:file.write('PROJECT_REF='+host.split('.')[0]+'\n')
+          with open(os.environ['RUNNER_TEMP']+'/support.env','w') as file:file.write('DPQ_SMTP_PASSWORD='+os.environ['DPQ_SMTP_PASSWORD'].replace(' ','')+'\n')
+          PY
+      - name: Destek işlevini güvenli sunucuya kur
+        run: |
+          npx --yes supabase@2.75.0 secrets set --env-file "$RUNNER_TEMP/support.env" --project-ref "$PROJECT_REF"
+          npx --yes supabase@2.75.0 functions deploy support-dispatch --project-ref "$PROJECT_REF"
+      - name: Geçici parola dosyasını kaldır
+        if: always()
+        run: rm -f "$RUNNER_TEMP/support.env"

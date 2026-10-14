@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
-from deporiaq_workspace_ui import BasketDialog, RecordsDialog, ProductDetailsDialog, CollectionDialog, DamageDialog, BulkPricesDialog, ImportDialog
+from deporiaq_workspace_ui import BasketDialog, RecordsDialog, ProductDetailsDialog, CollectionDialog, DamageDialog, BulkPricesDialog, ImportDialog, ApprovalDialog
 from deporiaq_visuals import NotificationButton,play_brand
 from deporiaq_runtime import clean_environment, acknowledge_startup, startup_error
 sys.excepthook = startup_error
@@ -1084,10 +1084,10 @@ class AnaPencere(QMainWindow):
         self.grup_ac('Depolar ve Transferler',[('Konumlar',self.konum_yonetimi_ac),('Stok Transferi',self.transfer_ac)])
 
     def rapor_merkezi_ac(self):
-        self.grup_ac('Raporlar',[('Operasyon Merkezi',self.operasyon_ac),('Raporlar ve Yazdır',self.raporlar_ac),('Kritik Stoklar',self.kritikleri_ac),('Sipariş Önerileri',self.siparis_onerileri_ac),('Hareket Geçmişi',self.hareketleri_ac)])
+        self.grup_ac('Raporlar',[('İşletme Görevleri',lambda:RecordsDialog(self.commerce,'task',self).exec()),('Operasyon Merkezi',self.operasyon_ac),('Raporlar ve Yazdır',self.raporlar_ac),('Kritik Stoklar',self.kritikleri_ac),('Sipariş Önerileri',self.siparis_onerileri_ac),('Hareket Geçmişi',self.hareketleri_ac)])
 
     def yonetim_merkezi_ac(self):
-        self.grup_ac('Yönetim',[('Kullanıcı Yetkileri',self.kullanicilar_ac),('Veri ve Yedekleme',self.yedek_al),('Tedarikçiler',lambda:RecordsDialog(self.commerce,'supplier',self).exec()),('Görevler',lambda:RecordsDialog(self.commerce,'task',self).exec()),('Satın Alma Siparişleri',lambda:CollectionDialog(self.commerce,'purchase',self).exec()),('Set ve Paketler',lambda:CollectionDialog(self.commerce,'bundle',self).exec()),('Excel Ürün İçe Aktarma',lambda:ImportDialog(self.commerce,self).exec()),('Toplu Fiyat Güncelle',lambda:BulkPricesDialog(self.commerce,self).exec()),('Personel İndirim Sınırı',self.discount_policy)])
+        self.grup_ac('Yönetim',[('Kullanıcı Yetkileri',self.kullanicilar_ac),('Veri ve Yedekleme',self.yedek_al),('Tedarikçiler',lambda:RecordsDialog(self.commerce,'supplier',self).exec()),('Görevler',lambda:RecordsDialog(self.commerce,'task',self).exec()),('Satın Alma Siparişleri',lambda:CollectionDialog(self.commerce,'purchase',self).exec()),('Set ve Paketler',lambda:CollectionDialog(self.commerce,'bundle',self).exec()),('Excel Ürün İçe Aktarma',lambda:ImportDialog(self.commerce,self).exec()),('Toplu Fiyat Güncelle',lambda:BulkPricesDialog(self.commerce,self).exec()),('Personel İndirim Sınırı',self.discount_policy),('İndirim Onayları',lambda:ApprovalDialog(self.commerce,self).exec())])
 
     def destek_merkezi_ac(self):
         self.grup_ac('Yardım ve Destek',[('Kullanım Rehberi',self.yardim_ac),('Destek Talebi Gönder',self.destek_ac)])
@@ -1361,6 +1361,9 @@ class AnaPencere(QMainWindow):
             self.notify('Paket süresi','Paket bitişi yaklaşıyor. Kalan süreyi Paketim ve Abonelik ekranından kontrol edin.','notify_expiry')
 
     def cloud_hatasi(self,hata):
+        if 'DPQ_LICENSE' in str(hata):
+            self.lisans_kilitli=True;self.subscription_label.setText('Abonelik aktif değil');self.subscription_label.setStyleSheet('color:#F45B76')
+            self.cloud_connection_state='connected';self.cloud_gostergesini_yenile();return
         # Preserve credentials on temporary network failures. Server RPCs still authorize every operation.
         self.cloud_connection_state='retry'
         self.subscription_label.setText('Abonelik doğrulanamıyor');self.subscription_label.setStyleSheet('color:#FBBF24')

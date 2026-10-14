@@ -8,13 +8,13 @@ from deporiaq_commerce_ui import ServerDialog,table,quantity_control,quantity_te
 
 class BasketDialog(ServerDialog):
     def __init__(self,client,parent=None):
-        super().__init__(client,'Çok Ürünlü Satış',parent);self.lines=[];self.data={};self.saved_id=None;self.saved_version=None
+        super().__init__(client,'Çok Ürünlü Satış',parent);self.lines=[];self.data={};self.saved_id=None;self.saved_version=None;self.approval_id=None
         self.location=QComboBox();self.body.addWidget(self.location)
         row=QHBoxLayout();self.barcode=QLineEdit();self.barcode.setPlaceholderText('Barkod okutun veya ürün barkodunu girin')
         self.quantity=QSpinBox();self.quantity.setRange(1,1000000);row.addWidget(self.barcode,1);row.addWidget(quantity_control(self.quantity)[0]);self.body.addLayout(row)
         self.button('Set / Paket Ekle',self.add_bundle);self.button('Sepete Ekle',self.add);self.barcode.returnPressed.connect(self.add)
         self.grid=table(['Barkod','Ürün','Adet','Birim fiyat','İndirim %','Tutar']);self.body.addWidget(self.grid,1)
-        row=QHBoxLayout();self.button('Seçili Satırı Sil',self.remove,row);self.button('Satır İndirimi',self.discount,row);self.button('Sepeti Beklet',self.hold,row);self.button('Bekleyen Sepeti Aç',self.restore,row);self.body.addLayout(row)
+        row=QHBoxLayout();self.button('Seçili Satırı Sil',self.remove,row);self.button('Satır İndirimi',self.discount,row);self.button('Yönetici Onayı',self.discount_approval,row);self.button('Sepeti Beklet',self.hold,row);self.button('Bekleyen Sepeti Aç',self.restore,row);self.body.addLayout(row)
         self.total_label=QLabel();self.body.addWidget(self.total_label)
         form=QFormLayout();self.cash=QDoubleSpinBox();self.card=QDoubleSpinBox()
         for widget in (self.cash,self.card):widget.setRange(0,999999999);widget.setDecimals(2)
@@ -59,6 +59,7 @@ class BasketDialog(ServerDialog):
         if not self.lines:return
         if Decimal(str(self.cash.value()))+Decimal(str(self.card.value()))!=self.total():self.status_label.setText('Nakit ve kart toplamı sepet tutarıyla eşleşmeli.');return
         payload={'location_id':self.location.currentData(),'items':self.lines,'payments':[{'type':'cash','amount':str(self.cash.value())},{'type':'card','amount':str(self.card.value())}]}
+        if self.approval_id:payload['approval_id']=self.approval_id
         if self.saved_id:payload.update(basket_id=self.saved_id,basket_version=self.saved_version)
         self.mutation('workspace_cart_sale',payload,self.sold)
     def sold(self,result):
@@ -77,6 +78,12 @@ class BasketDialog(ServerDialog):
         names=[r['data']['name']+' · '+r['id'][:8] for r in records];name,ok=QInputDialog.getItem(self,'Bekleyen Sepetler','Sepet:',names,0,False)
         if ok:
             record=records[names.index(name)];self.saved_id=record['id'];self.saved_version=record['version'];self.lines=[dict(x) for x in record['data']['items']];self.location.setCurrentIndex(self.location.findData(record['data'].get('location_id')));self.render()
+    def discount_approval(self):
+        if self.lines:self.run(lambda:self.client.read('workspace_list'),self.find_approval)
+    def find_approval(self,data):
+        match=next((r for r in data['records'] if r['kind']=='approval' and r['data'].get('items')==self.lines and r['data'].get('location_id')==self.location.currentData() and r['data'].get('status')=='approved'),None)
+        if match:self.approval_id=match['id'];self.status_label.setText('Yönetici onayı bulundu. Satışı tamamlayabilirsiniz.');return
+        self.mutation('workspace_discount_request',{'items':self.lines,'location_id':self.location.currentData()},lambda r:self.status_label.setText('Onay istendi. Yönetici onayladıktan sonra bu düğmeye tekrar basın.'))
     def add_bundle(self):self.run(lambda:self.client.read('workspace_list'),self.choose_bundle)
     def choose_bundle(self,data):
         records=[r for r in data['records'] if r['kind']=='bundle']
@@ -141,6 +148,7 @@ class RecordsDialog(EditableDialog):
             self.fields[key]=widget;form.addRow(label+':',widget)
             (widget.textEdited if isinstance(widget,QLineEdit) else widget.activated).connect(self.mark_edited)
         self.body.addLayout(form);row=QHBoxLayout();self.button('Yeni Kayıt',self.new,row);self.button('Kaydet',self.save,row);self.body.addLayout(row)
+        self.search=QLineEdit();self.search.setPlaceholderText('Ad, kategori, etiket, varyant veya raf ara…');self.search.textChanged.connect(self.filter_records);self.body.addWidget(self.search)
         self.grid=table(['Kayıt','Son değişiklik','Sürüm']);self.body.addWidget(self.grid,1);self.grid.cellClicked.connect(self.select)
         self.product.activated.connect(self.mark_edited)
         self.run(lambda:(self.client.snapshot(),self.client.read('workspace_list')),self.loaded)
@@ -154,7 +162,11 @@ class RecordsDialog(EditableDialog):
             if product['active']:self.product.addItem(product['name'],product['id'])
         self.update_records(data);self.remember_saved()
     def update_records(self,data):
-        self.records=[r for r in data['records'] if r['kind']==self.kind];self.grid.setRowCount(len(self.records))
+        self.all_records=[r for r in data['records'] if r['kind']==self.kind];self.filter_records()
+    def filter_records(self,*args):
+        import json
+        needle=self.search.text().casefold()
+        self.records=[r for r in getattr(self,'all_records',[]) if needle in json.dumps(r['data'],ensure_ascii=False).casefold() or needle in self.product.itemText(self.product.findData(r['data'].get('product_id'))).casefold()];self.grid.setRowCount(len(self.records))
         for i,r in enumerate(self.records):
             name=r['data'].get('name') or (r['data'].get('lot','')+' · '+r['data'].get('expires','') if self.kind=='batch' else '') or self.product.itemText(self.product.findData(r['data'].get('product_id')))
             for j,value in enumerate([name,r['updated_at'],r['version']]):self.grid.setItem(i,j,QTableWidgetItem(str(value)))
@@ -324,13 +336,19 @@ class DamageDialog(ServerDialog):
         super().__init__(client,'Hasarlı Ürün Ayır',parent);self.product=QComboBox();self.location=QComboBox();self.quantity=QSpinBox();self.quantity.setRange(1,1000000);self.reason=QLineEdit();form=QFormLayout()
         for title,w in [('Ürün:',self.product),('Konum:',self.location),('Adet:',quantity_control(self.quantity)[0]),('Hasar nedeni:',self.reason)]:form.addRow(title,w)
         self.body.addLayout(form);self.body.addWidget(QLabel('Bu işlem hasarlı adedi satılabilir stoktan düşürür ve ayrı hasar kaydı oluşturur.'));self.button('Hasarlı Stok Alanına Ayır',self.save)
-        self.run(client.snapshot,self.loaded)
-    def loaded(self,data):
+        self.history=table(['Ürün','Konum','Adet','Neden']);self.body.addWidget(self.history)
+        self.run(lambda:(client.snapshot(),client.read('workspace_list')),self.loaded)
+    def loaded(self,value):
+        data,workspace=value;self.product.clear();self.location.clear()
+        products={p['id']:p['name'] for p in data['products']};locations={l['id']:l['name'] for l in data['locations']}
+        records=[r['data'] for r in workspace['records'] if r['kind']=='damage'];self.history.setRowCount(len(records))
+        for i,r in enumerate(records):
+            for j,text in enumerate([products.get(r['product_id'],''),locations.get(r['location_id'],''),r['quantity'],r.get('reason','')]):self.history.setItem(i,j,QTableWidgetItem(str(text)))
         for p in data['products']:
             if p['active']:self.product.addItem(p['name'],p['id'])
         for l in data['locations']:
             if l['active']:self.location.addItem(l['name'],l['id'])
-    def save(self):self.mutation('workspace_damage',{'product_id':self.product.currentData(),'location_id':self.location.currentData(),'quantity':self.quantity.value(),'reason':self.reason.text().strip()},lambda r:self.status_label.setText('Hasarlı stok ayrıldı · '+r['id']))
+    def save(self):self.mutation('workspace_damage',{'product_id':self.product.currentData(),'location_id':self.location.currentData(),'quantity':self.quantity.value(),'reason':self.reason.text().strip()},lambda r:self.run(lambda:(self.client.snapshot(),self.client.read('workspace_list')),self.loaded))
 
 class BulkPricesDialog(ServerDialog):
     def __init__(self,client,parent=None):
@@ -424,3 +442,21 @@ class ImportDialog(ServerDialog):
     def commit(self):
         if self.items:self.mutation('workspace_import',{'items':self.items},self.imported)
     def imported(self,result):self.invalidate();self.status_label.setText(f"{result['imported']} ürün eklendi. Stok girişi ayrıca yapılır.")
+
+
+class ApprovalDialog(ServerDialog):
+    def __init__(self,client,parent=None):
+        super().__init__(client,'İndirim Onayları',parent);self.records=[];self.grid=table(['Talep','Konum','Ürün satırları / indirimler']);self.body.addWidget(self.grid)
+        self.button('Yenile',self.refresh);self.button('Seçili İndirimi 15 Dakika İçin Onayla',self.approve);self.refresh()
+    def refresh(self):self.run(lambda:(self.client.snapshot(),self.client.read('workspace_list')),self.loaded)
+    def loaded(self,value):
+        data,records=value;products={p['id']:p['name'] for p in data['products']};locations={l['id']:l['name'] for l in data['locations']}
+        self.records=[r for r in records['records'] if r['kind']=='approval' and r['data'].get('status')=='pending'];self.grid.setRowCount(len(self.records))
+        for i,r in enumerate(self.records):
+            summary='; '.join(f"{products.get(x['product_id'],'?')} × {x['quantity']} · %{x.get('discount',0)}" for x in r['data']['items'])
+            for j,value in enumerate([r['id'][:8],locations.get(r['data']['location_id'],'?'),summary]):self.grid.setItem(i,j,QTableWidgetItem(value))
+    def approve(self):
+        i=self.grid.currentRow()
+        if i<0:return
+        if QMessageBox.question(self,'İndirim Onayı','Seçili sepet indirimi onaylansın mı?')!=QMessageBox.StandardButton.Yes:return
+        self.mutation('workspace_discount_approve',{'id':self.records[i]['id']},lambda r:self.refresh())

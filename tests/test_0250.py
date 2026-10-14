@@ -59,3 +59,28 @@ def test_panel_allows_main_window_controls(application,window):
         assert application.activeModalWidget() is None
         window.showNormal();d.accept()
     QTimer.singleShot(10,check);assert d.exec()==1
+
+
+def test_repeated_theme_changes_keep_live_panels(application,window):
+    from deporiaq_preferences import apply_appearance
+    from PySide6.QtCore import QCoreApplication,QEvent
+    for i in range(20):
+        panel=WorkspaceDialog(window);panel.show();application.processEvents()
+        window.vt.ayar_kaydet('ui_theme','Grafit' if i%2 else 'Gece Mavisi')
+        apply_appearance(window);panel.close();panel.deleteLater()
+        QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete);application.processEvents()
+    window.vt.baglanti.commit()
+
+def test_unsaved_record_can_cancel_or_discard(application,window,monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    sync(monkeypatch);d=RecordsDialog(WorkspaceClient(),'supplier',window);d.show()
+    d.fields['name'].setText('Unsaved');d.mark_edited();assert 'Kaydedilmemiş' in d.windowTitle()
+    monkeypatch.setattr(QMessageBox,'question',lambda *a:QMessageBox.StandardButton.Cancel)
+    assert not d.close() and d.isVisible()
+    monkeypatch.setattr(QMessageBox,'question',lambda *a:QMessageBox.StandardButton.Discard)
+    assert d.close()
+
+def test_expired_subscription_is_not_reported_as_network_failure(window):
+    window.cloud_hatasi('DPQ_LICENSE: expired')
+    assert window.lisans_kilitli and window.subscription_label.text()=='Abonelik aktif değil'
+    assert window.license_timer.interval()==1800000 and window.presence_timer.interval()==10000

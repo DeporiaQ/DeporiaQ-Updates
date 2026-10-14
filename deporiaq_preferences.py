@@ -19,7 +19,15 @@ def apply_appearance(window):
         style+='\nQWidget {color:#FFFFFF;} QFrame#panel,QFrame#kart {background:#080D15;border:2px solid #CBD5E1;} QPushButton {border:2px solid #CBD5E1;} QLabel#soluk {color:#E2E8F0;}'
     size=int(vt.ayar_getir('ui_font_size','14'))
     style+=f'\nQWidget {{font-size:{max(12,min(size,18))}px;}}'
-    QApplication.instance().setStyleSheet(style)
+    app=QApplication.instance()
+    if app.styleSheet()!=style:
+        # Collect detached Python wrappers before Qt traverses all live widgets.
+        # Keep live wrappers referenced during global repolishing.
+        import gc
+        gc.collect()
+        live_widgets=app.allWidgets()
+        app.setStyleSheet(style)
+        del live_widgets
     path=vt.ayar_getir('ui_background','')
     if path.startswith('builtin:'):path=kaynak_yolu('backgrounds/'+path[8:]+'.svg')
     window.icerik.gorsel=QPixmap(path if path and Path(path).is_file() else kaynak_yolu('dashboard_background.jpg'))

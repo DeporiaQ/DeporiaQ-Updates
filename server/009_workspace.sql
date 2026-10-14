@@ -2,7 +2,7 @@
 begin;
 create table if not exists dpq.workspace_records (
  company_id uuid not null references public.companies(id),id uuid not null default gen_random_uuid(),
- kind text not null check(kind in ('product','supplier','purchase','damage','batch','task','basket','bundle','receipt')),
+ kind text not null check(kind in ('product','supplier','purchase','damage','batch','task','basket','bundle','receipt','approval')),
  data jsonb not null,actor uuid not null,version integer not null default 1,
  updated_at timestamptz not null default now(),primary key(company_id,id)
 );
@@ -20,7 +20,7 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare c uuid;u uuid:=auth.uid();s jsonb;admin boolean;role_name text;req uuid;prior dpq.operations%rowtype;
  result jsonb;row_data dpq.workspace_records%rowtype;k text;rid uuid;body jsonb;item jsonb;line jsonb;pid uuid;lid uuid;
  qty numeric;price numeric;cost numeric;discount numeric;max_discount numeric;total numeric:=0;paid numeric:=0;items jsonb:='[]';saleid uuid;
- loc_ok boolean;reference_price numeric;
+ loc_ok boolean;reference_price numeric;approval_id uuid;
 begin
  s:=public.dpq_call('status','{}',p_device);c:=(s->>'company_id')::uuid;role_name:=s->>'role';admin:=role_name in ('owner','admin');
  if not (s->>'allowed')::boolean or not (s->>'enabled')::boolean then raise exception 'DPQ_LICENSE: Etkin abonelik gerekli';end if;
@@ -28,7 +28,7 @@ begin
  perform 1 from dpq.settings where company_id=c for update;
  if p_action='workspace_list' then
  return jsonb_build_object('records',coalesce((select jsonb_agg(to_jsonb(w)||jsonb_build_object('data',w.data-'image_jpeg','has_image',w.data ? 'image_jpeg')) from dpq.workspace_records w where company_id=c
- and (admin or kind in ('product','bundle','batch') or (kind='basket' and actor=u) or (kind='task' and (actor=u or data->>'assignee'=u::text)))),'[]'),
+ and (admin or kind in ('product','bundle','batch') or (kind in ('basket','approval') and actor=u) or (kind='task' and (actor=u or data->>'assignee'=u::text)))),'[]'),
  'members',coalesce((select jsonb_agg(jsonb_build_object('id',m.user_id,'name',coalesce(d.display_name,m.user_id::text))) from public.company_members m left join dpq.user_directory d on d.company_id=m.company_id and d.user_id=m.user_id where m.company_id=c and m.active),'[]'),
  'discount_limit',(select staff_discount_limit from dpq.settings where company_id=c));
  end if;
@@ -102,6 +102,11 @@ begin
  if not admin and not exists(select 1 from dpq.staff_locations where company_id=c and user_id=u and location_id=lid) then raise exception 'DPQ_LOCATION_ROLE: Konum yetkisi yok';end if;
  if jsonb_typeof(p_payload->'items') is distinct from 'array' or jsonb_array_length(p_payload->'items') not between 1 and 200 then raise exception 'DPQ_INPUT: Sepet boş';end if;
  select case when admin then 100 else staff_discount_limit end into max_discount from dpq.settings where company_id=c;
+ approval_id:=nullif(p_payload->>'approval_id','')::uuid;
+ if approval_id is not null then
+ if not exists(select 1 from dpq.workspace_records where company_id=c and id=approval_id and actor=u and kind='approval' and data->>'status'='approved' and (data->>'expires')::timestamptz>clock_timestamp() and data->'items'=p_payload->'items' and data->>'location_id'=lid::text) then raise exception 'DPQ_APPROVAL: Onay yok, süresi doldu veya sepet değişti';end if;
+ max_discount:=100;
+ end if;
  for item in select value from jsonb_array_elements(p_payload->'items') loop
  pid:=(item->>'product_id')::uuid;qty:=(item->>'quantity')::numeric;discount:=coalesce((item->>'discount')::numeric,0);
  if qty is null or qty<>trunc(qty) or qty not between 1 and 1000000 or discount not between 0 and max_discount then raise exception 'DPQ_INPUT: Adet veya indirim yetki sınırı geçersiz';end if;
@@ -122,6 +127,7 @@ begin
  end loop;
  if paid<>total then raise exception 'DPQ_PAYMENT: Ödeme toplamı sepet tutarıyla eşleşmiyor';end if;
  if rid is not null then update dpq.workspace_records set data=data||'{"closed":true}',version=version+1 where company_id=c and id=rid;end if;
+ if approval_id is not null then update dpq.workspace_records set data=data||'{"status":"used"}',version=version+1 where company_id=c and id=approval_id;end if;
  insert into dpq.sale_receipts values(req,c,u,lid,items,p_payload->'payments',total,clock_timestamp());
  result:=jsonb_build_object('id',req,'total',total,'items',items);
  elsif p_action='workspace_prices' then
@@ -171,6 +177,18 @@ begin
  if exists(select 1 from public.products where company_id=c and barcode=item->>'barcode') then raise exception 'DPQ_CONFLICT: Barkod zaten kayıtlı';end if;
  perform public.dpq_call('catalog_product',item||jsonb_build_object('request_id',gen_random_uuid()),p_device);
  end loop;result:=jsonb_build_object('imported',jsonb_array_length(p_payload->'items'));
+ elsif p_action='workspace_discount_request' then
+ if jsonb_typeof(p_payload->'items') is distinct from 'array' or jsonb_array_length(p_payload->'items') not between 1 and 200 then raise exception 'DPQ_INPUT: Sepet gerekli';end if;
+ lid:=(p_payload->>'location_id')::uuid;
+ if not admin and not exists(select 1 from dpq.staff_locations where company_id=c and user_id=u and location_id=lid) then raise exception 'DPQ_LOCATION_ROLE: Konum yetkisi gerekli';end if;
+ insert into dpq.workspace_records(company_id,id,kind,data,actor) values(c,req,'approval',jsonb_build_object('items',p_payload->'items','location_id',lid,'status','pending'),u);
+ result:=jsonb_build_object('id',req,'status','pending');
+ elsif p_action='workspace_discount_approve' then
+ if not admin then raise exception 'DPQ_ROLE: Yönetici gerekli';end if;
+ update dpq.workspace_records set data=data||jsonb_build_object('status','approved','expires',clock_timestamp()+interval '15 minutes','approved_by',u),version=version+1,updated_at=clock_timestamp()
+ where company_id=c and kind='approval' and id=(p_payload->>'id')::uuid and data->>'status'='pending';
+ if not found then raise exception 'DPQ_STATE: Bekleyen onay bulunamadı';end if;
+ result:=jsonb_build_object('approved',true);
  else raise exception 'DPQ_ACTION: Bilinmeyen işlem';
  end if;
  insert into dpq.operations(company_id,request_id,action,payload,result,actor) values(c,req,p_action,p_payload,result,u);
