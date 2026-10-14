@@ -7,8 +7,8 @@ import uuid
 from pathlib import Path
 
 PLANS = [('demo','Demo',1,'30 gün • stok girişi ve satış'),('single','Single',1,'Tek bilgisayar'),
-         ('duo','Duo',3,'Patron dahil 3 bilgisayar'),('plus','Plus',6,'Patron dahil 6 bilgisayar'),
-         ('ultra','Ultra',20,'Patron dahil 20 bilgisayar')]
+         ('duo','Duo',3,'Yönetici dahil 3 bilgisayar'),('plus','Plus',6,'Yönetici dahil 6 bilgisayar'),
+         ('ultra','Ultra',20,'Yönetici dahil 20 bilgisayar')]
 SHORTCUTS = [('Ctrl+K','Komut arama','komut_paleti_ac'),('Ctrl+1','Ana Sayfa','home'),
              ('Ctrl+2','Stok ve Ürünler','stok_merkezi_ac'),('Ctrl+3','Şube Satış','satis_ac'),
              ('Ctrl+4','İnternet Siparişleri','internet_ac')]
@@ -33,7 +33,8 @@ class CommerceClient:
         if not self.cloud.bagli:
             raise CommerceError('Cloud oturumu gerekli. Çevrimdışı satış veya stok değişikliği yapılamaz.')
         try:
-            return self.cloud._istek('/rest/v1/rpc/dpq_call','POST',{
+            endpoint='dpq_workspace' if action.startswith('workspace_') else 'dpq_call'
+            return self.cloud._istek('/rest/v1/rpc/'+endpoint,'POST',{
                 'p_action':action,'p_payload':payload or {},'p_device':self.cloud.cihaz_kimligi})
         except Exception as e:
             raise CommerceError(str(e)) from e

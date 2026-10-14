@@ -2,7 +2,7 @@ name: DeporiaQ Candidate Windows Validation
 on:
   push:
     branches:
-      - 'codex/deporiaq-0.24.0-validation'
+      - 'codex/deporiaq-0.25.0'
     paths:
       - '**.py'
       - '**.iss'
@@ -28,14 +28,14 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install PySide6==6.11.2 ttkbootstrap==2.2.3 "pyinstaller>=6.9,<7" psutil==7.2.2 pytest==9.1.1
+          python -m pip install PySide6==6.11.2 ttkbootstrap==2.2.3 "pyinstaller>=6.9,<7" psutil==7.2.2 pytest==9.1.1 reportlab==4.4.9 openpyxl==3.1.5 Pillow==12.3.0
           if ($LASTEXITCODE -ne 0) { throw "Python bağımlılıkları kurulamadı." }
           choco install innosetup -y --no-progress
 
       - name: Sürüm tutarlılığını doğrula
         shell: pwsh
         run: |
-          $version = "0.24.3"
+          $version = "0.25.0"
           if ((Get-Content deporiaq_qt.py -Raw) -notmatch ('SURUM = "' + [regex]::Escape($version) + '"')) {
             throw "deporiaq_qt.py sürümü ile yayın sürümü uyuşmuyor."
           }
@@ -49,8 +49,8 @@ jobs:
       - name: Operasyon Merkezi ve başlangıç sözleşmesi testleri
         shell: pwsh
         run: |
-          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py tests/test_session_pos.py tests/test_0243.py -q
-          if ($LASTEXITCODE -ne 0) { throw "0.24.3 işlev testleri başarısız." }
+          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py tests/test_session_pos.py tests/test_0243.py tests/test_0250.py -q
+          if ($LASTEXITCODE -ne 0) { throw "0.25.0 işlev testleri başarısız." }
           $tokens = $null
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'deporiaq_restart.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
@@ -76,7 +76,7 @@ jobs:
       - name: Windows uygulamalarını oluştur
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --add-data "chevron.svg;." --add-data "dashboard_background.jpg;." --add-data "deporiaq_cloud.json;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --add-data "chevron.svg;." --add-data "chevron_up.svg;." --add-data "whatsapp_icon.svg;." --add-data "x_icon.svg;." --add-data "backgrounds;backgrounds" --add-data "dashboard_background.jpg;." --add-data "deporiaq_cloud.json;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
           if ($LASTEXITCODE -ne 0) { throw "DeporiaQ derlenemedi." }
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeporiaQUpdate deporiaq_guncelleme_bildirici.py
           if ($LASTEXITCODE -ne 0) { throw "Güncelleyici derlenemedi." }
@@ -105,13 +105,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DeporiaQ-0.24.3-test-results
+          name: DeporiaQ-0.25.0-test-results
           path: test-results/
           if-no-files-found: warn
 
       - name: Aday kurulum dosyasını sakla
         uses: actions/upload-artifact@v4
         with:
-          name: DeporiaQ-0.24.3-candidate-setup
-          path: kurulum/DeporiaQ_Setup_0.24.3.exe
+          name: DeporiaQ-0.25.0-candidate-setup
+          path: kurulum/DeporiaQ_Setup_0.25.0.exe
 

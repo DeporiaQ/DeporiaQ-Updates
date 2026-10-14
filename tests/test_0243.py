@@ -76,3 +76,11 @@ def test_compact_sale_and_plans(application,window,monkeypatch):
     for name,d in [('sale',SaleDialog(Client(),parent=window)),('plans',PlansDialog(Client(),window)),('stock',StockDialog(Client(),'count',window))]:
         d.show();application.processEvents();assert d.heading.height()<70
         d.grab().save(str(out/f'0243-{name}.png'));d.close()
+
+
+def test_login_honours_disabled_update_checks(application,window,monkeypatch):
+    window.vt.ayar_kaydet('notify_update','0')
+    d=ui.GirisPenceresi(window.vt);d.show();application.processEvents()
+    def forbidden(*args):raise AssertionError('Disabled update check started a network worker')
+    monkeypatch.setattr(ui,'GuncellemeKontrolu',forbidden)
+    d.guncelleme_denetle();d.close()

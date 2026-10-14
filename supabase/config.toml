@@ -1,0 +1,3 @@
+[functions.support-dispatch]
+verify_jwt = false
+# The handler validates the user token through /auth/v1/user before any RPC.

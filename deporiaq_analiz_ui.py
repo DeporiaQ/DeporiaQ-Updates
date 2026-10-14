@@ -10,6 +10,8 @@ from PySide6.QtPrintSupport import QPrinter
 from deporiaq_analiz import Analysis, REPORTS, matches, export_csv
 
 
+from deporiaq_visuals import WorkspaceDialog as QDialog
+
 class NumericItem(QTableWidgetItem):
     def __init__(self, value):
         super().__init__(str(value))
@@ -67,7 +69,7 @@ class AnalysisWindow(QDialog):
         self.days = QSpinBox(); self.days.setRange(1,365); self.days.setValue(30)
         self.cover = QSpinBox(); self.cover.setRange(1,365); self.cover.setValue(14)
         filters.addWidget(self.search, 1)
-        filters.addWidget(QLabel('Geçmiş gün:')); filters.addWidget(self.days)
+        self.days_label=QLabel('Geçmiş gün:'); filters.addWidget(self.days_label); filters.addWidget(self.days)
         self.cover_label = QLabel('Hedef gün:')
         filters.addWidget(self.cover_label); filters.addWidget(self.cover)
         layout.addLayout(filters)
@@ -131,7 +133,7 @@ class AnalysisWindow(QDialog):
         if not self.allowed():
             self.reject(); return
         kind = self.report_type.currentData()
-        self.days.setEnabled(kind not in ('search','transfer','count'))
+        self.days.setVisible(kind not in ('search','transfer','count')); self.days_label.setVisible(kind not in ('search','transfer','count'))
         self.cover.setVisible(kind == 'purchase'); self.cover_label.setVisible(kind == 'purchase')
         self.headers, self.rows, note = self.analysis.report(kind,self.location.currentData(),self.days.value(),self.cover.value())
         self.note.setText(note)

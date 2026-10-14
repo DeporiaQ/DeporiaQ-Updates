@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabe
  QMessageBox,QInputDialog,QTabWidget,QWidget,QCheckBox,QPlainTextEdit,QSizePolicy,QApplication,QFileDialog)
 from deporiaq_commerce import PLANS,CommerceError
 
+from deporiaq_visuals import WorkspaceDialog as QDialog
+
 def quantity_text(value):
     number=Decimal(str(value))
     return format(number,'f').rstrip('0').rstrip('.') if '.' in format(number,'f') else format(number,'f')
@@ -334,6 +336,10 @@ class SupportDialog(ServerDialog):
         self.message.setPlaceholderText('En az 5 karakter: ne yaptığınızı ve gördüğünüz hatayı yazın')
         self.body.addWidget(QLabel('Destek adresi: deporiaq@gmail.com · Gönderim durumu aşağıda gösterilir.'))
         self.send_button=self.button('Gönder',self.send);self.send_button.setObjectName('birincil')
+        self.ticket_id=None;self.delivery_label=QLabel();self.delivery_label.setWordWrap(True);self.body.addWidget(self.delivery_label)
+        self.history=table(['Konu','E-posta durumu','Oluşturuldu']);self.body.addWidget(self.history)
+        self.button('Gönderim Durumunu Yenile',self.refresh_delivery)
+        self.delivery_timer=QTimer(self);self.delivery_timer.setInterval(10000);self.delivery_timer.timeout.connect(lambda:self.refresh_delivery() if self.isVisible() else None);self.delivery_timer.start()
     def valid(self):
         for value,minimum,maximum,label in [(self.subject.text().strip(),3,200,'Konu'),(self.message.toPlainText().strip(),5,10000,'Açıklama'),(self.contact.text().strip(),3,300,'İletişim')]:
             if not minimum<=len(value)<=maximum:
@@ -347,7 +353,27 @@ class SupportDialog(ServerDialog):
     def send(self):
         if not self.valid():return
         self.mutation('support',{'subject':self.subject.text().strip(),'message':self.message.toPlainText().strip(),'contact':self.contact.text().strip()},self.sent)
-    def sent(self,result):self.status_label.setText(f"Talep kaydedildi: {result['id']}\nE-posta bildirimi: gönderim bekliyor. Bu durum e-postanın teslim edildiği anlamına gelmez.")
+    def sent(self,result):
+        self.ticket_id=result['id'];self.delivery_label.setText('Talep kaydedildi: '+self.ticket_id+' · E-posta gönderiliyor…')
+        def dispatch():
+            try:return self.client.cloud._istek('/functions/v1/support-dispatch','POST',{'ticket_id':self.ticket_id})
+            except Exception:return {'status':'queued'}
+        self.run(dispatch,self.dispatched)
+    def dispatched(self,result):
+        text='E-posta sunucusu kabul etti.' if result.get('status')=='sent' else 'Talep kayıtlı; e-posta gönderimi bekliyor. Gönderim durumu otomatik yenilenir.'
+        self.delivery_label.setText(text);self.refresh_delivery()
+    def refresh_delivery(self):
+        if self.job is not None or not hasattr(self.client,'cloud'):return
+        self.run(lambda:self.client.cloud._istek('/rest/v1/rpc/dpq_support_status','POST',{}),self.delivery_loaded)
+    def delivery_loaded(self,records):
+        labels={'sent':'E-posta sunucusu kabul etti','pending':'Gönderim bekliyor','failed':'Yeniden denenecek'}
+        self.history.setRowCount(len(records))
+        for i,record in enumerate(records):
+            status=labels.get(record['mail_status'],'Bilinmeyen durum')
+            if record['attempts']>=10 and record['mail_status']!='sent':status='Gönderilemedi · destek kontrolü gerekli'
+            for j,value in enumerate([record['subject'],status,record['created_at']]):self.history.setItem(i,j,QTableWidgetItem(str(value)))
+            if record['id']==self.ticket_id:self.delivery_label.setText('Talep: '+record['id']+' · '+status)
+
 
 class SaleDialog(ServerDialog):
     """Cashier starts with an exact barcode. Other stores are an explicit lookup."""

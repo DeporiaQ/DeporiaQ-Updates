@@ -1,0 +1,36 @@
+import {PGlite} from '@electric-sql/pglite';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+const db=new PGlite();
+for(const file of ['tests/server/fixture.sql','tests/server/exported_legacy.sql','DEPORIAQ_CLOUD_0.24.0_MIGRATION.sql','server/007_counter_sales.sql','server/008_presence.sql','server/009_workspace.sql'])await db.exec(fs.readFileSync(file,'utf8'));
+const c=randomUUID(),u=randomUUID(),l=randomUUID(),session=randomUUID();
+await db.query("insert into companies values($1,'Presence test')",[c]);
+await db.query("insert into company_members values($1,$2,'owner',true,now())",[c,u]);
+await db.query("insert into company_subscriptions(company_id,status,valid_until,plan_code) values($1,'active',now()+interval '30 days','duo')",[c]);
+await db.query("insert into locations values($1,$2,'Merkez','center',true)",[l,c]);
+await db.query('select dpq_enable($1,$2,$3)',[c,'duo',l]);
+await db.query("select set_config('request.jwt.claim.sub',$1,false)",[u]);
+await db.exec('set role authenticated');
+await db.query("select dpq_call('register','{\"name\":\"Device\"}','device-presence')");
+const presence=async(leave=false)=>(await db.query('select dpq_presence($1,$2,$3,$4) r',['device-presence',session,'Test User',leave])).rows[0].r;
+
+const p=randomUUID(),p2=randomUUID();
+await db.exec('reset role');
+await db.query("select set_config('dpq.internal',$1,false)",[c]);
+for(const id of [p,p2]){await db.query("insert into products values($1,$2,$3,'Book',100,60,0,true)",[id,c,id]);await db.query('insert into inventory(company_id,product_id,location_id,quantity) values($1,$2,$3,5)',[c,id,l]);}
+await db.exec('set role authenticated');
+const rpc=async(action,payload)=>(await db.query('select dpq_workspace($1,$2,$3) r',[action,JSON.stringify(payload),'device-presence'])).rows[0].r;
+const payload={request_id:randomUUID(),location_id:l,items:[{product_id:p,quantity:2,discount:10,expected_price:100},{product_id:p2,quantity:1,discount:0}],payments:[{type:'cash',amount:80},{type:'card',amount:200}]};
+const sale=await rpc('workspace_cart_sale',payload);assert.equal(Number(sale.total),280);
+assert.equal((await rpc('workspace_cart_sale',payload)).id,sale.id);
+const stock=async()=>{await db.exec('reset role');const rows=(await db.query('select product_id,quantity from inventory where company_id=$1 order by product_id',[c])).rows;await db.exec('set role authenticated');return rows;};
+const before=await stock();
+await assert.rejects(()=>rpc('workspace_cart_sale',{...payload,request_id:randomUUID(),items:[{product_id:p,quantity:1},{product_id:p2,quantity:20}]}),/DPQ_STOCK/);
+assert.deepEqual(await stock(),before);
+await assert.rejects(()=>rpc('workspace_cart_sale',{...payload,request_id:randomUUID(),payments:[{type:'cash',amount:1}]}),/DPQ_PAYMENT/);
+assert.deepEqual(await stock(),before);
+const record=await rpc('workspace_save',{request_id:randomUUID(),kind:'supplier',data:{name:'Test Supplier'}});
+assert.equal(record.data.name,'Test Supplier');
+await assert.rejects(()=>rpc('workspace_save',{request_id:randomUUID(),id:record.id,version:0,kind:'supplier',data:{name:'Changed'}}),/DPQ_CONFLICT/);
+await db.close();console.log('PASS atomic cart sale, split payments, idempotency, stock/payment rollback, records and stale edit checks');

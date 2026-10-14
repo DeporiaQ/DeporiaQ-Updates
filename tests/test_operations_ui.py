@@ -35,6 +35,7 @@ def window(application,tmp_path,monkeypatch):
     monkeypatch.setattr(sys,'excepthook',lambda *x:errors.append(x))
     db=ui.Veritabani(tmp_path/'fixture.db')
     db.ilk_kurulumu_tamamla('ÖRNEK İŞLETME · TEST VERİSİ','Kitabevi','Merkez Depo','TL','TEST_ADMIN','Fixture!Password2026')
+    db.ayar_kaydet('ui_animation','0');db.baglanti.commit()
     user=db.baglanti.execute('SELECT * FROM kullanicilar LIMIT 1').fetchone()
     monkeypatch.setattr(ui.AnaPencere,'cloud_oturumunu_yenile',lambda self:None)
     monkeypatch.setattr(ui.AnaPencere,'kurlari_yenile',lambda self:None)

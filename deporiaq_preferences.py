@@ -21,6 +21,7 @@ def apply_appearance(window):
     style+=f'\nQWidget {{font-size:{max(12,min(size,18))}px;}}'
     QApplication.instance().setStyleSheet(style)
     path=vt.ayar_getir('ui_background','')
+    if path.startswith('builtin:'):path=kaynak_yolu('backgrounds/'+path[8:]+'.svg')
     window.icerik.gorsel=QPixmap(path if path and Path(path).is_file() else kaynak_yolu('dashboard_background.jpg'))
     window.icerik.background_enabled=vt.ayar_getir('ui_background_enabled','1')=='1'
     window.icerik.overlay=int(vt.ayar_getir('ui_overlay','85'))
@@ -34,6 +35,12 @@ def extend_settings(dialog,general,security,notifications):
     dialog.background_enabled=QCheckBox('Arka plan görselini göster');dialog.background_enabled.setChecked(vt.ayar_getir('ui_background_enabled','1')=='1')
     dialog.overlay=QSpinBox();dialog.overlay.setRange(50,230);dialog.overlay.setValue(int(vt.ayar_getir('ui_overlay','85')))
     dialog.background_path=vt.ayar_getir('ui_background','')
+    catalog=QComboBox()
+    for key,label in [('modern_depo','Modern Depo'),('kitabevi','Kitabevi'),('lojistik','Lojistik Merkezi'),('lacivert','Sade Lacivert'),('antrasit','Antrasit Geometrik')]:catalog.addItem(label,'builtin:'+key)
+    catalog.setCurrentIndex(catalog.findData(dialog.background_path))
+    catalog.activated.connect(lambda:setattr(dialog,'background_path',catalog.currentData()))
+    general.addRow('Standart arka plan:',catalog)
+    animation=QCheckBox('Açılış ve kapanış logo animasyonu');animation.setChecked(vt.ayar_getir('ui_animation','1')=='1');general.addRow(animation)
     background=QPushButton('Arka Plan Görseli Seç…')
     def choose():
         path,_=QFileDialog.getOpenFileName(dialog,'Arka plan seç','','Görseller (*.png *.jpg *.jpeg)')
@@ -48,7 +55,7 @@ def extend_settings(dialog,general,security,notifications):
     reset=QPushButton('Varsayılan Arka Plan');reset.clicked.connect(lambda:setattr(dialog,'background_path',''))
     save=QPushButton('Görünümü Uygula')
     def save_appearance():
-        values={'ui_theme':dialog.theme.currentText(),'ui_font_size':str(dialog.font_size.value()),
+        values={'ui_animation':str(int(animation.isChecked())),'ui_theme':dialog.theme.currentText(),'ui_font_size':str(dialog.font_size.value()),
             'ui_background':dialog.background_path,'ui_background_enabled':str(int(dialog.background_enabled.isChecked())),
             'ui_overlay':str(dialog.overlay.value())}
         for k,v in values.items():vt.ayar_kaydet(k,v)
@@ -57,6 +64,19 @@ def extend_settings(dialog,general,security,notifications):
     save.clicked.connect(save_appearance)
     for label,widget in [('Tema:',dialog.theme),('Yazı boyutu:',quantity_control(dialog.font_size)[0]),('Karartma (50–230):',quantity_control(dialog.overlay)[0])]:general.addRow(label,widget)
     for widget in (dialog.background_enabled,background,reset,save):general.addRow(widget)
+    order=QComboBox();order.addItems(['Ürün · Stok · Değer · Kritik','Kritik · Stok · Ürün · Değer','Değer · Stok · Kritik · Ürün']);order.setCurrentIndex(int(vt.ayar_getir('dashboard_order','0')))
+    general.addRow('Ana sayfa kart sırası:',order)
+    card_options=[]
+    for i,label in enumerate(['Ürün çeşidi','Seçili konum stoğu','Toplam stok değeri','Kritik stok']):
+        check=QCheckBox(label+' kartını göster');check.setChecked(vt.ayar_getir('dashboard_card_'+str(i),'1')=='1');general.addRow(check);card_options.append(check)
+    layout_save=QPushButton('Ana Sayfa Düzenini Uygula')
+    def save_layout():
+        vt.ayar_kaydet('dashboard_order',str(order.currentIndex()))
+        for i,check in enumerate(card_options):vt.ayar_kaydet('dashboard_card_'+str(i),str(int(check.isChecked())))
+        vt.baglanti.commit()
+        if parent:parent.duyarli_mod=None;parent.duyarli_yerlesimi_guncelle()
+    layout_save.clicked.connect(save_layout);general.addRow(layout_save)
+
     lock=QPushButton('Ekranı Şimdi Kilitle');lock.clicked.connect(lambda:parent.session_guard.lock() if parent else None);security.addRow(lock)
     note=QLabel('Kilit, bu bilgisayardaki kullanıcı parolanızla açılır. Cloud oturumu korunur. 0 dakika otomatik kilidi kapatır.');note.setWordWrap(True);security.addRow(note)
     forget=QPushButton('Bu Cihazdaki Hatırlanan Girişi Sil')

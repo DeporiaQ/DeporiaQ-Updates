@@ -65,7 +65,7 @@ def visible_windows(stage):
         if pid.value in pids and user32.IsWindowVisible(hwnd):
             text = ctypes.create_unicode_buffer(1024)
             user32.GetWindowTextW(hwnd, text, len(text))
-            if "DeporiaQ 0.24.3" in text.value:
+            if "DeporiaQ 0.25.0" in text.value:
                 result.append({"pid": pid.value, "title": text.value})
         return True
 
@@ -87,7 +87,7 @@ def wait_for_window(stage, label):
             ImageGrab.grab().save(OUT / f"windows-{label}.png")
             return found
         time.sleep(1)
-    raise AssertionError(f"{label}: Setup did not open a visible DeporiaQ 0.24.3 window")
+    raise AssertionError(f"{label}: Setup did not open a visible DeporiaQ 0.25.0 window")
 
 
 def main():
@@ -98,7 +98,7 @@ def main():
     OUT.mkdir(exist_ok=True)
     stage = Path(os.environ["RUNNER_TEMP"]) / "DeporiaQ Install Regression"
     stage.mkdir(exist_ok=True)
-    setup = ROOT / "kurulum" / "DeporiaQ_Setup_0.24.3.exe"
+    setup = ROOT / "kurulum" / "DeporiaQ_Setup_0.25.0.exe"
     legacy = ROOT / "test-old-dist" / "DeporiaQUpdate.exe"
     report = {"platform": sys.getwindowsversion().build, "tests": {}}
     try:
@@ -158,7 +158,7 @@ def main():
         assert len(visible_windows(stage)) == 1, "Duplicate after 0.23.0 upgrade"
         launcher_log = Path(os.environ["LOCALAPPDATA"]) / "DeporiaQ" / "logs" / "relaunch.log"
         text = launcher_log.read_text(encoding="utf-8-sig")
-        assert text.count("READY version=0.24.3") >= 4, text
+        assert text.count("READY version=0.25.0") >= 4, text
         # Reproduce a stale PyInstaller parent environment; only the installed
         # production launcher may sanitize it and start the actual frozen app.
         stop_stage(stage)
@@ -170,11 +170,11 @@ def main():
         launcher = subprocess.Popen(['powershell.exe', '-NoProfile', '-NonInteractive',
                                      '-ExecutionPolicy', 'Bypass', '-File',
                                      str(stage / 'deporiaq_restart.ps1'), '-AppPath',
-                                     str(stage / 'DeporiaQ.exe'), '-Version', '0.24.3'], env=dirty)
+                                     str(stage / 'DeporiaQ.exe'), '-Version', '0.25.0'], env=dirty)
         report['tests']['dirty-environment'] = wait_for_window(stage, 'dirty-environment')
         assert launcher.wait(timeout=30) == 0
         text = launcher_log.read_text(encoding='utf-8-sig')
-        assert text.count('READY version=0.24.3') >= 5, text
+        assert text.count('READY version=0.25.0') >= 5, text
         shutil.copy2(launcher_log, OUT / "relaunch.log")
         report["status"] = "passed"
     finally:
