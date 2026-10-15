@@ -1,6 +1,6 @@
 {
-  "version": "0.24.3",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.24.3/DeporiaQ_Setup_0.24.3.exe",
-  "sha256": "26a0432ad05f2b71445299d30349d4fb0d2f6cd58535944ef90354630bd6707e",
-  "notes": "Tema ve arka plan seçenekleri, ekran kilidi, bildirim merkezi, paket geri sayımı, Ana Sayfa ve Ctrl+1 düzeltmesi. Stok arama, filtre, CSV ve barkod kopyalama dahil 12 ek işlev. 0.24.2 üzerinden yeni SQL gerekmez."
+  "version": "0.25.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.25.0/DeporiaQ_Setup_0.25.0.exe",
+  "sha256": "50e934a679618422d541d2b314d81daa70b722ff99f30ef48277c82f0cd50aeb",
+  "notes": "Yeni satış sepeti, satın alma ve tedarikçi yönetimi, ürün içe aktarma, görevler, bildirimler ve görünüm geliştirmeleri. 0.25.0 SQL geçişi gerektirir; bu projede tamamlandı."
 }
