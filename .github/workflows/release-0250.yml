@@ -26,7 +26,7 @@ jobs:
           done
   defender:
     needs: gates
-    runs-on: windows-2022
+    runs-on: windows-2025
     timeout-minutes: 15
     steps:
       - name: Download exact previously built artifact
