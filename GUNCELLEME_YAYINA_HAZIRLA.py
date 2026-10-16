@@ -6,10 +6,12 @@ from pathlib import Path
 
 
 def main():
+    import runpy
+    runpy.run_path(str(Path(__file__).with_name("check_release.py")))
     if len(sys.argv) != 4:
         print(
             "Kullanim: py GUNCELLEME_YAYINA_HAZIRLA.py "
-            '"kurulum\\DeporiaQ_Setup_0.23.0.exe" 0.23.0 "https://...exe"'
+            '"kurulum\\DeporiaQ_Setup_0.24.0.exe" 0.24.0 "https://...exe"'
         )
         return 1
 

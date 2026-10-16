@@ -55,6 +55,7 @@ def main():
     # Only external services are disabled in the fixture, production paint/layout stays intact.
     ui.AnaPencere.cloud_oturumunu_yenile = lambda self: None
     ui.AnaPencere.kurlari_yenile = lambda self: None
+    ui.AnaPencere.guncelleme_denetle = lambda *a: None
     window = ui.AnaPencere(db, user, None)
     window.yenile()
     for width, height in [(1920, 1000), (1366, 768), (900, 650)]:

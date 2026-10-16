@@ -17,6 +17,9 @@ from pathlib import Path
 from deporiaq_runtime import clean_environment, acknowledge_startup, startup_error
 sys.excepthook = startup_error
 from deporiaq_analiz_ui import AnalysisWindow, CommandPalette
+from deporiaq_commerce import CommerceClient, SHORTCUTS
+from deporiaq_preferences import apply_appearance,extend_settings,save_notifications,SessionGuard
+from deporiaq_commerce_ui import PlansDialog, StockDialog, OrdersDialog, SupportDialog, SaleDialog, SubscriptionClock
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QIntValidator,
@@ -36,7 +39,7 @@ from stok_programi_v2 import (
     windows_sifrele, windows_sifre_coz,
 )
 
-SURUM = "0.23.0"
+SURUM = "0.24.3"
 
 
 def kaynak_yolu(ad):
@@ -134,7 +137,11 @@ class CloudKontrolu(QThread):
             if self.refresh_token and not self.cloud.bagli:self.cloud.oturumu_yenile(self.refresh_token)
             if not self.cloud.bagli:raise RuntimeError("Cloud oturumu gerekli")
             self.cloud.lisans_dogrula()
-            self.cloud._cihazi_kaydet(); self.tamamlandi.emit(self.cloud.cihazlari_getir(),self.cloud.refresh_token)
+            self.cloud._cihazi_kaydet()
+            # Device inventory is optional; a listing failure cannot revoke a verified session.
+            try: devices=self.cloud.cihazlari_getir()
+            except Exception: devices=[]
+            self.tamamlandi.emit(devices,self.cloud.refresh_token)
         except Exception as e:self.hata.emit(str(e))
 
 
@@ -146,6 +153,7 @@ class CloudSenkronIsci(QThread):
         try:
             yeni_vt=Veritabani(self.cloud.vt.yol); kopya=DeporiaQCloud(yeni_vt,self.cloud.cihaz_kimligi)
             for alan in ("url","anahtar","access_token","refresh_token","user_id","company_id","company_name","role","local_username","location_name"):setattr(kopya,alan,getattr(self.cloud,alan,""))
+            kopya._istek = self.cloud._istek  # shared, locked session; independent SQLite connection
             durum,_=kopya.akilli_senkronize();self.tamamlandi.emit(durum)
         except Exception as e:self.hata.emit(str(e))
         finally:
@@ -223,17 +231,17 @@ class SutunGrafik(QWidget):
 
 class DashboardArkaPlan(QWidget):
     def __init__(self, parent=None):
-        super().__init__(parent); self.gorsel = QPixmap(kaynak_yolu("dashboard_background.jpg"))
+        super().__init__(parent); self.gorsel = QPixmap(kaynak_yolu("dashboard_background.jpg"));self.background_enabled=True;self.overlay=85
 
     def paintEvent(self, olay):
         p = QPainter(self)
-        if not self.gorsel.isNull():
+        if self.background_enabled and not self.gorsel.isNull():
             kapla = self.gorsel.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                                       Qt.TransformationMode.SmoothTransformation)
             x = max(0, (kapla.width() - self.width()) // 2); y = max(0, (kapla.height() - self.height()) // 2)
             p.drawPixmap(QRectF(self.rect()), kapla, QRectF(x, y, self.width(), self.height()))
         # Görsel belirgin kalır; koyu katman metinlerin okunabilirliğini korur.
-        p.fillRect(self.rect(), QColor(7, 15, 28, 85))
+        p.fillRect(self.rect(), QColor(7, 15, 28, self.overlay if self.background_enabled else 255))
 
 
 class FinansOzetGrafik(QWidget):
@@ -328,7 +336,7 @@ class GirisPenceresi(QWidget):
         marka.setObjectName("marka")
         marka.setAlignment(Qt.AlignmentFlag.AlignCenter)
         kutu.addWidget(marka)
-        alt = QLabel(f"v{SURUM} • PySide6/Qt")
+        alt = QLabel(f"v{SURUM} • Stok ve Depo Yönetimi")
         alt.setObjectName("soluk")
         alt.setAlignment(Qt.AlignmentFlag.AlignCenter)
         kutu.addWidget(alt)
@@ -363,9 +371,13 @@ class GirisPenceresi(QWidget):
         unuttum.clicked.connect(self.parola_yardimi)
         kapat = QPushButton("Programı Kapat")
         kapat.setObjectName("metinDugme")
-        kapat.clicked.connect(QApplication.quit)
+        kapat.clicked.connect(self.close)
         alt_dugmeler.addWidget(unuttum); alt_dugmeler.addStretch(); alt_dugmeler.addWidget(kapat)
         kutu.addLayout(alt_dugmeler)
+        paket = QPushButton("30 gün ücretsiz deneyin · Paketleri incele")
+        paket.setObjectName("metinDugme")
+        paket.clicked.connect(lambda:PlansDialog(None,self).exec())
+        kutu.addWidget(paket)
         kutu.addStretch()
         telif = QLabel("© 2026 DeporiaQ. Tüm hakları saklıdır.")
         telif.setObjectName("soluk")
@@ -375,6 +387,7 @@ class GirisPenceresi(QWidget):
         QTimer.singleShot(1400, self.guncelleme_denetle)
 
     def guncelleme_denetle(self):
+        if not self.isVisible():return
         if hasattr(self, "guncelleme_isci") and self.guncelleme_isci.isRunning():
             return
         self.guncelleme_isci = GuncellemeKontrolu(self)
@@ -396,7 +409,9 @@ class GirisPenceresi(QWidget):
         yerel_ad = ("".join(c for c in girilen.split("@",1)[0].upper() if c.isalnum() or c in "_-")
                     if "@" in girilen else girilen)
         url, anahtar = cloud_yapilandirmasi_oku()
-        cloud_bagli = bool(url and anahtar and self.vt.ayar_getir("cloud_etkin", "0") == "1")
+        cloud_bagli = bool(url and anahtar)
+        if not cloud_bagli:
+            QMessageBox.warning(self,"Sunucu gerekli","Bu sürümde stok ve lisans işlemleri için Cloud yapılandırması gereklidir."); return
         # E-postayla girişte Cloud hesabı doğrudan kimliktir; kullanıcı adıyla girişte yerel parola doğrulanır.
         kayit = self.vt.kullanici_bul(yerel_ad) if (cloud_bagli and "@" in girilen) else self.vt.kimlik_dogrula(yerel_ad, self.parola.text())
         if not kayit:
@@ -404,17 +419,26 @@ class GirisPenceresi(QWidget):
             self.parola.clear(); return
         # Cloud bağlantılı kurulumlarda üyelik, rol ve abonelik her açılışta sunucudan doğrulanır.
         if cloud_bagli:
-            cloud = DeporiaQCloud(self.vt, str(ayarlari_oku().get("cihaz_kimligi", "")))
+            cihaz = str(ayarlari_oku().get("cihaz_kimligi", ""))
+            if not cihaz:
+                cihaz="DPQ-"+secrets.token_hex(16); yerel_ayari_kaydet("cihaz_kimligi",cihaz)
+            cloud = DeporiaQCloud(self.vt, cihaz)
             cloud.local_username = yerel_ad
             try:
                 cloud.yapilandir(url, anahtar)
                 if "@" in girilen:
                     cloud.giris_yap(girilen, self.parola.text())
                 else:
-                    token = windows_sifre_coz(str(ayarlari_oku().get("cloud_refresh_token_dpapi", "")))
+                    saved=ayarlari_oku().get('cloud_accounts',{}).get(str(kayit['id']),{})
+                    token=windows_sifre_coz(str(saved.get('refresh_token_dpapi','')))
                     if not token:
                         raise RuntimeError("Güvenli Cloud oturumu bulunamadı. E-posta adresiniz ve Cloud parolanızla giriş yapın.")
                     cloud.oturumu_yenile(token)
+                    if cloud.user_id!=saved.get('user_id'):
+                        raise RuntimeError('Cloud oturumu bu yerel kullanıcıya ait değil. E-postanızla giriş yapın.')
+                accounts=ayarlari_oku().get('cloud_accounts',{})
+                accounts[str(kayit['id'])]={'user_id':cloud.user_id,'refresh_token_dpapi':windows_sifrele(cloud.refresh_token)}
+                yerel_ayari_kaydet('cloud_accounts',accounts)
                 yerel_rol = cloud.yerel_rol_kodu(cloud.role)
                 self.vt.baglanti.execute("UPDATE kullanicilar SET rol=? WHERE id=?", (yerel_rol, kayit["id"]))
                 self.vt.baglanti.commit()
@@ -426,6 +450,16 @@ class GirisPenceresi(QWidget):
             except Exception as e:
                 QMessageBox.critical(self, "Cloud ve lisans doğrulanamadı", str(e))
                 return
+        if not cloud.entitlement.get('allowed'):
+            QMessageBox.information(self,"Abonelik etkin değil","İşletme işlemleri kapalı. Paket ve destek ekranlarını kullanabilirsiniz.")
+            PlansDialog(CommerceClient(cloud),self).exec();return
+        bound=self.vt.ayar_getir('dpq_company_id','')
+        if bound and bound!=cloud.company_id:
+            QMessageBox.critical(self,"İşletme uyuşmazlığı","Bu yerel veritabanı başka bir işletmeye bağlı. Ayrı kurulum gerekir.");return
+        if not bound and self.vt.ayar_getir('isletme_adi','').strip().casefold()!=cloud.company_name.strip().casefold():
+            QMessageBox.warning(self,"Geçiş doğrulaması gerekli","Yerel işletme adı ile Cloud işletmesi uyuşmuyor. Veriler uzlaştırılmadan giriş yapılmaz.");return
+        self.vt.ayar_kaydet('dpq_company_id',cloud.company_id);self.vt.baglanti.commit()
+        self.auth_cloud = cloud
         self.vt.aktif_kullanici_id = kayit["id"]
         yerel_ayari_kaydet(
             "hatirlanan_kullanici", yerel_ad if self.hatirla.isChecked() else ""
@@ -736,19 +770,54 @@ class AyarlarPenceresi(QDialog):
         d=QVBoxLayout(self); b=QLabel("Ayarlar Merkezi"); b.setObjectName("sayfaBaslik"); d.addWidget(b)
         sek=QTabWidget(); d.addWidget(sek)
         genel=QWidget(); g=QFormLayout(genel); self.isletme=QLineEdit(vt.ayar_getir("isletme_adi","")); gb=QPushButton("İşletme Bilgisini Kaydet"); gb.clicked.connect(self.genel_kaydet); g.addRow("İşletme adı:",self.isletme); g.addRow(gb); sek.addTab(genel,"Genel")
-        bulut=QWidget(); c=QFormLayout(bulut); a=ayarlari_oku(); self.url=QLineEdit(a.get("cloud_url","")); self.key=QLineEdit(a.get("cloud_publishable_key","")); self.key.setEchoMode(QLineEdit.EchoMode.Password); self.email=QLineEdit(a.get("cloud_email","")); self.pw=QLineEdit(); self.pw.setEchoMode(QLineEdit.EchoMode.Password)
+        bulut=QWidget(); c=QFormLayout(bulut); a=ayarlari_oku(); config_url,config_key=cloud_yapilandirmasi_oku(); self.url=QLineEdit(cloud.url or config_url); self.key=QLineEdit(cloud.anahtar or config_key); self.key.setEchoMode(QLineEdit.EchoMode.Password); self.email=QLineEdit(a.get("cloud_email","")); self.pw=QLineEdit(); self.pw.setEchoMode(QLineEdit.EchoMode.Password)
         self.cloud_hatirla=QCheckBox("Bu cihazdaki Cloud oturumunu hatırla"); self.cloud_hatirla.setChecked(bool(a.get("cloud_refresh_token_dpapi","")))
         self.cloud_goster=QCheckBox("Cloud parolasını göster"); self.cloud_goster.toggled.connect(lambda acik:self.pw.setEchoMode(QLineEdit.EchoMode.Normal if acik else QLineEdit.EchoMode.Password))
-        cb=QPushButton("Cloud Giriş ve Senkronizasyon"); cb.setObjectName("birincil"); cb.clicked.connect(self.cloud_giris)
+        cb=QPushButton("Bağlantıyı Doğrula" if cloud.bagli and not getattr(cloud,"auth_required",False) else "Cloud Giriş ve Senkronizasyon"); cb.setObjectName("birincil"); cb.clicked.connect(self.cloud_giris)
+        self.connection_label=QLabel("Cloud bağlı · Uygulama girişiniz kullanılıyor; tekrar parola girmeniz gerekmez." if cloud.bagli else "Cloud oturumu kapalı"); c.addRow(self.connection_label)
         c.addRow("Project URL:",self.url); c.addRow("Publishable / anon key:",self.key); c.addRow("Cloud e-posta:",self.email); c.addRow("Cloud parola:",self.pw); c.addRow(self.cloud_goster); c.addRow(self.cloud_hatirla); c.addRow(cb); sek.addTab(bulut,"Cloud ve Senkronizasyon")
+        if cloud.bagli and not getattr(cloud,"auth_required",False):
+            for field in (self.url,self.key,self.email,self.pw,self.cloud_goster,self.cloud_hatirla):field.setEnabled(False)
+            self.pw.setPlaceholderText('Açık oturum otomatik yenilenir')
         guv=QWidget(); q=QFormLayout(guv); self.kilit=QComboBox(); self.kilit.addItems(["0","5","10","15","30","60"]); self.kilit.setCurrentText(vt.ayar_getir("otomatik_kilit_dakika","30")); qb=QPushButton("Güvenlik Ayarını Kaydet"); qb.clicked.connect(self.guvenlik_kaydet); q.addRow("Otomatik kilit (dakika):",self.kilit);q.addRow(qb);sek.addTab(guv,"Güvenlik")
         bild=QWidget(); n=QFormLayout(bild); self.kritik=QCheckBox("Kritik stok uyarılarını göster"); self.kritik.setChecked(vt.ayar_getir("kritik_bildirim","1")=="1"); nb=QPushButton("Bildirim Ayarını Kaydet"); nb.clicked.connect(self.bildirim_kaydet); n.addRow(self.kritik);n.addRow(nb);sek.addTab(bild,"Bildirimler")
+        gizli=QWidget();gl=QVBoxLayout(gizli)
+        gl.addWidget(QLabel("Beş hızlı geçiş. Açık işlem penceresini kapatmadan ekran değiştirmez."))
+        for key,label,method in SHORTCUTS:
+            button=QPushButton(key+" · "+label)
+            def navigate(checked=False,method=method):
+                if QMessageBox.question(self,"Hızlı geçiş","Kaydetmediğiniz ayarlar varsa önce kaydedin. Bu ekrandan ayrılsın mı?")!=QMessageBox.StandardButton.Yes:return
+                self.accept()
+                if parent:QTimer.singleShot(0,getattr(parent,method))
+            button.clicked.connect(navigate);gl.addWidget(button)
+        gl.addStretch();sek.addTab(gizli,"Gizli Komutlar")
+        extend_settings(self,g,q,n)
     def genel_kaydet(self):self.vt.ayar_kaydet("isletme_adi",self.isletme.text().strip());self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","İşletme bilgisi kaydedildi.")
     def guvenlik_kaydet(self):self.vt.ayar_kaydet("otomatik_kilit_dakika",self.kilit.currentText());self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Güvenlik ayarı kaydedildi.")
-    def bildirim_kaydet(self):self.vt.ayar_kaydet("kritik_bildirim","1" if self.kritik.isChecked() else "0");self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Bildirim ayarı kaydedildi.")
+    def bildirim_kaydet(self):save_notifications(self);self.vt.ayar_kaydet("kritik_bildirim","1" if self.kritik.isChecked() else "0");self.vt.baglanti.commit();QMessageBox.information(self,"Kaydedildi","Bildirim ayarı kaydedildi.")
     def cloud_giris(self):
+        if self.cloud.bagli and not getattr(self.cloud,"auth_required",False):
+            try:
+                self.cloud.lisans_dogrula()
+                self.connection_label.setText('Cloud bağlı · Oturumunuz doğrulandı.')
+                self.cloud_yenile()
+            except Exception as e:
+                self.connection_label.setText('Bağlantı doğrulanamadı; oturum korunuyor. '+str(e))
+            return
         try:
-            self.cloud.yapilandir(self.url.text(),self.key.text()); ad=self.cloud.giris_yap(self.email.text(),self.pw.text()); sonuc,_=self.cloud.akilli_senkronize()
+            candidate=DeporiaQCloud(self.vt,self.cloud.cihaz_kimligi)
+            candidate.yapilandir(self.url.text(),self.key.text())
+            if self.cloud.bagli and candidate.url != self.cloud.url:
+                raise ValueError('Açık oturumda işletme sunucusu değiştirilemez.')
+            ad=candidate.giris_yap(self.email.text(),self.pw.text())
+            if self.cloud.bagli and (candidate.user_id!=self.cloud.user_id or candidate.company_id!=self.cloud.company_id):
+                raise ValueError('Ayarlar üzerinden kullanıcı veya işletme değiştirilemez. Çıkış yapıp giriş ekranını kullanın.')
+            with self.cloud._session_lock:
+                for field in ('url','anahtar','access_token','refresh_token','user_id','company_id','company_name','role','entitlement','auth_required'):
+                    setattr(self.cloud,field,getattr(candidate,field))
+                if self.cloud.on_token_rotated:self.cloud.on_token_rotated(self.cloud)
+            sonuc,_=self.cloud.akilli_senkronize()
+            self.pw.clear();self.connection_label.setText('Cloud oturumu açık')
             yerel_ayari_kaydet("cloud_url",self.url.text().strip());yerel_ayari_kaydet("cloud_publishable_key",self.key.text().strip());yerel_ayari_kaydet("cloud_email",self.email.text().strip())
             if self.cloud.refresh_token and self.cloud_hatirla.isChecked(): yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(self.cloud.refresh_token))
             else: yerel_ayari_kaydet("cloud_refresh_token_dpapi","")
@@ -818,7 +887,7 @@ class YardimMerkezi(QDialog):
         "Cloud ve Kullanıcılar":"""Cloud hesabı, yerel kullanıcı hesabından ayrıdır.\n\nCloud e-posta/parolası işletmenin bulut verilerine erişir. Yerel Kullanıcılar ekranındaki hesaplar ise bu bilgisayarda programa giriş ve yetki kontrolü içindir.\n\nAyarlar > Cloud ve Senkronizasyon bölümünden giriş yapabilirsiniz. Parola açık biçimde kaydedilmez. Durum göstergesindeki yeşil nokta verilerin güncel olduğunu belirtir.""",
         "Raporlar ve Yazdır":"""Raporlar ve Yazdır bölümünde genel stok, kritik stok, kâr, denetim ve oturum kayıtları bulunur.\n\nYazdır düğmesi Windows yazıcı ekranını açar. CSV Dışa Aktar seçeneği raporu Excel ile açılabilecek biçimde kaydeder.\n\nSipariş Önerileri, kritik seviyedeki ürünler için hedef stoğu kritik seviyenin iki katına tamamlayacak öneri üretir.""",
         "Operasyon Merkezi":"""Ana Yönetici için 9 analiz ekranı: tüm depolarda arama, tükenme, ABC, hareketsiz stok, transfer önerisi, satın alma planı, konum karşılaştırması, günlük satış ve sayım listesi.\n\nSonuçlar yerel veriye dayanır. Cloud eşitlemesi tamamlandıktan sonra Verileri Yenile düğmesini kullanın. Öneriler otomatik stok değişikliği yapmaz.\n\nDestek: deporiaq@gmail.com\nInstagram: @deporiaq\nYouTube: @DeporiaQ""",
-        "Kısayollar":"""Ctrl+K — Hızlı komut menüsü\nCtrl+F — Tüm depolarda arama (Ana Yönetici)\nF5 — Ekranı ve stokları yenile\nCtrl+T — Stok Transferi ekranını aç\nEnter — Barkod alanlarında ürünü sorgula veya sonraki adıma geç\nEsc — Açık pencereyi kapat""",
+        "Kısayollar":"\n".join(key+" — "+label for key,label,_ in SHORTCUTS),
         "Sorun Giderme":"""ÜRÜN BULUNAMADI\nDoğru konumun seçili olduğunu ve ürünün o konumda stok kaydı bulunduğunu kontrol edin.\n\nCLOUD BAĞLI DEĞİL\nİnternet bağlantısını, Project URL'yi ve publishable/anon anahtarını kontrol edin. Cloud parolası güvenlik nedeniyle her zaman ekranda tutulmaz.\n\nGÜNCELLEME GELMİYOR\nAyarlar dosyasındaki manifest adresini, internet bağlantısını ve DeporiaQUpdate.exe dosyasının kurulum klasöründe bulunduğunu kontrol edin.\n\nVERİ SORUNU\nÖnce Veri ve Yedekleme ile yedek alın. Ardından VERITABANI_ONAR aracını kullanın.""",
     }
     def __init__(self,vt,parent=None):
@@ -828,10 +897,11 @@ class YardimMerkezi(QDialog):
         sek=QTabWidget();d.addWidget(sek,1)
         for ad,metin in self.KONULAR.items():
             alan=QPlainTextEdit(metin);alan.setReadOnly(True);sek.addTab(alan,ad)
-        destek=QWidget();f=QFormLayout(destek);self.tur=QComboBox();self.tur.addItems(["Teknik Sorun","Kullanım Sorusu","Öneri","Cloud Sorunu"]);self.konu=QLineEdit();self.mesaj=QPlainTextEdit();self.iletisim=QLineEdit()
-        f.addRow(QLabel("Müşteri desteği: deporiaq@gmail.com\nBu form yerel kayıt oluşturur; otomatik e-posta göndermez."))
-        g=QPushButton("Destek Kaydı Oluştur");g.setObjectName("birincil");g.clicked.connect(self.gonder)
-        f.addRow("Talep türü:",self.tur);f.addRow("Konu:",self.konu);f.addRow("Açıklama:",self.mesaj);f.addRow("İletişim:",self.iletisim);f.addRow(g);sek.addTab(destek,"Destek")
+        destek=QWidget();f=QVBoxLayout(destek)
+        f.addWidget(QLabel("Müşteri desteği: deporiaq@gmail.com"))
+        g=QPushButton("Sunucuya Destek Talebi Gönder")
+        g.clicked.connect(lambda:SupportDialog(parent.commerce,self).exec() if parent else None)
+        f.addWidget(g);sek.addTab(destek,"Destek")
         a=QHBoxLayout();surum=QLabel(f"Sürüm {SURUM} • © 2026 DeporiaQ");surum.setObjectName("soluk");k=QPushButton("Kapat");k.clicked.connect(self.accept);a.addWidget(surum);a.addStretch();a.addWidget(k);d.addLayout(a)
     def gonder(self):
         try:no=self.vt.destek_talebi_olustur(self.tur.currentText(),self.konu.text(),self.mesaj.toPlainText(),self.iletisim.text())
@@ -871,7 +941,9 @@ class AnaPencere(QMainWindow):
         ayarlar=ayarlari_oku(); cihaz=str(ayarlar.get("cihaz_kimligi","")).strip()
         if not cihaz:
             cihaz="DPQ-"+secrets.token_hex(6).upper(); yerel_ayari_kaydet("cihaz_kimligi",cihaz)
-        self.cloud_client=DeporiaQCloud(vt,cihaz)
+        self.cloud_client=getattr(giris,"auth_cloud",None) or DeporiaQCloud(vt,cihaz)
+        self.cloud_client.on_token_rotated=self.cloud_tokenini_kaydet
+        self.commerce=CommerceClient(self.cloud_client)
         self.cloud_client.local_username=str(kullanici["kullanici_adi"])
         try:
             konum=vt.baglanti.execute("SELECT ad FROM konumlar WHERE id=?",(kullanici["konum_id"],)).fetchone()
@@ -891,17 +963,101 @@ class AnaPencere(QMainWindow):
         ana.addLayout(orta, 1)
         ana.addWidget(self.alt_cubuk())
         self.dashboard_kur()
-        QShortcut(QKeySequence("Ctrl+T"), self, activated=self.transfer_ac)
-        QShortcut(QKeySequence("Ctrl+K"), self, activated=self.komut_paleti_ac)
-        QShortcut(QKeySequence("Ctrl+F"), self, activated=self.operasyon_ac)
-        QShortcut(QKeySequence("F5"), self, activated=self.yenile)
-        QTimer.singleShot(50, self.yenile)
+        self.notifications=[];self.notification_keys=set();self.session_guard=SessionGuard(self)
+        apply_appearance(self)
+        self.quick_shortcuts=[]
+        for key,label,method in SHORTCUTS:
+            shortcut=QShortcut(QKeySequence(key),self)
+            shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+            shortcut.activated.connect(getattr(self,method));self.quick_shortcuts.append(shortcut)
+        self.startup_timers=[]
+        self.schedule(50,self.yenile)
         self.canli_zamanlayici=QTimer(self);self.canli_zamanlayici.timeout.connect(self.canli_yenile);self.canli_zamanlayici.start(15000)
         self.senkron_zamanlayici=QTimer(self);self.senkron_zamanlayici.timeout.connect(self.cloud_senkronize);self.senkron_zamanlayici.start(30000)
         self.kur_zamanlayici=QTimer(self);self.kur_zamanlayici.timeout.connect(self.kurlari_yenile);self.kur_zamanlayici.start(300000)
         self.lisans_kilitli=False
-        QTimer.singleShot(900,self.cloud_oturumunu_yenile)
-        QTimer.singleShot(0, self.duyarli_yerlesimi_guncelle)
+        self.schedule(900,self.cloud_oturumunu_yenile)
+        self.schedule(1200,self.cloud_senkronize)
+        if self.vt.ayar_getir("notify_update","1")=="1":self.schedule(2000,lambda:self.guncelleme_denetle(True))
+        self.schedule(0,self.duyarli_yerlesimi_guncelle)
+
+    def schedule(self,delay,fn):
+        timer=QTimer(self);timer.setSingleShot(True);timer.timeout.connect(fn);timer.start(delay);self.startup_timers.append(timer)
+
+    def closeEvent(self,event):
+        workers=[getattr(self,name,None) for name in ('cloud_iscisi','senkron_iscisi','kur_iscisi','guncelleme_isci')]
+        if any(worker is not None and worker.isRunning() for worker in workers):
+            event.ignore();self.cloud.setText('Devam eden bağlantı tamamlanınca kapatın.');return
+        for timer in self.startup_timers+[self.canli_zamanlayici,self.senkron_zamanlayici,self.kur_zamanlayici]:timer.stop()
+        if hasattr(self,"session_guard"):self.session_guard.timer.stop();QApplication.instance().removeEventFilter(self.session_guard)
+        super().closeEvent(event)
+
+    def home(self):
+        active=QApplication.activeModalWidget()
+        if active and active is not self:
+            if getattr(active,'job',None) is not None:return
+            if QMessageBox.question(active,'Ana Sayfaya Dön','Açık pencere kapatılacak. Kaydedilmemiş girişlerden vazgeçilsin mi?')!=QMessageBox.StandardButton.Yes:return
+            active.reject()
+            if active.isVisible():return
+        self.kaydir.verticalScrollBar().setValue(0);self.yenile();self.konum.setFocus()
+
+    def notify(self,title,message,key=None,force=False):
+        if not hasattr(self,'notifications'):return
+        if key and self.vt.ayar_getir(key,'1')!='1':return
+        identity=(title,message)
+        if identity in self.notification_keys and not force:return
+        self.notification_keys.add(identity)
+        self.notifications.append((datetime.now().strftime('%H:%M:%S'),title,message))
+        self.notifications=self.notifications[-100:]
+        self.notification_button.setText(f'Bildirimler ({len(self.notifications)})')
+        self.notification_button.setToolTip(title+' · '+message)
+        if self.vt.ayar_getir('notify_sound','0')=='1':QApplication.beep()
+
+    def notification_history(self):
+        d=QDialog(self);d.setWindowTitle('Bildirim Geçmişi · Bu Oturum');d.resize(650,400);layout=QVBoxLayout(d)
+        text=QPlainTextEdit();text.setReadOnly(True);text.setPlainText('\n\n'.join(' · '.join(row) for row in reversed(self.notifications)) or 'Bu oturumda bildirim yok.');layout.addWidget(text)
+        clear=QPushButton('Geçmişi Temizle')
+        def reset():self.notifications.clear();self.notification_button.setText('Bildirimler (0)');text.setPlainText('Bildirim geçmişi temizlendi.')
+        clear.clicked.connect(reset);layout.addWidget(clear);d.exec()
+
+    def grup_ac(self,title,entries):
+        d=QDialog(self);d.setWindowTitle(title);d.setMinimumWidth(360);v=QVBoxLayout(d)
+        for label,callback in entries:
+            b=QPushButton(label)
+            def selected(checked=False,fn=callback):
+                d.accept();QTimer.singleShot(0,fn)
+            b.clicked.connect(selected);v.addWidget(b)
+        d.exec()
+
+    def stok_merkezi_ac(self):
+        self.grup_ac('Stok ve Ürünler', [('Ürünler ve Stoklar',self.urun_yonetimi_ac),('Stok Girişi',self.stok_girisi_ac),('Stok Sayımı',self.araclar_ac)])
+
+    def satis_merkezi_ac(self):
+        self.grup_ac('Satışlar',[('Şube Satış',self.satis_ac),('İnternet Siparişleri',self.internet_ac)])
+
+    def depo_merkezi_ac(self):
+        self.grup_ac('Depolar ve Transferler',[('Konumlar',self.konum_yonetimi_ac),('Stok Transferi',self.transfer_ac)])
+
+    def rapor_merkezi_ac(self):
+        self.grup_ac('Raporlar',[('Operasyon Merkezi',self.operasyon_ac),('Raporlar ve Yazdır',self.raporlar_ac),('Kritik Stoklar',self.kritikleri_ac),('Sipariş Önerileri',self.siparis_onerileri_ac),('Hareket Geçmişi',self.hareketleri_ac)])
+
+    def yonetim_merkezi_ac(self):
+        self.grup_ac('Yönetim',[('Kullanıcı Yetkileri',self.kullanicilar_ac),('Veri ve Yedekleme',self.yedek_al)])
+
+    def destek_merkezi_ac(self):
+        self.grup_ac('Yardım ve Destek',[('Kullanım Rehberi',self.yardim_ac),('Destek Talebi Gönder',self.destek_ac)])
+
+    def internet_ac(self):
+        OrdersDialog(self.commerce,self).exec()
+
+    def paket_ac(self):
+        PlansDialog(self.commerce,self).exec()
+
+    def destek_ac(self):
+        SupportDialog(self.commerce,self).exec()
+
+    def kisayollar_ac(self):
+        self.grup_ac('Ayarlar · Gizli Komutlar',[(key+' · '+label,getattr(self,method)) for key,label,method in SHORTCUTS])
 
     def ust_cubuk(self):
         cubuk = QFrame(); cubuk.setObjectName("ustCubuk")
@@ -926,19 +1082,13 @@ class AnaPencere(QMainWindow):
         menu = QFrame(); menu.setObjectName("yanMenu")
         d = QVBoxLayout(menu); d.setContentsMargins(10, 14, 10, 12); d.setSpacing(5)
         d.addWidget(QLabel("MENÜ"))
-        for ad, komut in (
-            ("Gösterge Paneli", self.yenile), ("Operasyon Merkezi", self.operasyon_ac),
-            ("Hızlı Komutlar · Ctrl+K", self.komut_paleti_ac), ("Stok Girişi", self.stok_girisi_ac),
-            ("Ürün Yönetimi", self.urun_yonetimi_ac), ("Şubede Satış", self.satis_ac),
-            ("Stok Transferi", self.transfer_ac),
-            ("Depo ve Şubeler", self.konum_yonetimi_ac), ("Kritik Stoklar", self.kritikleri_ac),
-            ("Sipariş Önerileri", self.siparis_onerileri_ac),
-            ("Hareket Geçmişi", self.hareketleri_ac), ("Raporlar ve Yazdır", self.raporlar_ac),
-            ("Profesyonel Araçlar", self.araclar_ac), ("Kullanıcılar", self.kullanicilar_ac),
-            ("Veri ve Yedekleme", self.yedek_al), ("Ayarlar", self.ayarlar_ac),
-            ("Yardım Merkezi", self.yardim_ac),
-        ):
-            b = QPushButton(ad); b.clicked.connect(komut); d.addWidget(b)
+        entries=[("Ana Sayfa",self.home),("Stok ve Ürünler",self.stok_merkezi_ac),
+                 ("Satışlar",self.satis_merkezi_ac),("Depolar ve Transferler",self.depo_merkezi_ac),
+                 ("Raporlar",self.rapor_merkezi_ac)]
+        if self.kullanici["rol"]=="ANA_YONETICI":entries.append(("Yönetim",self.yonetim_merkezi_ac))
+        entries += [("Paketim ve Abonelik",self.paket_ac),("Ayarlar",self.ayarlar_ac),("Yardım ve Destek",self.destek_merkezi_ac)]
+        for ad,komut in entries:
+            b=QPushButton(ad);b.clicked.connect(komut);d.addWidget(b)
         d.addStretch()
         d.addWidget(QLabel("DeporiaQ Modern\nGüvenli • Hızlı • Bulut"))
         telif = QLabel("© 2026 DeporiaQ.\nTüm hakları saklıdır."); telif.setObjectName("soluk")
@@ -954,11 +1104,14 @@ class AnaPencere(QMainWindow):
     def alt_cubuk(self):
         alt = QFrame(); alt.setObjectName("altCubuk")
         d = QHBoxLayout(alt); d.setContentsMargins(18, 8, 18, 8)
-        durum = QLabel("Sistem hazır"); durum.setObjectName("durum")
-        d.addWidget(durum); d.addStretch()
+        durum = QLabel("0.24.3 • Özetler yerel önbellektir"); durum.setObjectName("durum")
+        d.addWidget(durum)
+        self.notification_button=QPushButton("Bildirimler (0)");self.notification_button.clicked.connect(self.notification_history);d.addWidget(self.notification_button)
+        self.support_mail=QPushButton('deporiaq@gmail.com');self.support_mail.setFlat(True)
+        self.support_mail.clicked.connect(lambda:SupportDialog(self.commerce,self).exec());d.addWidget(self.support_mail);d.addStretch()
         guncelle=QPushButton("Güncellemeleri Denetle");guncelle.clicked.connect(lambda:self.guncelleme_denetle(False));d.addWidget(guncelle)
         cikis = QPushButton("Çıkış Yap"); cikis.clicked.connect(self.cikis_yap)
-        kapat = QPushButton("Programı Kapat"); kapat.setObjectName("tehlike"); kapat.clicked.connect(QApplication.quit)
+        kapat = QPushButton("Programı Kapat"); kapat.setObjectName("tehlike"); kapat.clicked.connect(self.close)
         d.addWidget(cikis); d.addWidget(kapat)
         return alt
 
@@ -966,16 +1119,18 @@ class AnaPencere(QMainWindow):
         d = QVBoxLayout(self.icerik); d.setContentsMargins(14, 10, 14, 10); d.setSpacing(8)
         self.ust_yerlesim = QGridLayout(); self.ust_yerlesim.setSpacing(8)
         self.baslik = QLabel("İşletme Özeti"); self.baslik.setObjectName("sayfaBaslik")
-        self.konum = QComboBox(); self.konum.setMinimumWidth(360); self.konum.setMaximumWidth(820)
+        self.konum = QComboBox(); self.konum.setMinimumWidth(200); self.konum.setMaximumWidth(820)
         self.konum.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Fixed)
         self.konum.currentIndexChanged.connect(self.yenile)
         self.yenile_dugmesi = QPushButton("Yenile"); self.yenile_dugmesi.clicked.connect(self.yenile)
         self.sosyal = QWidget(); self.sosyal.setObjectName("dashboardSosyal"); sosyal = QHBoxLayout(self.sosyal); sosyal.setContentsMargins(0,0,0,0); sosyal.setSpacing(8)
-        sosyal_yazi=QLabel("DeporiaQ Sosyal"); sosyal_yazi.setObjectName("soluk"); sosyal.addWidget(sosyal_yazi)
         youtube=QPushButton(QIcon(kaynak_yolu("youtube_icon.svg")),"DeporiaQ"); youtube.setToolTip("DeporiaQ YouTube • Yakında")
         instagram=QPushButton(QIcon(kaynak_yolu("instagram_icon.svg")),"DeporiaQ"); instagram.setToolTip("DeporiaQ Instagram • Yakında")
         youtube.clicked.connect(lambda:self.sosyal_yakinda("YouTube")); instagram.clicked.connect(lambda:self.sosyal_yakinda("Instagram"))
-        sosyal.addWidget(youtube); sosyal.addWidget(instagram); d.addLayout(self.ust_yerlesim)
+        sosyal.addWidget(youtube); sosyal.addWidget(instagram)
+        for name in ('WhatsApp','X'):
+            button=QPushButton(name);button.setToolTip(name+' hesabı henüz tanımlanmadı');button.clicked.connect(lambda checked=False,name=name:self.sosyal_yakinda(name));sosyal.addWidget(button)
+        d.addLayout(self.ust_yerlesim)
         self.kart_yerlesim = QGridLayout(); self.kart_yerlesim.setSpacing(8); self.kartlar = []; self.kart_widgetlari=[]
         for bas in ("Ürün çeşidi", "Seçili konum stoğu", "Toplam stok değeri", "Kritik stok"):
             k = QFrame(); k.setObjectName("kart"); kd = QHBoxLayout(k); kd.setContentsMargins(15,8,15,8); kd.setSpacing(12)
@@ -1024,7 +1179,7 @@ class AnaPencere(QMainWindow):
 
     def resizeEvent(self, olay):
         super().resizeEvent(olay)
-        QTimer.singleShot(0, self.duyarli_yerlesimi_guncelle)
+        self.schedule(0,self.duyarli_yerlesimi_guncelle)
 
     def duyarli_yerlesimi_guncelle(self):
         if not hasattr(self, "kaydir") or not hasattr(self, "ust_yerlesim"): return
@@ -1080,14 +1235,18 @@ class AnaPencere(QMainWindow):
 
     def yenile(self):
         self.konumlari_yenile(); self.tablo_yenile()
-        etkin = self.cloud_client.bagli
-        bekleyen = self.vt.baglanti.execute("SELECT COUNT(*) FROM senkron_kuyrugu WHERE gonderildi=0").fetchone()[0]
-        if etkin and bekleyen:
-            nokta, metin = "#FBBF24", f"{bekleyen} işlem bekliyor"
-        elif etkin:
-            nokta, metin = "#4ADE80", "Cloud güncel"
+        self.cloud_gostergesini_yenile()
+
+    def cloud_gostergesini_yenile(self):
+        state=getattr(self,'cloud_connection_state','connected' if self.cloud_client.bagli else 'offline')
+        if state=='auth_required':
+            nokta,metin='#F45B76','Cloud oturumu yenilenemedi · girişinizi doğrulayın'
+        elif state=='retry':
+            nokta,metin='#FBBF24','Cloud bağlantısı bekleniyor · otomatik yeniden denenecek'
+        elif self.cloud_client.bagli:
+            nokta,metin=('#FBBF24','Cloud bağlı · Abonelik etkin değil') if getattr(self,'lisans_kilitli',False) else ('#4ADE80','Cloud bağlı · Abonelik doğrulandı')
         else:
-            nokta, metin = "#94A3B8", "Yerel çalışma"
+            nokta,metin='#94A3B8','Cloud oturumu kapalı'
         self.cloud.setText(f'<span style="color:{nokta}">●</span> <span style="color:#FFFFFF">{metin}</span>')
 
     def canli_yenile(self):
@@ -1095,41 +1254,55 @@ class AnaPencere(QMainWindow):
 
     def cloud_oturumunu_yenile(self):
         if hasattr(self,"cloud_iscisi") and self.cloud_iscisi.isRunning():return
-        a=ayarlari_oku(); url=str(a.get("cloud_url","")).strip(); key=str(a.get("cloud_publishable_key","")).strip()
-        if not url or not key:
+        a=ayarlari_oku(); url,key=cloud_yapilandirmasi_oku()
+        if not self.cloud_client.bagli and (not url or not key):
             self.online.setText("0 online");self.cloud.setText('<span style="color:#F45B76">●</span> <span style="color:#FFFFFF">Cloud çevrimdışı</span>');return
-        try:self.cloud_client.yapilandir(url,key)
+        try:
+            if not self.cloud_client.bagli:self.cloud_client.yapilandir(url,key)
         except Exception:return
         token=""
-        try:token=windows_sifre_coz(str(a.get("cloud_refresh_token_dpapi","")).strip())
+        try:token=windows_sifre_coz(str(a.get('cloud_accounts',{}).get(str(self.kullanici['id']),{}).get('refresh_token_dpapi','')))
         except Exception:pass
         self.cloud_iscisi=CloudKontrolu(self.cloud_client,token,self);self.cloud_iscisi.tamamlandi.connect(self.cloud_sonucu);self.cloud_iscisi.hata.connect(self.cloud_hatasi);self.cloud_iscisi.start()
 
+    def cloud_tokenini_kaydet(self,cloud):
+        if getattr(self,"remember_disabled",False):return
+        accounts=ayarlari_oku().get('cloud_accounts',{})
+        accounts[str(self.kullanici['id'])]={'user_id':cloud.user_id,'refresh_token_dpapi':windows_sifrele(cloud.refresh_token)}
+        yerel_ayari_kaydet('cloud_accounts',accounts)
+
     def cloud_sonucu(self,cihazlar,yeni_token):
-        if yeni_token:yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(yeni_token))
-        simdi=datetime.now().astimezone(); aktif=[]
-        for c in cihazlar:
-            try:
-                son=datetime.fromisoformat(str(c.get("last_seen_at","")).replace("Z","+00:00"));
-                if c.get("active",True) and abs((simdi-son).total_seconds())<=90:aktif.append(c)
-            except (ValueError,TypeError):pass
-        self.online.setText(f"{len(aktif)} online")
-        adlar=[f"{c.get('local_username') or c.get('device_name') or 'DeporiaQ Kullanıcısı'} • {c.get('location_name') or 'Konum belirtilmedi'}" for c in aktif]
-        self.aktif_kullanicilar.setText("\n".join(f"{i}. {ad}" for i,ad in enumerate(adlar,1)) or "Aktif kullanıcı yok")
-        self.cloud.setText('<span style="color:#4ADE80">●</span> <span style="color:#FFFFFF">Cloud güncel</span>')
+        if yeni_token:self.cloud_tokenini_kaydet(self.cloud_client)
+        self.lisans_kilitli=not bool(getattr(self.cloud_client,'entitlement',{}).get('allowed'))
+        self.online.setText(f"{len(cihazlar)} kayıtlı cihaz")
+        self.aktif_kullanicilar.setText("\n".join(c.get('name','Bilgisayar') for c in cihazlar) or 'Cihaz bilgisi yöneticiye açıktır.')
+        self.cloud_connection_state='connected'
+        self.cloud_gostergesini_yenile()
+        self.cloud.setToolTip('')
+        status=getattr(self.cloud_client,'entitlement',{})
+        remaining=SubscriptionClock(status).seconds()
+        if remaining is not None and remaining<=int(self.vt.ayar_getir('notify_expiry_days','7'))*86400:
+            self.notify('Paket süresi','Paket bitişi yaklaşıyor. Kalan süreyi Paketim ve Abonelik ekranından kontrol edin.','notify_expiry')
 
     def cloud_hatasi(self,hata):
-        if str(hata).startswith("[LISANS]") and not self.lisans_kilitli:
+        # Preserve credentials on temporary network failures. Server RPCs still authorize every operation.
+        self.cloud_connection_state='retry'
+        self.notify("Cloud bağlantısı","Bağlantı geçici olarak doğrulanamadı. Yeniden denenecek.","notify_cloud")
+        self.cloud.setToolTip(str(hata))
+        if getattr(self.cloud_client,'auth_required',False) or '(401)' in str(hata):
             self.lisans_kilitli=True
-            self.senkron_zamanlayici.stop(); self.canli_zamanlayici.stop()
-            QMessageBox.critical(self,"DeporiaQ aboneliği etkin değil",str(hata).replace("[LISANS]","").strip())
-            self.cikis_yap(); return
-        self.online.setText("0 online");self.aktif_kullanicilar.setText("Cloud bağlantısı yok")
-        self.cloud.setText('<span style="color:#F45B76">●</span> <span style="color:#FFFFFF">Cloud çevrimdışı</span>')
+            self.cloud_connection_state='auth_required'
+        self.cloud_gostergesini_yenile()
+
+    def cloud_senkron_hatasi(self,hata):
+        # Local cache errors are not authentication or subscription failures.
+        if getattr(self.cloud_client,'auth_required',False):
+            self.cloud_hatasi(hata)
+        else:self.cloud.setToolTip('Özetler henüz güncellenemedi: '+str(hata))
 
     def cloud_senkronize(self):
         if not self.cloud_client.bagli or (hasattr(self,"senkron_iscisi") and self.senkron_iscisi.isRunning()):return
-        self.senkron_iscisi=CloudSenkronIsci(self.cloud_client,self);self.senkron_iscisi.tamamlandi.connect(lambda _:self.tablo_yenile());self.senkron_iscisi.hata.connect(self.cloud_hatasi);self.senkron_iscisi.start()
+        self.senkron_iscisi=CloudSenkronIsci(self.cloud_client,self);self.senkron_iscisi.tamamlandi.connect(lambda _:self.tablo_yenile());self.senkron_iscisi.hata.connect(self.cloud_senkron_hatasi);self.senkron_iscisi.start()
 
     def tablo_yenile(self):
         konum = self.konum.currentData()
@@ -1138,6 +1311,7 @@ class AnaPencere(QMainWindow):
         ozet = self.vt.ozet_getir(konum); kritik = len(self.vt.kritik_stoklari_getir())
         for w, v in zip(self.kartlar, (ozet["urun_sayisi"], ozet["toplam_stok"], para(ozet["toplam_deger"]), kritik)):
             w.setText(str(v))
+        if kritik:self.notify("Kritik stok",f"{kritik} ürün/konum kaydı kritik stok seviyesinde.","kritik_bildirim")
         kritik_konum = sum(1 for u in urunler if int(u["miktar"] or 0) <= int(u["kritik_stok"] or 0))
         self.halka_grafik.veri_ayarla(kritik_konum, max(0, len(urunler) - kritik_konum))
         en_degerli = sorted(((u["ad"], float(u["miktar"] or 0) * float(u["fiyat"] or 0)) for u in urunler), key=lambda x:x[1], reverse=True)[:5]
@@ -1193,52 +1367,38 @@ class AnaPencere(QMainWindow):
         AnalysisWindow(self.vt,self,initial if isinstance(initial,str) else "search").exec()
 
     def komut_paleti_ac(self):
-        if self.lisans_kilitli:return
-        commands = [("Gösterge Panelini Yenile",self.yenile),("Yardım Merkezi",self.yardim_ac),
-                    ("Stok Transferi",self.transfer_ac),("Şubede Satış",self.satis_ac)]
-        if self.kullanici["rol"] == "ANA_YONETICI":
-            from deporiaq_analiz import REPORTS
-            commands += [(title,lambda key=key:self.operasyon_ac(key)) for key,title in REPORTS]
-            commands += [("Stok Girişi",self.stok_girisi_ac),("Ürün Yönetimi",self.urun_yonetimi_ac),
-                         ("Güvenli Yedek Al",self.yedek_al),("Ayarlar",self.ayarlar_ac)]
+        commands=[('Ana Sayfa',self.home),('Stok ve Ürünler',self.stok_merkezi_ac),
+                  ('Şube Satış',self.satis_ac),('İnternet Siparişleri',self.internet_ac),
+                  ('Paketim ve Abonelik',self.paket_ac),('Destek Talebi',self.destek_ac)]
         CommandPalette(commands,self).exec()
 
     def transfer_ac(self):
-        if self.kullanici["rol"] not in ("ANA_YONETICI", "DEPO_PERSONELI"):
-            QMessageBox.warning(self, "Yetki gerekli", "Bu hesabın stok transferi yetkisi bulunmuyor.")
-            return
-        TransferPenceresi(self.vt, self.yenile, self).exec()
+        StockDialog(self.commerce,'transfer',self).exec()
 
     def stok_girisi_ac(self):
-        if self.kullanici["rol"] != "ANA_YONETICI":
-            QMessageBox.warning(self,"Yetki gerekli","Bu işlem için Ana Yönetici yetkisi gerekir.");return
-        StokGirisPenceresi(self.vt,self.yenile,self).exec()
+        StockDialog(self.commerce,'receive',self).exec()
 
     def urun_yonetimi_ac(self):
-        if self.kullanici["rol"] != "ANA_YONETICI":
-            QMessageBox.warning(self,"Yetki gerekli","Bu işlem için Ana Yönetici yetkisi gerekir.");return
-        UrunYonetimiPenceresi(self.vt,self.yenile,self).exec()
+        StockDialog(self.commerce,'catalog',self).exec()
 
     def urun_ozellestirmeleri_ac(self):
-        UrunOzellestirmePenceresi(self.vt,self.kullanici,self.cloud_client,self.yenile,self).exec()
+        self.urun_yonetimi_ac()
 
     def konum_yonetimi_ac(self):
-        if self.kullanici["rol"] != "ANA_YONETICI":
-            QMessageBox.warning(self,"Yetki gerekli","Bu işlem için Ana Yönetici yetkisi gerekir.");return
-        KonumYonetimiPenceresi(self.vt,self.yenile,self).exec()
+        StockDialog(self.commerce,'catalog',self).exec()
 
     def satis_ac(self):
-        if self.kullanici["rol"] not in ("ANA_YONETICI","SUBE_PERSONELI"):
-            QMessageBox.warning(self,"Yetki gerekli","Bu hesabın satış yetkisi bulunmuyor.");return
-        SubeSatisPenceresi(self.vt,self.yenile,self).exec()
+        selected=self.vt.baglanti.execute('SELECT ad FROM konumlar WHERE id=?',(self.konum.currentData(),)).fetchone()
+        SaleDialog(self.commerce,selected['ad'] if selected else '',self).exec()
+        self.cloud_senkronize()
 
     def araclar_ac(self):
-        if self.kullanici["rol"]!="ANA_YONETICI":QMessageBox.warning(self,"Yetki gerekli","Bu işlem için Ana Yönetici yetkisi gerekir.");return
-        AraclarPenceresi(self.vt,self.yenile,self).exec()
+        StockDialog(self.commerce,'count',self).exec()
 
     def ayarlar_ac(self):
-        if self.kullanici["rol"]!="ANA_YONETICI":QMessageBox.warning(self,"Yetki gerekli","Bu işlem için Ana Yönetici yetkisi gerekir.");return
-        AyarlarPenceresi(self.vt,self.cloud_client,self.yenile,self).exec();self.yenile()
+        if self.kullanici["rol"]!="ANA_YONETICI":
+            self.kisayollar_ac();return
+        AyarlarPenceresi(self.vt,self.cloud_client,self.yenile,self).exec()
 
     def yardim_ac(self):
         YardimMerkezi(self.vt,self).exec()
@@ -1277,9 +1437,7 @@ class AnaPencere(QMainWindow):
         QMessageBox.information(self,"Yedek tamamlandı",f"Veritabanı yedeği kaydedildi:\n{yol}")
 
     def kullanicilar_ac(self):
-        if self.kullanici["rol"] != "ANA_YONETICI":
-            QMessageBox.warning(self,"Yetki gerekli","Bu işlem için Ana Yönetici yetkisi gerekir.");return
-        KullaniciYonetimiPenceresi(self.vt,self.kullanici,self).exec()
+        QMessageBox.information(self,"Kullanıcı Yönetimi","Bu aday sürümde kullanıcı yetkileri sunucudaki şirket üyelikleriyle yönetilir. Yerel rol değişikliği sunucu yetkisi vermez.")
 
     def kritikleri_ac(self):
         self.liste_dialog("Kritik Stoklar", ["Konum", "Barkod", "Ürün", "Mevcut", "Kritik"], self.vt.kritik_stoklari_getir(), ["konum","barkod","urun","miktar","kritik_stok"])
@@ -1333,7 +1491,10 @@ class AnaPencere(QMainWindow):
 
     def cikis_yap(self):
         self.vt.aktif_kullanici_id = None
-        self.close(); self.giris.parola.clear(); self.giris.show(); self.giris.raise_()
+        if not self.close():return
+        self.cloud_client.cikis_yap()
+        self.giris.auth_cloud=None
+        self.giris.parola.clear(); self.giris.show(); self.giris.raise_()
 
 
 STIL = """
@@ -1342,6 +1503,9 @@ QWidget#dashboardArkaPlan, QWidget#dashboardSosyal { background:transparent; }
 HalkaGrafik, CubukGrafik, SutunGrafik, FinansOzetGrafik { background:transparent; }
 QLabel { background:transparent; }
 QLineEdit,QComboBox,QSpinBox { background:#1E2635; border:1px solid #3B4B63; padding:8px; min-height:20px; }
+QComboBox {padding-right:30px;}
+QComboBox::drop-down {subcontrol-origin:padding;subcontrol-position:top right;width:28px;border:0;}
+QComboBox::down-arrow {image:url(__CHEVRON__);width:12px;height:8px;}
 QTableWidget { background:#1E2635; border:1px solid #3B4B63; alternate-background-color:#293344; }
 QTableWidget::item { padding:6px 8px; border:0; }
 QTableWidget::item:selected { background:#2563EB; color:#FFFFFF; }
@@ -1383,6 +1547,8 @@ QScrollBar::add-line:horizontal,QScrollBar::sub-line:horizontal { width:0; backg
 QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal { background:transparent; }
 """
 
+
+STIL=STIL.replace("__CHEVRON__",kaynak_yolu("chevron.svg").replace("\\","/"))
 
 def main():
     eski_veritabanini_tasi(); veritabani_butunlugunu_kurtar(); veritabani_yedegi_al()

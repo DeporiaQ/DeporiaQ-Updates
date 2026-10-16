@@ -1,0 +1,117 @@
+name: DeporiaQ Candidate Windows Validation
+on:
+  push:
+    branches:
+      - 'codex/deporiaq-0.24.0-validation'
+    paths:
+      - '**.py'
+      - '**.iss'
+      - '.github/workflows/candidate-windows.yml'
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+jobs:
+  build-candidate:
+    runs-on: windows-2022
+    steps:
+      - name: Kaynakları al
+        uses: actions/checkout@v5
+
+      - name: Python 3.12 hazırla
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Derleme araçlarını kur
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PySide6==6.11.2 ttkbootstrap==2.2.3 "pyinstaller>=6.9,<7" psutil==7.2.2 pytest==9.1.1
+          if ($LASTEXITCODE -ne 0) { throw "Python bağımlılıkları kurulamadı." }
+          choco install innosetup -y --no-progress
+
+      - name: Sürüm tutarlılığını doğrula
+        shell: pwsh
+        run: |
+          $version = "0.24.3"
+          if ((Get-Content deporiaq_qt.py -Raw) -notmatch ('SURUM = "' + [regex]::Escape($version) + '"')) {
+            throw "deporiaq_qt.py sürümü ile yayın sürümü uyuşmuyor."
+          }
+
+      - name: Qt arka plan ve görünürlük testini çalıştır
+        shell: pwsh
+        run: |
+          python tests/test_dashboard.py test-results
+          if ($LASTEXITCODE -ne 0) { throw "Qt çizim testi başarısız; yayın durduruldu." }
+
+      - name: Operasyon Merkezi ve başlangıç sözleşmesi testleri
+        shell: pwsh
+        run: |
+          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py tests/test_session_pos.py tests/test_0243.py -q
+          if ($LASTEXITCODE -ne 0) { throw "0.24.3 işlev testleri başarısız." }
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'deporiaq_restart.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+
+      - name: Cloud istemci yapılandırmasını hazırla
+        shell: pwsh
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_URL)) { throw "SUPABASE_URL secret tanımlı değil." }
+          if ([string]::IsNullOrWhiteSpace($env:SUPABASE_PUBLISHABLE_KEY)) { throw "SUPABASE_PUBLISHABLE_KEY secret tanımlı değil." }
+          if ($env:SUPABASE_PUBLISHABLE_KEY -match "service_role|sb_secret_") { throw "Secret/service_role anahtarı masaüstü uygulamasına gömülemez." }
+          [ordered]@{
+            project_url = $env:SUPABASE_URL.TrimEnd('/')
+            publishable_key = $env:SUPABASE_PUBLISHABLE_KEY
+          } | ConvertTo-Json | Set-Content deporiaq_cloud.json -Encoding utf8
+
+      - name: Anahtar yetki türünü doğrula
+        run: python check_client_config.py
+
+      - name: Windows uygulamalarını oluştur
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --add-data "chevron.svg;." --add-data "dashboard_background.jpg;." --add-data "deporiaq_cloud.json;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
+          if ($LASTEXITCODE -ne 0) { throw "DeporiaQ derlenemedi." }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeporiaQUpdate deporiaq_guncelleme_bildirici.py
+          if ($LASTEXITCODE -ne 0) { throw "Güncelleyici derlenemedi." }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --paths tests/fixtures --distpath test-old-dist --workpath test-old-build --specpath tests --name DeporiaQUpdate tests/legacy_update_driver.py
+          if ($LASTEXITCODE -ne 0) { throw "0.22.4 geçiş testi aracı derlenemedi." }
+
+      - name: Kurulum dosyasını oluştur
+        shell: pwsh
+        run: |
+          python tests/test_bundle.py
+          if ($LASTEXITCODE -ne 0) { throw "EXE görsel içeriği doğrulanamadı." }
+          if ((Get-Content DeporiaQ.iss -Raw) -match 'InitializeSetup') {
+            throw "Kurulumu görünmeden kapatan InitializeSetup kodu yeniden eklenemez."
+          }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" DeporiaQ.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup derlenemedi." }
+
+      - name: Windows Server 2022 gerçek kurulum ve eski güncelleyici geçiş testi
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          python tests/test_windows_install.py
+          if ($LASTEXITCODE -ne 0) { throw "Otomatik açılma testi başarısız; yayın durduruldu." }
+
+      - name: Test günlüklerini ve ekran görüntülerini sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeporiaQ-0.24.3-test-results
+          path: test-results/
+          if-no-files-found: warn
+
+      - name: Aday kurulum dosyasını sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeporiaQ-0.24.3-candidate-setup
+          path: kurulum/DeporiaQ_Setup_0.24.3.exe
+

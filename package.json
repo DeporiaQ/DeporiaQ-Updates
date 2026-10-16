@@ -1,0 +1,1 @@
+{"private":true,"type":"module","scripts":{"test:server":"node tests/server/commerce.mjs","test:concurrency":"node tests/server/concurrency.mjs"},"devDependencies":{"@electric-sql/pglite":"0.5.8","pg":"8.16.3"}}

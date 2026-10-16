@@ -14,11 +14,20 @@ from deporiaq_analiz import REPORTS
 from deporiaq_analiz_ui import AnalysisWindow, CommandPalette
 from PySide6.QtTest import QTest
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def application():
     app=ui.QApplication.instance() or ui.QApplication([])
     app.setStyleSheet(ui.STIL)
+    original_update_run=ui.GuncellemeKontrolu.run
+    ui.GuncellemeKontrolu.run=lambda self:None  # isolate external update service
     yield app
+    from PySide6.QtCore import QCoreApplication,QEvent
+    for widget in app.topLevelWidgets():
+        widget.close()
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
+    app.processEvents()
+    ui.GuncellemeKontrolu.run=original_update_run
 
 @pytest.fixture
 def window(application,tmp_path,monkeypatch):
@@ -29,13 +38,18 @@ def window(application,tmp_path,monkeypatch):
     user=db.baglanti.execute('SELECT * FROM kullanicilar LIMIT 1').fetchone()
     monkeypatch.setattr(ui.AnaPencere,'cloud_oturumunu_yenile',lambda self:None)
     monkeypatch.setattr(ui.AnaPencere,'kurlari_yenile',lambda self:None)
+    monkeypatch.setattr(ui.AnaPencere,'guncelleme_denetle',lambda *a:None)
     w=ui.AnaPencere(db,user,None);w.yenile()
     db.urun_ekle('0012345','İzmir Kitap',120,70,10)
     uid=db.baglanti.execute('SELECT id FROM urunler LIMIT 1').fetchone()[0]
     db.merkeze_stok_girisi(uid,35)
     yield w
     for timer in (w.canli_zamanlayici,w.senkron_zamanlayici,w.kur_zamanlayici):timer.stop()
-    w.close();db.kapat()
+    w.close()
+    w.deleteLater()
+    from PySide6.QtCore import QCoreApplication,QEvent
+    QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)
+    db.kapat()
     assert not errors,errors
 
 def test_all_reports_filter_and_render(application,window):

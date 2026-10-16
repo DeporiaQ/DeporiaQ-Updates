@@ -1,0 +1,52 @@
+name: Publish verified DeporiaQ 0.24.1
+on:
+  push:
+    branches: ['codex/deporiaq-0.24.0-validation']
+    paths: ['.github/workflows/promote-0-24-1.yml']
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: publish-deporiaq-0-24-1
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: DeporiaQ/DeporiaQ-Updates
+    steps:
+      - name: Verify completed build and antivirus gates
+        run: |
+          set -euo pipefail
+          for run in 38132897215 38132897106 38134708131; do
+            result=$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .conclusion)
+            test "$result" = success
+          done
+          test "$(gh api repos/$GH_REPO/actions/runs/38132897215 --jq .head_sha)" = c11121690a62f34c2bf4c42353928dced66a690b
+      - name: Download original verified installer
+        run: |
+          set -euo pipefail
+          gh api repos/$GH_REPO/actions/artifacts/11699384116/zip > candidate.zip
+          echo '23dd3d1ac80570b4343938b320ac372d27f20d6f699631f1195c0e19cd39ce43  candidate.zip' | sha256sum -c -
+          unzip candidate.zip
+          echo 'ff06d5aab6f339056f437abbc41e10934ec82d9ee5d47fbfbfdc7708e91bf94e  DeporiaQ_Setup_0.24.1.exe' | sha256sum -c -
+          sha256sum DeporiaQ_Setup_0.24.1.exe > SHA256SUMS.txt
+          gh api 'repos/DeporiaQ/DeporiaQ-Updates/contents/DEPORIAQ_CLOUD_0.24.1_UPDATE.sql?ref=c11121690a62f34c2bf4c42353928dced66a690b' --jq .content | base64 -d > DEPORIAQ_CLOUD_0.24.1_UPDATE.sql
+      - name: Publish existing tested bytes
+        run: |
+          set -euo pipefail
+          cat > release-notes.md <<'NOTES'
+          Barkodlu satış ekranı, şube/depo stok sorgulama, müşteri teslimi ve kargo rezervasyonları. Cloud oturum yenileme ve destek formu doğrulaması düzeltildi. Ana ekranda deporiaq@gmail.com gösterilir.
+          
+          Kurulumdan önce: 0.24.0 Cloud migration kurulmuş olmalı; ardından ekteki 0.24.1 UPDATE SQL bir kez uygulanmalıdır. Yerel veritabanı yedeğinizi alın.
+          
+          Windows'ta 60 istemci testi, 31 sunucu testi, 4 eşzamanlılık senaryosu ve gerçek kurulum/geçiş kontrolleri geçti.
+          Aynı kurulum dosyası ve kurulan dosyalar güncel Microsoft Defender ile tarandı; tehdit bulunmadı. ClamAV kurulan 6 dosyada tehdit bulmadı.
+          Tarama kanıtı: https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/38134708131
+          
+          Kurulum dijital olarak imzalı değildir. Chrome bu paketin ZIP indirmesini tehlikeli olarak engellemiştir; taramalar bu uyarının kaldırıldığını veya dosyanın risksiz olduğunu kanıtlamaz. Güvenlik yazılımınızı kapatmayın.
+          Otomatik destek e-postası için sunucu yapılandırması gerekir; e-posta taslağı seçeneği mevcuttur.
+          NOTES
+          gh release create v0.24.1 DeporiaQ_Setup_0.24.1.exe SHA256SUMS.txt DEPORIAQ_CLOUD_0.24.1_UPDATE.sql --target c11121690a62f34c2bf4c42353928dced66a690b --title 'DeporiaQ 0.24.1' --notes-file release-notes.md --latest

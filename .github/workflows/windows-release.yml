@@ -4,13 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Yayın sürümü (örnek: 0.23.0)"
+        description: "Yayın sürümü (örnek: 0.24.0)"
         required: true
-        default: "0.23.0"
+        default: "0.24.0"
+      publish:
+        description: "Kanıt kapıları tamamlandıysa müşterilere yayımla"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: write
 
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
 jobs:
   build-and-release:
     runs-on: windows-2022
@@ -48,8 +56,8 @@ jobs:
       - name: Operasyon Merkezi ve başlangıç sözleşmesi testleri
         shell: pwsh
         run: |
-          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py -q
-          if ($LASTEXITCODE -ne 0) { throw "0.23.0 işlev testleri başarısız." }
+          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py -q
+          if ($LASTEXITCODE -ne 0) { throw "0.24.0 işlev testleri başarısız." }
           $tokens = $null
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'deporiaq_restart.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
@@ -68,6 +76,9 @@ jobs:
             project_url = $env:SUPABASE_URL.TrimEnd('/')
             publishable_key = $env:SUPABASE_PUBLISHABLE_KEY
           } | ConvertTo-Json | Set-Content deporiaq_cloud.json -Encoding utf8
+
+      - name: Anahtar yetki türünü doğrula
+        run: python check_client_config.py
 
       - name: Windows uygulamalarını oluştur
         shell: pwsh
@@ -101,11 +112,22 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DeporiaQ-0.23.0-test-results
+          name: DeporiaQ-0.24.0-test-results
           path: test-results/
           if-no-files-found: warn
 
+      - name: Aday kurulum dosyasını sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeporiaQ-0.24.0-candidate-setup
+          path: kurulum/DeporiaQ_Setup_0.24.0.exe
+
+      - name: Müşteri yayını hazırlık kapısı
+        if: ${{ inputs.publish }}
+        run: python check_release.py
+
       - name: Güncelleme manifestini üret
+        if: ${{ inputs.publish }}
         shell: pwsh
         run: |
           $version = "${{ inputs.version }}"
@@ -121,14 +143,16 @@ jobs:
           $manifest | ConvertTo-Json | Set-Content guncelleme_manifest.json -Encoding utf8
 
       - name: GitHub Release oluştur
+        if: ${{ inputs.publish }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = "${{ inputs.version }}"
-          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.23.0_YAYIN_NOTU.txt
+          gh release create "v$version" "kurulum\DeporiaQ_Setup_$version.exe" guncelleme_manifest.json --title "DeporiaQ $version" --notes-file DEPORIAQ_0.24.0_YAYIN_NOTU.txt
 
       - name: Manifesti ana dala gönder
+        if: ${{ inputs.publish }}
         shell: pwsh
         run: |
           Copy-Item guncelleme_manifest.json "$env:RUNNER_TEMP\guncelleme_manifest.json"
