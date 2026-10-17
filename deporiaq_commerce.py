@@ -5,13 +5,14 @@ import json
 import sqlite3
 import uuid
 from pathlib import Path
+from deporiaq_i18n import T, render, Text
 
-PLANS = [('demo','Demo',1,'30 gün • stok girişi ve satış'),('single','Single',1,'Tek bilgisayar'),
-         ('duo','Duo',3,'Yönetici dahil 3 bilgisayar'),('plus','Plus',6,'Yönetici dahil 6 bilgisayar'),
-         ('ultra','Ultra',20,'Yönetici dahil 20 bilgisayar')]
-SHORTCUTS = [('Ctrl+K','Komut arama','komut_paleti_ac'),('Ctrl+1','Ana Sayfa','home'),
-             ('Ctrl+2','Stok ve Ürünler','stok_merkezi_ac'),('Ctrl+3','Şube Satış','satis_ac'),
-             ('Ctrl+4','İnternet Siparişleri','internet_ac')]
+PLANS = [('demo','Demo',1,T('30 gün • stok girişi ve satış')),('single','Single',1,T('Tek bilgisayar')),
+         ('duo','Duo',3,T('Yönetici dahil 3 bilgisayar')),('plus','Plus',6,T('Yönetici dahil 6 bilgisayar')),
+         ('ultra','Ultra',20,T('Yönetici dahil 20 bilgisayar'))]
+SHORTCUTS = [('Ctrl+K',T('Komut arama'),'komut_paleti_ac'),('Ctrl+1',T('Ana Sayfa'),'home'),
+             ('Ctrl+2',T('Stok ve Ürünler'),'stok_merkezi_ac'),('Ctrl+3',T('Şube Satış'),'satis_ac'),
+             ('Ctrl+4',T('İnternet Siparişleri'),'internet_ac')]
 
 class CommerceError(ValueError):
     pass
@@ -31,7 +32,7 @@ class CommerceClient:
 
     def read(self,action,payload=None):
         if not self.cloud.bagli:
-            raise CommerceError('Cloud oturumu gerekli. Çevrimdışı satış veya stok değişikliği yapılamaz.')
+            raise CommerceError(T('Cloud oturumu gerekli. Çevrimdışı satış veya stok değişikliği yapılamaz.'))
         try:
             endpoint='dpq_workspace' if action.startswith('workspace_') else 'dpq_call'
             return self.cloud._istek('/rest/v1/rpc/'+endpoint,'POST',{
@@ -41,7 +42,7 @@ class CommerceClient:
 
     def register(self):
         import platform
-        return self.read('register',{'name':platform.node() or 'Bilgisayar'})
+        return self.read('register',{'name':platform.node() or T('Bilgisayar')})
 
     def status(self):
         return self.read('status')
@@ -59,7 +60,7 @@ class CommerceClient:
             if row:
                 request_id,old_action,old_body=row
                 if old_action!=action or old_body!=body:
-                    raise CommerceError('Son işlemin sonucu belirsiz. Önce İnternet Satışları / Bekleyen İşlemi Kontrol Et düğmesini kullanın.')
+                    raise CommerceError(T('Son işlemin sonucu belirsiz. Önce İnternet Satışları / Bekleyen İşlemi Kontrol Et düğmesini kullanın.'))
             else:
                 request_id=str(uuid.uuid4())
                 db.execute('INSERT INTO requests VALUES(?,?,?,?,?,NULL)',(request_id,scope,action,body,'pending'))
@@ -76,7 +77,7 @@ class CommerceClient:
             result=self.read(action,{**payload,'request_id':request_id})
         except CommerceError as e:
             # Server-raised business error means the SQL transaction rolled back.
-            if any(f'Cloud isteği reddedildi ({code})' in str(e) for code in (400,401,403,404,409,422)):
+            if any(T('Cloud isteği reddedildi ({v0})', v0=code) in str(e) for code in (400,401,403,404,409,422)):
                 with self._db() as db:db.execute("UPDATE requests SET state='rejected' WHERE id=?",(request_id,))
             raise
         with self._db() as db:
@@ -86,7 +87,7 @@ class CommerceClient:
     def reconcile(self):
         scope=f'{self.cloud.company_id}:{getattr(self.cloud,"user_id","")}:{self.cloud.cihaz_kimligi}'
         with self._db() as db:row=db.execute("SELECT action,body FROM requests WHERE scope=? AND state='pending'",(scope,)).fetchone()
-        if not row:return {'message':'Bekleyen işlem yok.'}
+        if not row:return {'message':T('Bekleyen işlem yok.')}
         return self.mutate(row[0],json.loads(row[1]))
 
     def snapshot(self):
@@ -99,7 +100,7 @@ class CommerceClient:
         """
         data=self.snapshot(); vt=self.cloud.vt
         if vt.ayar_getir('dpq_company_id',self.cloud.company_id)!=self.cloud.company_id:
-            raise CommerceError('Bu önbellek başka bir işletmeye ait. Ayrı kurulum gerekir.')
+            raise CommerceError(T('Bu önbellek başka bir işletmeye ait. Ayrı kurulum gerekir.'))
         with vt.baglanti:
             previous=vt.ayar_getir('cloud_etkin','0')
             vt.ayar_kaydet('cloud_etkin','0')
@@ -123,7 +124,7 @@ class CommerceClient:
                 sign=-1 if event['kind']=='return' else 1
                 vt.baglanti.execute("INSERT INTO stok_hareketleri(urun_id,kaynak_konum_id,miktar,hareket_turu,tarih_saat,aciklama,birim_fiyat,toplam_tutar,alis_fiyati) VALUES(?,?,?,?,?,?,?,?,?)",
                     (pm[event['product_id']],lm[event['location_id']],event['quantity'],'IADE' if sign<0 else 'SATIS',dt,
-                     'Sunucu işlemi '+event['id'],event['unit_price'],sign*float(event['unit_price'])*float(event['quantity']),event['unit_cost']))
+                     T('Sunucu işlemi ')+event['id'],event['unit_price'],sign*float(event['unit_price'])*float(event['quantity']),event['unit_cost']))
                 vt.baglanti.execute('INSERT INTO dpq_imported_events VALUES(?)',(event['id'],))
             vt.ayar_kaydet('cloud_etkin',previous)
         return data

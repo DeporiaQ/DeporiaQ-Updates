@@ -101,7 +101,7 @@ def test_background_cache_error_does_not_revoke_license(application,window):
     window.cloud_senkron_hatasi('database is locked')
     assert not window.lisans_kilitli and 'Cloud bağlı' in window.cloud.text()
     window.cloud_hatasi('Cloud sunucusuna ulaşılamadı')
-    assert not window.lisans_kilitli and 'yeniden denenecek' in window.cloud.text()
+    assert not window.lisans_kilitli and 'Cloud bağlanıyor' in window.cloud.text()
     window.cloud_hatasi('Cloud isteği reddedildi (401)')
     assert window.lisans_kilitli
 

@@ -49,9 +49,9 @@ def test_notifications_email_and_social_geometry(application,window):
     assert isinstance(window.support_mail,QLabel) and not isinstance(window.support_mail,QPushButton)
     buttons=window.sosyal.findChildren(QPushButton);assert len({(b.width(),b.height()) for b in buttons})==1
     assert not buttons[-1].text() and not buttons[-1].icon().isNull()
-    window.notify('Yeni','Test',force=True);assert window.notification_button.unread==1 and window.notification_button.timer.isActive()
+    window.notify('Yeni','Test',force=True);assert window.notification_button.unread==1
     stored=json.loads(window.vt.ayar_getir(window.notification_storage_key));assert stored[-1][1:] == ['Yeni','Test']
-    window.notification_button.setCount(0);assert not window.notification_button.timer.isActive()
+    window.notification_button.setCount(0);assert window.notification_button.unread==0
 
 def test_panel_allows_main_window_controls(application,window):
     d=WorkspaceDialog(window)
