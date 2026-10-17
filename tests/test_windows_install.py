@@ -103,12 +103,12 @@ def main():
     report = {"platform": sys.getwindowsversion().build, "tests": {}}
     try:
         # Fresh silent install must launch too; no test code starts DeporiaQ.exe.
-        result = subprocess.run([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+        result = subprocess.run([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LANG=turkish",
                                  f"/DIR={stage}", f"/LOG={OUT / 'fresh-install.log'}"], timeout=180)
         assert result.returncode == 0, result.returncode
         report["tests"]["fresh"] = wait_for_window(stage, "fresh")
         old_pids={p.pid for p in stage_processes(stage)}
-        result=subprocess.run([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+        result=subprocess.run([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LANG=english",
                                f"/DIR={stage}", f"/LOG={OUT / 'open-app-upgrade.log'}"], timeout=180)
         assert result.returncode==0
         report['tests']['open-app-upgrade']=wait_for_window(stage,'open-app-upgrade')

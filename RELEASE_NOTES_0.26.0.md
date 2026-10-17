@@ -3,6 +3,7 @@
 Aday sürüm. Canlı SQL geçişi, asistan hizmeti ve Windows yayın doğrulamaları tamamlanmadan normal güncelleme kanalına verilmez.
 
 - Türkçe ve İngilizce arayüz; sol menüde yazısız TR/UK bayrakları. Dil seçimi kaydedilir. Ürün adları, barkodlar ve açık form girişleri korunur.
+- Kurulum ve otomatik güncelleme mesajları da iki dili destekler; güncelleyici uygulamadaki dil seçimini izler.
 - Ortalanmış, yarı saydam üst arama alanı; büyüteç alanın içinde. Menüler, ürün adları, barkodlar, ürün ayrıntıları ve konumlar birlikte aranır. Türkçe harfler aramada desteklenir.
 - Arama sonucundan ürünün stok ekranına veya menüsüne geçiş. İşletme sınırı ve erişim kontrolü sunucuda uygulanır.
 - DeporiaQ Asistan uygulama içinde bir yan panelde çalışır. Gerçek OpenAI API bağlantısı sunucu üzerinden kurulur; anahtar masaüstüne taşınmaz. Asistan kayıt değiştirmez ve canlı stok gördüğünü iddia etmez.

@@ -1,4 +1,4 @@
-"""DeporiaQ 0.23.0 görünür ilerlemeli güvenli güncelleme yardımcısı."""
+"""DeporiaQ bilingual update helper with verified downloads and visible progress."""
 import ctypes
 import hashlib
 import json
@@ -45,9 +45,25 @@ def ayarlari_oku():
 def ingilizce_mi():
     try:
         yol = Path(os.getenv("LOCALAPPDATA", Path.home())) / "DeporiaQ" / "ayarlar.json"
-        return json.loads(yol.read_text(encoding="utf-8")).get("uygulama_dili") == "en"
+        ayarlar = json.loads(yol.read_text(encoding="utf-8"))
+        return ayarlar.get("ui_language", ayarlar.get("uygulama_dili", "tr")) == "en"
     except (OSError, ValueError, AttributeError):
         return False
+
+
+def metin(tr, en, english=None, **values):
+    """Keep the standalone Tk updater independent of Qt and its translator."""
+    if english is None:
+        english = ingilizce_mi()
+    return (en if english else tr).format(**values)
+
+
+def surum_notlari(manifest, english=None):
+    if english is None:
+        english = ingilizce_mi()
+    notes = manifest.get("notes_en" if english else "notes", "")
+    return str(notes or metin("Stok ve işletme verileriniz korunacaktır.",
+                             "Your stock and business data will be preserved.", english))[:150]
 
 
 def tek_ornek_calissin():
@@ -73,7 +89,8 @@ def manifest_getir():
         return None
     if not url.lower().startswith("https://") or len(ozet) != 64 or any(c not in "0123456789abcdef" for c in ozet):
         return None
-    return {"version": yeni, "url": url, "sha256": ozet, "notes": str(veri.get("notes", ""))}
+    return {"version": yeni, "url": url, "sha256": ozet,
+            "notes": str(veri.get("notes", "") or ""), "notes_en": str(veri.get("notes_en", "") or "")}
 
 
 class Bildirim:
@@ -92,7 +109,7 @@ class Bildirim:
         tk.Label(govde, text="◆  DeporiaQ Update Available" if self.en else "◆  DeporiaQ Güncellemesi Hazır", fg="#f8fafc", bg="#111827", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         aciklama = f"Version {manifest['version']} is ready. Install now?" if self.en else f"Yeni sürüm {manifest['version']} hazır. Şimdi kurmak ister misiniz?"
         tk.Label(govde, text=aciklama, fg="#cbd5e1", bg="#111827", font=("Segoe UI", 10), wraplength=365, justify="left").pack(anchor="w", pady=(12, 5))
-        self.durum = tk.StringVar(value=manifest["notes"][:150] or "Stok ve işletme verileriniz korunacaktır.")
+        self.durum = tk.StringVar(value=surum_notlari(manifest, self.en))
         tk.Label(govde, textvariable=self.durum, fg="#94a3b8", bg="#111827", font=("Segoe UI", 9), wraplength=365, justify="left").pack(anchor="w")
         self.yuzde = tk.StringVar(value="")
         self.ilerleme_degeri = tk.DoubleVar(value=0)
@@ -111,14 +128,14 @@ class Bildirim:
 
     def ilerleme_ayarla(self, deger, metin):
         def uygula():
-            self.ilerleme_degeri.set(max(0,min(100,deger)));self.yuzde.set(f"%{int(deger)}");self.durum.set(metin)
+            self.ilerleme_degeri.set(max(0,min(100,deger)));self.yuzde.set(f"{int(deger)}%" if self.en else f"%{int(deger)}");self.durum.set(metin)
         self.root.after(0,uygula)
 
     def kurulum_animasyonu(self):
         if not self.kurulum_suruyor:return
         mevcut=float(self.ilerleme_degeri.get())
         if mevcut<99:
-            self.ilerleme_degeri.set(mevcut+1);self.yuzde.set(f"%{int(mevcut+1)}")
+            self.ilerleme_degeri.set(mevcut+1);self.yuzde.set(f"{int(mevcut+1)}%" if self.en else f"%{int(mevcut+1)}")
         self.root.after(700,self.kurulum_animasyonu)
 
     def indir(self):
@@ -137,22 +154,22 @@ class Bildirim:
                         parca = cevap.read(1024 * 1024)
                         if not parca: break
                         toplam += len(parca)
-                        if toplam > AZAMI_GUNCELLEME_BOYUTU: raise ValueError("Dosya güvenli indirme sınırını aşıyor.")
+                        if toplam > AZAMI_GUNCELLEME_BOYUTU: raise ValueError(metin("Dosya güvenli indirme sınırını aşıyor.", "The file exceeds the safe download size limit.", self.en))
                         dosya.write(parca); ozet.update(parca)
                         oran=(toplam/beklenen) if beklenen else min(.95,toplam/(80*1024*1024))
-                        self.ilerleme_ayarla(5+oran*73,f"DeporiaQ güncelleniyor • {toplam/(1024*1024):.1f} MB indirildi")
-                self.ilerleme_ayarla(82,"DeporiaQ güncelleniyor • Dosya güvenliği doğrulanıyor…")
+                        self.ilerleme_ayarla(5+oran*73,metin("DeporiaQ güncelleniyor • {mb:.1f} MB indirildi", "Updating DeporiaQ • {mb:.1f} MB downloaded", self.en, mb=toplam/(1024*1024)))
+                self.ilerleme_ayarla(82,metin("DeporiaQ güncelleniyor • Dosya güvenliği doğrulanıyor…", "Updating DeporiaQ • Verifying file integrity…", self.en))
                 if not secrets.compare_digest(ozet.hexdigest(), self.manifest["sha256"]):
-                    raise ValueError("Güvenlik doğrulaması başarısız.")
+                    raise ValueError(metin("Güvenlik doğrulaması başarısız.", "File integrity verification failed.", self.en))
                 os.replace(gecici, hedef)
-                self.ilerleme_ayarla(88,"DeporiaQ güncelleniyor • Kurulum hazırlanıyor…")
+                self.ilerleme_ayarla(88,metin("DeporiaQ güncelleniyor • Kurulum hazırlanıyor…", "Updating DeporiaQ • Preparing installation…", self.en))
                 time.sleep(.7)
-                self.ilerleme_ayarla(94,"DeporiaQ güncelleniyor • Windows izni ve kurulum bekleniyor…")
+                self.ilerleme_ayarla(94,metin("DeporiaQ güncelleniyor • Windows izni ve kurulum bekleniyor…", "Updating DeporiaQ • Waiting for Windows approval and installation…", self.en))
                 self.kurulum_suruyor=True;self.root.after(700,self.kurulum_animasyonu)
                 sonuc=kurulumu_calistir(hedef)
                 self.kurulum_suruyor=False
-                if sonuc.returncode!=0:raise RuntimeError(f"Kurulum tamamlanamadı (kod {sonuc.returncode}).")
-                self.ilerleme_ayarla(100,"Güncelleme tamamlandı • DeporiaQ yeniden açılıyor…")
+                if sonuc.returncode!=0:raise RuntimeError(metin("Kurulum tamamlanamadı (kod {code}).", "Installation could not be completed (code {code}).", self.en, code=sonuc.returncode))
+                self.ilerleme_ayarla(100,metin("Güncelleme tamamlandı • DeporiaQ yeniden açılıyor…", "Update completed • Reopening DeporiaQ…", self.en))
                 # Setup owns relaunch, including upgrades from older notifiers.
                 self.root.after(1000,self.kapat)
             except Exception as hata:
@@ -160,7 +177,7 @@ class Bildirim:
                 self.kurulum_suruyor=False
                 try: gecici.unlink(missing_ok=True)
                 except OSError: pass
-                self.root.after(0,lambda hata=hata:(self.yuzde.set("!"),self.durum.set(f"Güncelleme tamamlanamadı: {hata}"),self.kur.configure(state="normal"),self.pencere.protocol("WM_DELETE_WINDOW",self.kapat)))
+                self.root.after(0,lambda hata=hata:(self.yuzde.set("!"),self.durum.set(metin("Güncelleme tamamlanamadı: {error}", "Update could not be completed: {error}", self.en, error=hata)),self.kur.configure(state="normal"),self.pencere.protocol("WM_DELETE_WINDOW",self.kapat)))
         threading.Thread(target=islem, daemon=True).start()
 
     def kapat(self):
@@ -178,7 +195,8 @@ def kurulumu_calistir(hedef):
         ctypes.windll.kernel32.SetDllDirectoryW(None)
     try:
         return subprocess.run([str(hedef),"/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART",
-                               "/CLOSEAPPLICATIONS","/FORCECLOSEAPPLICATIONS",f"/LOG={log}"],
+                               "/CLOSEAPPLICATIONS","/FORCECLOSEAPPLICATIONS",f"/LOG={log}",
+                               "/LANG=english" if ingilizce_mi() else "/LANG=turkish"],
                               env=clean_environment(),close_fds=True)
     finally:
         if os.name == "nt" and getattr(sys,"frozen",False):
@@ -196,13 +214,13 @@ def sessiz_indir_ve_kur(manifest):
             parca=cevap.read(1024*1024)
             if not parca:break
             toplam+=len(parca)
-            if toplam>AZAMI_GUNCELLEME_BOYUTU:raise ValueError("Dosya güvenli indirme sınırını aşıyor.")
+            if toplam>AZAMI_GUNCELLEME_BOYUTU:raise ValueError(metin("Dosya güvenli indirme sınırını aşıyor.", "The file exceeds the safe download size limit."))
             dosya.write(parca);ozet.update(parca)
     if not secrets.compare_digest(ozet.hexdigest(),manifest["sha256"]):
-        gecici.unlink(missing_ok=True);raise ValueError("Güncelleme güvenlik doğrulaması başarısız.")
+        gecici.unlink(missing_ok=True);raise ValueError(metin("Güncelleme güvenlik doğrulaması başarısız.", "Update integrity verification failed."))
     os.replace(gecici,hedef);time.sleep(2)
     sonuc=kurulumu_calistir(hedef)
-    if sonuc.returncode != 0:raise RuntimeError(f"Kurulum tamamlanamadı (kod {sonuc.returncode}).")
+    if sonuc.returncode != 0:raise RuntimeError(metin("Kurulum tamamlanamadı (kod {code}).", "Installation could not be completed (code {code}).", code=sonuc.returncode))
     # Setup owns relaunch. Never start a duplicate application here.
 
 

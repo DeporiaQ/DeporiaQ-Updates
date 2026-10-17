@@ -26,9 +26,18 @@ SetupIconFile=deporiaq_icon.ico
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[CustomMessages]
+turkish.DesktopShortcut=Masaüstü kısayolu oluştur
+english.DesktopShortcut=Create a desktop shortcut
+turkish.AdditionalTasks=Ek görevler:
+english.AdditionalTasks=Additional tasks:
+turkish.LaunchDeporiaQ=DeporiaQ'yu başlat
+english.LaunchDeporiaQ=Launch DeporiaQ
 
 [Tasks]
-Name: "desktopicon"; Description: "Masaüstü kısayolu oluştur"; GroupDescription: "Ek görevler:"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "{cm:AdditionalTasks}"; Flags: unchecked
 
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -43,7 +52,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{cmd}"; Parameters: "/C schtasks /Delete /F /TN ""DeporiaQ Update Check"" >nul 2>&1"; Flags: runhidden waituntilterminated
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\deporiaq_restart.ps1"" -AppPath ""{app}\{#MyAppExeName}"" -Version ""{#MyAppVersion}"" -SetupProcessId {code:SetupPID}"; Description: "DeporiaQ'yu başlat"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser runhidden
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\deporiaq_restart.ps1"" -AppPath ""{app}\{#MyAppExeName}"" -Version ""{#MyAppVersion}"" -SetupProcessId {code:SetupPID}"; Description: "{cm:LaunchDeporiaQ}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser runhidden
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\deporiaq_restart.ps1"" -AppPath ""{app}\{#MyAppExeName}"" -Version ""{#MyAppVersion}"" -SetupProcessId {code:SetupPID}"; WorkingDir: "{app}"; Flags: nowait skipifnotsilent runasoriginaluser runhidden
 
 [UninstallRun]

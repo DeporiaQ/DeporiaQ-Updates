@@ -45,6 +45,19 @@ def test_task_status_remains_server_enum_in_english(application,window,monkeypat
     d.fields['name'].clear();d.remember_saved();d.close();window.change_language('tr')
 
 
+def test_live_help_and_unsaved_form_titles(application,window,monkeypatch):
+    sync(monkeypatch);help_dialog=ui.YardimMerkezi(window.vt,window)
+    d=RecordsDialog(WorkspaceClient(),'task',window)
+    d.fields['name'].setText('Satışlar');d.mark_edited()
+    for code,fragment in [('en','Unsaved change'),('tr','Kaydedilmemiş değişiklik')]:
+        window.change_language(code);application.processEvents()
+        assert fragment.casefold() in d.windowTitle().casefold()
+        assert d.fields['name'].text()=='Satışlar'
+        texts=[x.toPlainText() for x in help_dialog.findChildren(ui.QPlainTextEdit)]
+        assert any(('Only the primary account owner' if code=='en' else 'yalnızca ana hesap sahibi') in x for x in texts)
+    d.remember_saved();d.close();help_dialog.close()
+
+
 def test_header_geometry_light_and_flags(application,window):
     out=Path(__file__).resolve().parents[1]/'test-results';out.mkdir(exist_ok=True)
     for code in ['tr','en']:
