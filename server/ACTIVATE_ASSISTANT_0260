@@ -1,0 +1,5 @@
+2026-10-17: Recheck readiness for tested 0.26.0 application source
+7ba5ddfe0813083488700eed4c866372aea48664.
+The deployment workflow requires SQL 0.26.0 and OPENAI_API_KEY before
+calling the provider or changing the server. Missing requirements leave
+deployment skipped and the normal update channel at 0.25.0.
