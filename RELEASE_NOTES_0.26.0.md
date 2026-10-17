@@ -15,4 +15,4 @@ Aday sürüm. Canlı SQL geçişi, asistan hizmeti ve Windows yayın doğrulamal
 
 Sunucu kurulumu: `server/ASSISTANT_SETUP_0260.md`.
 
-Yerel doğrulama: uygulama davranış testleri, farklı pencere boylarında Qt çizimi, owner/yönetici ayrımı, şirketler arası arama yalıtımı, değişmeyen stok/abonelik kayıtları, asistan kimlik/limit/servis hata testleri. Windows aday CI sonucu ayrıca kontrol edilmelidir.
+Doğrulama: 95 uygulama testi, farklı pencere boylarında Qt çizimi, owner/yönetici ayrımı, şirketler arası arama yalıtımı, değişmeyen stok/abonelik kayıtları ve 8 asistan sınır/hata testi geçti. Windows kurulum, açık uygulamada yükseltme ve otomatik yeniden açılma başarılı. Test edilen paket Microsoft Defender ve ClamAV taramalarından geçti. Kanıtlar ve canlı kurulumda kalanlar: `RELEASE_0.26.0.md`.
