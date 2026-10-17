@@ -1,89 +1,141 @@
-"""In-application assistant. The desktop never receives the provider API key."""
-import json
-import urllib.request
-import urllib.error
-from PySide6.QtCore import Qt,QTimer
-from PySide6.QtWidgets import QDockWidget,QScrollArea,QVBoxLayout,QHBoxLayout,QFrame
-from deporiaq_i18n import T,language,Localized,QLabel,QPlainTextEdit,QPushButton,QWidget
-from deporiaq_commerce_ui import Job
+"""Offline in-application guide. No external AI service or API key is used."""
+from PySide6.QtCore import Qt,QTimer,QEvent
+from PySide6.QtWidgets import QDockWidget,QScrollArea,QVBoxLayout,QHBoxLayout,QFrame,QSizePolicy,QLayout
+from deporiaq_i18n import T,render,Localized,QLabel,QPlainTextEdit,QPushButton,QWidget,QComboBox
+from deporiaq_translations import EN
+from deporiaq_assistant_guide import TOPICS,BY_KEY,lookup,fold,FOLLOW_UP,GREETINGS
 
-ERRORS={
- 'AI_NOT_CONFIGURED':T('DeporiaQ Asistan henüz sunucuda etkinleştirilmedi. Kullanım Rehberi bölümünü açabilirsiniz.'),
- 'AI_LIMIT':T('Asistan kullanım sınırına ulaşıldı. Bir süre sonra tekrar deneyin.'),
- 'ACCESS':T('Asistan için etkin abonelik, kullanıcı ve cihaz kaydı gerekli.'),
- 'AUTH':T('Cloud oturumunuzu doğrulayıp tekrar deneyin.'),
- 'INPUT':T('Sorunuzu 1–2000 karakter arasında yazın.'),
- 'AI_INCOMPLETE':T('Yanıt tamamlanamadı. Lütfen tekrar deneyin.'),
- 'AI_UNAVAILABLE':T('Asistana şu anda ulaşılamıyor. Lütfen tekrar deneyin.'),
+for topic in TOPICS:
+    EN[topic.title]=topic.title_en
+    EN[topic.body]=topic.body_en
+
+# Explicit navigation allowlist. Questions can never supply a method or command.
+ACTIONS={
+ 'catalog':(T('Ürünler ve Stokları Aç'),'urun_yonetimi_ac'),
+ 'stock_menu':(T('Stok ve Ürünleri Aç'),'stok_merkezi_ac'),
+ 'receive':(T('Stok Girişini Aç'),'stok_girisi_ac'),
+ 'transfer':(T('Stok Transferini Aç'),'transfer_ac'),
+ 'count':(T('Stok Sayımını Aç'),'araclar_ac'),
+ 'sales':(T('Satışlar Menüsünü Aç'),'satis_merkezi_ac'),
+ 'branch_sale':(T('Şube Satış / Rezervasyonu Aç'),'satis_ac'),
+ 'management':(T('Yönetim Menüsünü Aç'),'yonetim_merkezi_ac'),
+ 'reports':(T('Raporlar Menüsünü Aç'),'rapor_merkezi_ac'),
+ 'operations':(T('Operasyon Merkezini Aç'),'operasyon_ac'),
+ 'backup':(T('Yedekleme Ekranını Aç'),'yedek_al'),
+ 'settings':(T('Ayarları Aç'),'ayarlar_ac'),
+ 'plans':(T('Paketim ve Aboneliği Aç'),'paket_ac'),
+ 'support':(T('Destek Talebi Ekranını Aç'),'destek_ac'),
+ 'help':(T('Kullanım Rehberini Aç'),'yardim_ac'),
+ 'search':(T('Üst Arama Alanını Aç'),'global_search_open'),
+ 'notifications':(T('Bildirimleri Aç'),'notification_history'),
+ 'shortcuts':(T('Kısayolları Aç'),'kisayollar_ac'),
+ 'updates':(T('Güncellemeleri Denetle'),'guncelleme_denetle'),
 }
-
-def ask_server(cloud,action,messages=None,locale=None):
-    if not cloud.bagli:raise ValueError(str(ERRORS['AUTH']))
-    # Refresh credentials using the shared session before the longer model request.
-    cloud._istek('/rest/v1/rpc/dpq_call','POST',{'p_action':'status','p_payload':{},'p_device':cloud.cihaz_kimligi})
-    with cloud._session_lock:
-        url=cloud.url;key=cloud.anahtar;token=cloud.access_token;device=cloud.cihaz_kimligi
-    body={'action':action,'device':device,'language':locale or language()}
-    if action=='ask':body['messages']=messages
-    request=urllib.request.Request(url+'/functions/v1/deporiaq-assistant',data=json.dumps(body,ensure_ascii=False).encode(),headers={'apikey':key,'Authorization':'Bearer '+token,'Content-Type':'application/json'},method='POST')
-    try:
-        with urllib.request.urlopen(request,timeout=45) as response:data=json.loads(response.read(64000))
-        if action=='ask' and not isinstance(data.get('answer'),str):raise ValueError(str(ERRORS['AI_UNAVAILABLE']))
-        return data
-    except urllib.error.HTTPError as error:
-        try:code=json.loads(error.read(64000)).get('code','AUTH' if error.code==401 else 'AI_UNAVAILABLE')
-        except (ValueError,TypeError,AttributeError):code='AI_UNAVAILABLE'
-        raise ValueError(str(ERRORS.get(code,ERRORS['AI_UNAVAILABLE']))) from None
-    except (urllib.error.URLError,TimeoutError):raise ValueError(str(ERRORS['AI_UNAVAILABLE'])) from None
+ADMIN_ACTIONS={'management','operations','backup'}
+BUSINESS_ACTIONS={'catalog','stock_menu','receive','transfer','count','sales','branch_sale','management','reports','operations','backup'}
+WRITE_SCREENS={'receive','transfer','count','sales','branch_sale'}
 
 class AssistantPanel(Localized,QDockWidget):
+    MAX_MESSAGES=24
     def __init__(self,window):
-        super().__init__(window);self.setWindowTitle(T('DeporiaQ Asistan'));self.window=window;self.job=None;self.history=[];self.ready=False
+        super().__init__(window);self.setWindowTitle(T('DeporiaQ Asistan'));self.window=window;self.job=None;self.history=[];self.ready=True;self.last_topic=None
         self.setObjectName('assistantDock');self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable);self.setMinimumWidth(345)
-        root=QWidget();layout=QVBoxLayout(root);layout.setContentsMargins(18,18,18,18);layout.setSpacing(12)
+        root=QWidget();layout=QVBoxLayout(root);layout.setContentsMargins(16,14,16,14);layout.setSpacing(10)
         heading=QLabel(T('DeporiaQ Asistan'));heading.setObjectName('sayfaBaslik');layout.addWidget(heading)
-        self.status=QLabel(T('Bağlantı kontrol ediliyor…'));self.status.setWordWrap(True);layout.addWidget(self.status)
-        note=QLabel(T('DeporiaQ kullanımı hakkında sorun. Yalnızca yazdığınız mesajlar yapay zekâ hizmetine gönderilir. Parola veya özel müşteri bilgisi yazmayın.'));note.setWordWrap(True);note.setObjectName('soluk');layout.addWidget(note)
-        self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.messages=QWidget();self.messages_layout=QVBoxLayout(self.messages);self.messages_layout.setAlignment(Qt.AlignmentFlag.AlignTop);self.scroll.setWidget(self.messages);layout.addWidget(self.scroll,1)
-        self.input=QPlainTextEdit();self.input.setPlaceholderText(T('Örneğin: Şubeler arası transfer nasıl yapılır?'));self.input.setMaximumHeight(100);layout.addWidget(self.input)
+        self.status=QLabel(T('Çevrimdışı kullanım rehberi'));self.status.setWordWrap(True);layout.addWidget(self.status)
+        note=QLabel(T('Sorunuzu hazır kullanım anlatımlarıyla eşleştirir. Mesajlarınız bu bilgisayarda kalır; canlı stok okumaz ve işlem yapmaz.'));note.setWordWrap(True);note.setObjectName('soluk');layout.addWidget(note)
+        self.topics=QComboBox();self.topics.setAccessibleName(T('Rehber konusu'));self.topics.addItem(T('Bir konu seçin…'),'')
+        for topic in TOPICS:self.topics.addItem(T(topic.title),topic.key)
+        self.topics.activated.connect(self.selected_topic);layout.addWidget(self.topics)
+        self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.messages=QWidget();self.messages_layout=QVBoxLayout(self.messages);self.messages_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.messages_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);self.scroll.setWidget(self.messages);layout.addWidget(self.scroll,1)
+        self.input=QPlainTextEdit();self.input.setPlaceholderText(T('Örneğin: Şubeler arası transfer nasıl yapılır?'));self.input.setAccessibleName(T('Kullanım sorunuzu yazın'));self.input.setMaximumHeight(86);self.input.installEventFilter(self);layout.addWidget(self.input)
+        self.input.textChanged.connect(self.input_changed)
         bar=QHBoxLayout();self.send=QPushButton(T('Gönder'));self.send.setObjectName('birincil');self.send.clicked.connect(self.submit);bar.addWidget(self.send)
         self.clear=QPushButton(T('Yeni sohbet'));self.clear.clicked.connect(self.reset);bar.addWidget(self.clear);layout.addLayout(bar)
-        self.retry=QPushButton(T('Bağlantıyı yeniden dene'));self.retry.clicked.connect(self.check);layout.addWidget(self.retry)
-        self.setWidget(root);self.resize(390,650)
-    def run(self,fn,done):
-        if self.job:return
-        self.send.setEnabled(False);self.clear.setEnabled(False);self.retry.setEnabled(False)
-        self.job=Job(fn,self);self.job.finished.connect(lambda:self.finished(done));self.job.start()
-    def finished(self,done):
-        job=self.job;self.job=None;self.clear.setEnabled(True);self.retry.setEnabled(True)
-        if job.error:self.status.setText(job.error)
-        else:done(job.result)
-        self.send.setEnabled(self.ready);job.deleteLater()
+        self.setWidget(root);self.resize(390,650);self.reset()
+
     def check(self):
-        self.status.setText(T('Bağlantı kontrol ediliyor…'))
-        self.run(lambda:ask_server(self.window.cloud_client,'status'),self.checked)
-    def checked(self,result):
-        self.ready=bool(result.get('ready'));self.status.setText(T('Yapay zekâ hazır · Uygulama kullanım desteği'))
-    def append(self,name,text):
-        frame=QFrame();frame.setObjectName('assistantMessage');box=QVBoxLayout(frame)
+        # Kept as a local availability hook for the main window; no network check.
+        self.ready=True;self.status.setText(T('Çevrimdışı kullanım rehberi'))
+
+    def input_changed(self):
+        length=len(self.input.toPlainText().strip());self.send.setEnabled(0<length<=2000)
+        if length>2000:self.status.setText(T('Sorunuzu en fazla 2000 karakterle yazın.'))
+        else:self.status.setText(T('Çevrimdışı kullanım rehberi'))
+
+    def eventFilter(self,obj,event):
+        if obj is self.input and event.type()==QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+            if not event.isAutoRepeat():self.submit()
+            return True
+        return super().eventFilter(obj,event)
+
+    def unavailable(self,action):
+        if action not in ACTIONS:return T('Bu ekran rehberden açılamıyor.')
+        role=self.window.kullanici['rol']
+        if action in ADMIN_ACTIONS and role!='ANA_YONETICI':return T('Bu ekran için ana yönetici yetkisi gerekir.')
+        if action in BUSINESS_ACTIONS and getattr(self.window,'lisans_kilitli',False):return T('Bu ekran için etkin abonelik gerekir.')
+        cloud_role=getattr(getattr(self.window,'cloud_client',None),'role','')
+        if action in WRITE_SCREENS and (role=='GORUNTULEYICI' or cloud_role=='viewer'):return T('Görüntüleyici hesabı bu işlem ekranını açamaz.')
+        return None
+
+    def navigate(self,action):
+        reason=self.unavailable(action)
+        if reason:self.status.setText(reason);return
+        method=getattr(self.window,ACTIONS[action][1],None)
+        if not callable(method):self.status.setText(T('Bu ekran rehberden açılamıyor.'));return
+        # This only opens an existing, permission-checked screen. Never submit it.
+        method()
+
+    def append(self,name,text,actions=(),choices=()):
+        frame=QFrame();frame.setObjectName('assistantMessage');frame.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Minimum);box=QVBoxLayout(frame)
         label=QLabel(name);label.setObjectName('soluk');box.addWidget(label)
-        content=QLabel(text);content.setTextFormat(Qt.TextFormat.PlainText);content.setWordWrap(True);content.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);box.addWidget(content)
+        content=QLabel(text);content.setTextFormat(Qt.TextFormat.PlainText);content.setWordWrap(True);content.setMinimumWidth(0)
+        content.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Minimum)
+        content.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);box.addWidget(content)
+        for key in choices:
+            button=QPushButton(T(BY_KEY[key].title));button.setMinimumHeight(38);button.setProperty('topic_id',key);button.clicked.connect(lambda checked=False,k=key:self.show_topic(k));box.addWidget(button)
+        for action in actions:
+            button=QPushButton(ACTIONS[action][0]);button.setMinimumHeight(38);button.setProperty('guide_action',action)
+            reason=self.unavailable(action)
+            if reason:button.setEnabled(False);button.setToolTip(reason)
+            button.clicked.connect(lambda checked=False,a=action:self.navigate(a));box.addWidget(button)
         self.messages_layout.addWidget(frame)
+        while self.messages_layout.count()>self.MAX_MESSAGES:
+            old=self.messages_layout.takeAt(0).widget();old.hide();old.deleteLater()
         QTimer.singleShot(0,self,lambda:self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
+
+    def selected_topic(self,index):
+        key=self.topics.itemData(index)
+        if key:self.show_topic(key)
+        self.topics.setCurrentIndex(0)
+
+    def show_topic(self,key):
+        topic=BY_KEY[key];self.last_topic=key
+        self.append(T(topic.title),T(topic.body),topic.actions)
+        self.status.setText(T('İlgili düğme yalnızca ekranı açar; işlemi siz onaylarsınız.'))
+
     def submit(self):
         text=self.input.toPlainText().strip()
-        if self.job or not self.ready:return
-        if not 1<=len(text)<=2000:self.status.setText(ERRORS['INPUT']);return
-        self.pending={'role':'user','content':text};messages=self.history[-6:]+[self.pending];locale=language()
-        self.append(T('Siz'),text);self.input.clear();self.status.setText(T('Yanıt hazırlanıyor…'))
-        self.run(lambda:ask_server(self.window.cloud_client,'ask',messages,locale),self.answered)
-    def answered(self,result):
-        answer=result['answer'];self.history=(self.history+[self.pending,{'role':'assistant','content':answer[:2000]}])[-6:]
-        self.append(T('DeporiaQ Asistan'),answer);self.status.setText(T('Yanıtı işlemi uygulamadan önce kontrol edin.'))
+        if not 1<=len(text)<=2000:self.status.setText(T('Sorunuzu 1–2000 karakter arasında yazın.'));return
+        self.append(T('Siz'),text);self.history=(self.history+[text])[-12:];self.input.clear()
+        normalized=fold(text)
+        if normalized in GREETINGS:
+            self.append(T('DeporiaQ Asistan'),T('Merhaba! DeporiaQ kullanımını anlatabilirim. Bir konu seçin veya nasıl yapılacağını sorun.'),choices=('receive','sale','transfer'));return
+        keys=(self.last_topic,) if normalized in FOLLOW_UP and self.last_topic else lookup(text)
+        if len(keys)==1:self.show_topic(keys[0])
+        elif keys:
+            self.last_topic=None
+            self.append(T('Konu seçimi'),T('Sorunuz birden fazla konuyla eşleşti. Hangisini açalım?'),choices=keys)
+        else:
+            self.last_topic=None
+            self.append(T('Rehberde eşleşme bulunamadı'),T('Bu soru için doğrulanmış bir anlatım bulamadım. Üstten bir rehber konusu seçebilir veya destek talebi ekranını açabilirsiniz.'),actions=('help','support'),choices=('receive','sale','transfer'))
+
     def reset(self):
-        if self.job:return
-        self.history=[]
+        self.history=[];self.last_topic=None;self.input.clear();self.topics.setCurrentIndex(0)
         while self.messages_layout.count():
-            item=self.messages_layout.takeAt(0);item.widget().deleteLater()
-        self.status.setText(T('Yeni sohbet hazır.'))
+            item=self.messages_layout.takeAt(0);item.widget().hide();item.widget().deleteLater()
+        self.append(T('DeporiaQ Asistan'),T('DeporiaQ kullanımını buradan öğrenebilirsiniz. Örneğin “Stok nasıl eklenir?” yazın veya bir konu seçin.'),choices=('receive','sale','transfer'))
+        self.check();self.input_changed()

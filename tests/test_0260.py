@@ -8,7 +8,8 @@ import deporiaq_qt as ui
 from deporiaq_i18n import T,Text,render,set_language,language,QLabel,QPushButton,QComboBox
 from deporiaq_workspace_ui import BasketDialog,RecordsDialog
 from deporiaq_commerce_ui import PlansDialog,ServerDialog
-from deporiaq_assistant import AssistantPanel,ask_server
+from deporiaq_assistant import AssistantPanel,ACTIONS
+from deporiaq_assistant_guide import TOPICS,BY_KEY,lookup
 from PySide6.QtCore import Qt,QCoreApplication,QEvent
 from PySide6.QtTest import QTest
 
@@ -107,20 +108,92 @@ def test_search_ignores_stale_network_results_and_supports_both_languages(applic
     c.timer.stop();c.hide();window.change_language('tr')
 
 
-def test_assistant_inside_app_and_failure_is_not_fake_answer(application,window,monkeypatch):
-    import deporiaq_assistant as mod
-    calls=[]
-    def fake(cloud,action,messages=None,locale=None):
-        calls.append((action,messages,locale))
-        if action=='status':return {'ready':True}
-        raise ValueError('Service unavailable')
-    monkeypatch.setattr(mod,'ask_server',fake);window.show();window.assistant_open();panel=window.assistant_panel
-    finish(application,lambda:panel.job is not None);assert panel.ready and panel.isVisible() and not panel.isFloating()
-    panel.input.setPlainText('Transfer nasıl yapılır?');panel.submit();finish(application,lambda:panel.job is not None)
-    assert panel.history==[] and panel.status.text()=='Service unavailable'
-    assert calls[-1][1]==[{'role':'user','content':'Transfer nasıl yapılır?'}]
-    assert panel.messages_layout.count()==1
-    panel.close()
+def test_offline_assistant_navigation_language_and_no_network(application,window,monkeypatch):
+    import socket,urllib.request
+    def forbidden(*args,**kwargs):raise AssertionError('Offline guide tried to use the network')
+    monkeypatch.setattr(socket,'create_connection',forbidden)
+    monkeypatch.setattr(urllib.request,'urlopen',forbidden)
+    monkeypatch.setattr(window.cloud_client,'_istek',forbidden)
+    calls=[];monkeypatch.setattr(window,'transfer_ac',lambda:calls.append('transfer'))
+    before=list(window.vt.baglanti.execute('SELECT * FROM stoklar').fetchall())
+    window.resize(1366,768);window.show();window.assistant_open();panel=window.assistant_panel
+    assert panel.ready and panel.isVisible() and not panel.isFloating() and panel.job is None
+    question='Şubeler arası transfer nasıl yapılır?'
+    panel.input.setPlainText(question);QTest.keyClick(panel.input,Qt.Key.Key_Return)
+    assert panel.last_topic=='transfer' and panel.history==[question] and not calls
+    buttons=[b for b in panel.findChildren(QPushButton) if b.property('guide_action')=='transfer']
+    assert len(buttons)==1;QTest.mouseClick(buttons[0],Qt.MouseButton.LeftButton);assert calls==['transfer']
+    out=Path(__file__).resolve().parents[1]/'test-results';out.mkdir(exist_ok=True)
+    for code in ['tr','en']:
+        window.change_language(code);QTest.qWait(80)
+        assert panel.history==[question]
+        assert any(('Transfers are limited' if code=='en' else 'Transfer satılabilir') in label.text() for label in panel.findChildren(QLabel))
+        for label in panel.messages.findChildren(QLabel):
+            if label.wordWrap():assert label.height()>=label.heightForWidth(label.width()),(label.height(),label.heightForWidth(label.width()))
+        assert all(b.height()>=38 for b in panel.messages.findChildren(QPushButton))
+        assert panel.grab().save(str(out/f'0260-guide-{code}.png'))
+    assert before==list(window.vt.baglanti.execute('SELECT * FROM stoklar').fetchall())
+    panel.input.setPlainText('What will the weather be tomorrow?');panel.submit()
+    assert any('No matching guide topic' in label.text() for label in panel.findChildren(QLabel))
+    panel.reset();assert panel.history==[] and panel.last_topic is None and panel.messages_layout.count()==1
+    window.change_language('tr');panel.close()
+
+
+def test_guide_actions_recheck_roles_and_subscription(application,window,monkeypatch):
+    calls=[];monkeypatch.setattr(window,'yedek_al',lambda:calls.append('backup'))
+    monkeypatch.setattr(window,'transfer_ac',lambda:calls.append('transfer'))
+    panel=AssistantPanel(window);panel.show_topic('backup')
+    button=next(b for b in panel.findChildren(QPushButton) if b.property('guide_action')=='backup')
+    assert button.isEnabled()
+    window.kullanici={'rol':'GORUNTULEYICI'}
+    button.click();panel.navigate('transfer');panel.navigate('__class__');assert calls==[]
+    panel.show_topic('transfer');assert any(not b.isEnabled() for b in panel.findChildren(QPushButton) if b.property('guide_action')=='transfer')
+    window.kullanici={'rol':'ANA_YONETICI'};window.lisans_kilitli=True;panel.navigate('backup');assert not calls
+    assert panel.unavailable('support') is None
+    window.lisans_kilitli=False;panel.navigate('backup');assert calls==['backup'];panel.close()
+
+
+def test_guide_ambiguity_limits_followup_and_clear(application,window):
+    panel=AssistantPanel(window)
+    panel.input.setPlainText('transfer ve rezervasyon');panel.submit()
+    assert panel.last_topic is None
+    assert {b.property('topic_id') for b in panel.findChildren(QPushButton)} >= {'transfer','reservation'}
+    panel.show_topic('receive');panel.input.setPlainText('nereden açacağım');panel.submit();assert panel.last_topic=='receive'
+    panel.input.setPlainText('a'*2001);assert not panel.send.isEnabled()
+    old=len(panel.history);panel.submit();assert len(panel.history)==old
+    panel.input.setPlainText('Stok');QTest.keyClick(panel.input,Qt.Key.Key_Return,Qt.KeyboardModifier.ShiftModifier)
+    assert '\n' in panel.input.toPlainText()
+    for _ in range(30):panel.input.setPlainText('stok ekle');panel.submit()
+    assert len(panel.history)==12 and panel.messages_layout.count()<=24
+    panel.reset();assert not panel.send.isEnabled();panel.close()
+
+
+def test_guide_matches_reviewed_topics_in_both_languages():
+    questions={
+      'Ürün nasıl eklerim?':'product','How do I create a product?':'product',
+      'Stokları nasıl artıracağım?':'receive','how do I add stock':'receive',
+      'Transfer yapmak istiyorum':'transfer','stock transferr':'transfer',
+      'Aşk kitabından kaç tane var?':'lookup','How many books are available?':'lookup',
+      'Stok sayımı nasıl yapılır':'count','physical inventory count':'count',
+      'Elimdeki kitabı nasıl satarım?':'sale','How do I sell a book?':'sale',
+      'Kargo rezervasyonu':'reservation','reserve for pickup':'reservation',
+      'İşletme adını değiştirmek':'company','change business name':'company',
+      'Yedek nasıl alınır?':'backup','back up my data':'backup',
+      'Şifremi unuttum':'password','forgot my password':'password',
+      'Nasıl İngilizce yaparım?':'language','switch language':'language',
+      'Arka plan değiştirme':'appearance','change background':'appearance',
+      'Sistemden atıyor cloud kopuyor':'cloud','cloud disconnected':'cloud',
+      'Excel içe aktarma':'import','import spreadsheet':'import',
+      'İndirim nasıl yapılır':'discount','bulk price update':'price',
+      'Abonelik ne zaman bitecek':'subscription','support email failed':'support',
+    }
+    for question,key in questions.items():assert key in lookup(question),(question,lookup(question),key)
+    assert lookup('Mars gezegeninde hava nasıl')==()
+    assert len(lookup('transfer ve rezervasyon'))==2
+    assert len(TOPICS)==len(BY_KEY)
+    for topic in TOPICS:
+        assert topic.body and topic.body_en and topic.title_en
+        assert all(action in ACTIONS for action in topic.actions)
 
 
 def test_catalogue_covers_all_explicit_translations():

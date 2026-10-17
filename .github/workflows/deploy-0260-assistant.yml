@@ -1,4 +1,4 @@
-name: DeporiaQ 0.26 Assistant Deployment
+name: DeporiaQ 0.26 Server Readiness
 on:
   workflow_dispatch:
   push:
@@ -6,94 +6,25 @@ on:
     paths: ['.github/workflows/deploy-0260-assistant.yml', 'server/ACTIVATE_ASSISTANT_0260']
 permissions:
   contents: read
-concurrency:
-  group: assistant-0260
-  cancel-in-progress: false
 jobs:
-  preflight:
+  verify-server:
     runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.check.outputs.ready }}
+    timeout-minutes: 5
     steps:
-      - name: Check server migration and secret availability
-        id: check
+      - name: Verify SQL 0.26 for search and owner-only rename
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           python - <<'PY'
           import os,json,urllib.request,urllib.parse
-          missing=[name for name in ('SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','SUPABASE_ACCESS_TOKEN','OPENAI_API_KEY') if not os.environ.get(name)]
-          base=os.environ.get('SUPABASE_URL','').rstrip('/')
-          host=urllib.parse.urlparse(base).hostname or ''
-          migrated=False
-          if host.endswith('.supabase.co') and os.environ.get('SUPABASE_PUBLISHABLE_KEY'):
-              req=urllib.request.Request(base+'/rest/v1/rpc/dpq_0260_ready',data=b'{}',headers={'apikey':os.environ['SUPABASE_PUBLISHABLE_KEY'],'Content-Type':'application/json'})
-              try:
-                  with urllib.request.urlopen(req,timeout=20) as response:migrated=json.load(response)=='0.26.0'
-              except Exception:pass
-          ready=not missing and migrated
-          with open(os.environ['GITHUB_OUTPUT'],'a') as file:file.write('ready='+str(ready).lower()+'\n')
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as file:
-              file.write('## Assistant deployment readiness\n\n')
-              file.write('SQL 0.26.0: '+('verified' if migrated else 'required')+'\n\n')
-              file.write('Missing secret names: '+(', '.join(missing) or 'none')+'\n\n')
-              file.write('Deployment '+('will proceed.' if ready else 'is waiting; no server changes were made.'))
-          print('Migration ready:',migrated,'; missing secret names:',', '.join(missing) or 'none')
-          PY
-  deploy:
-    needs: preflight
-    if: needs.preflight.outputs.ready == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Test assistant boundary and response handling
-        run: node --test tests/edge/assistant.test.mjs
-      - name: Verify provider with one usage question
-        run: |
-          python - <<'PY'
-          import os,json,urllib.request,urllib.parse
-          base=os.environ['SUPABASE_URL'].rstrip('/');host=urllib.parse.urlparse(base).hostname or ''
-          if not host.endswith('.supabase.co'):raise SystemExit('Invalid project URL')
-          body={'model':'gpt-5.4-mini','store':False,'max_output_tokens':160,'reasoning':{'effort':'none'},'instructions':'You are the DeporiaQ app help assistant. Reply in Turkish in one short sentence using only this fact: Ctrl+K opens application search.','input':'Uygulamada aramayı nasıl açarım?'}
-          req=urllib.request.Request('https://api.openai.com/v1/responses',data=json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['OPENAI_API_KEY'],'Content-Type':'application/json'})
+          base=os.environ['SUPABASE_URL'].rstrip('/')
+          if not (urllib.parse.urlparse(base).hostname or '').endswith('.supabase.co'):
+              raise SystemExit('Invalid project URL')
+          request=urllib.request.Request(base+'/rest/v1/rpc/dpq_0260_ready',data=b'{}',headers={'apikey':os.environ['SUPABASE_PUBLISHABLE_KEY'],'Content-Type':'application/json'})
           try:
-              with urllib.request.urlopen(req,timeout=40) as response:data=json.load(response)
-          except Exception:raise SystemExit('Provider verification failed. Check the API key, model access and API billing. No credentials were printed.')
-          text=''.join(c.get('text','') for o in data.get('output',[]) if o.get('type')=='message' for c in o.get('content',[]) if c.get('type')=='output_text')
-          if data.get('status')!='completed' or not text:raise SystemExit('Provider did not complete a response.')
-          with open(os.environ['GITHUB_ENV'],'a') as file:file.write('PROJECT_REF='+host.split('.')[0]+'\n')
-          with open(os.environ['RUNNER_TEMP']+'/assistant.env','w') as file:
-              key=os.environ['OPENAI_API_KEY'].strip()
-              if '\n' in key or '\r' in key:raise SystemExit('Invalid secret format')
-              file.write('OPENAI_API_KEY='+key+'\nDPQ_AI_MODEL=gpt-5.4-mini\n')
-          print('Provider completed a Turkish application-help response. No customer data was sent.')
+              with urllib.request.urlopen(request,timeout=20) as response:version=json.load(response)
+          except Exception:raise SystemExit('SQL 0.26 could not be verified. No server changes were made.')
+          if version!='0.26.0':raise SystemExit('SQL 0.26 is required before release.')
+          print('SQL 0.26.0 verified. Assistant is an offline guide; no AI key, provider request or deployment is used.')
           PY
-      - name: Deploy server-only assistant
-        run: |
-          npx --yes supabase@2.75.0 secrets set --env-file "$RUNNER_TEMP/assistant.env" --project-ref "$PROJECT_REF"
-          npx --yes supabase@2.75.0 functions deploy deporiaq-assistant --project-ref "$PROJECT_REF"
-      - name: Verify deployed unauthenticated access is blocked
-        run: |
-          python - <<'PY'
-          import os,json,urllib.request,urllib.error
-          req=urllib.request.Request(os.environ['SUPABASE_URL'].rstrip('/')+'/functions/v1/deporiaq-assistant',data=json.dumps({'action':'status','device':'deployment-test','language':'tr'}).encode(),headers={'apikey':os.environ['SUPABASE_PUBLISHABLE_KEY'],'Content-Type':'application/json'})
-          try:urllib.request.urlopen(req,timeout=30);raise SystemExit('Assistant accepted unauthenticated access')
-          except urllib.error.HTTPError as e:
-              if e.code!=401:raise SystemExit('Unexpected assistant HTTP status: '+str(e.code))
-          print('Deployed assistant rejects unauthenticated requests.')
-          PY
-      - name: Remove temporary secret file
-        if: always()
-        run: rm -f "$RUNNER_TEMP/assistant.env"

@@ -1,18 +1,18 @@
-# DeporiaQ 0.26.0 — İki dil, uygulama içi arama ve asistan
-
-Aday sürüm. Canlı SQL geçişi, asistan hizmeti ve Windows yayın doğrulamaları tamamlanmadan normal güncelleme kanalına verilmez.
+# DeporiaQ 0.26.0 — İki dil, uygulama içi arama ve ücretsiz rehber asistanı
 
 - Türkçe ve İngilizce arayüz; sol menüde yazısız TR/UK bayrakları. Dil seçimi kaydedilir. Ürün adları, barkodlar ve açık form girişleri korunur.
 - Kurulum ve otomatik güncelleme mesajları da iki dili destekler; güncelleyici uygulamadaki dil seçimini izler.
-- Ortalanmış, yarı saydam üst arama alanı; büyüteç alanın içinde. Menüler, ürün adları, barkodlar, ürün ayrıntıları ve konumlar birlikte aranır. Türkçe harfler aramada desteklenir.
-- Arama sonucundan ürünün stok ekranına veya menüsüne geçiş. İşletme sınırı ve erişim kontrolü sunucuda uygulanır.
-- DeporiaQ Asistan uygulama içinde bir yan panelde çalışır. Gerçek OpenAI API bağlantısı sunucu üzerinden kurulur; anahtar masaüstüne taşınmaz. Asistan kayıt değiştirmez ve canlı stok gördüğünü iddia etmez.
+- Ortalanmış, yarı saydam üst arama alanı; büyüteç alanın içinde. Menüler, ürün adları, barkodlar, ürün ayrıntıları ve konumlar birlikte aranır. Türkçe harfler desteklenir.
+- Arama sonucundan ürünün stok ekranına veya ilgili menüye geçiş. İşletme sınırı ve erişim kontrolü sunucuda uygulanır.
+- **DeporiaQ Asistan ücretsiz yerleşik kullanım rehberidir.** Türkçe ve İngilizce 29 konuya ait hazır anlatımları sunar; internet, API anahtarı veya soru başına ücret gerektirmez. Üretken yapay zekâ değildir.
+- Asistanın ekran açma düğmeleri mevcut kullanıcı yetkilerini korur. Asistan kendi başına satış, stok değişikliği veya e-posta gönderimi yapmaz. Mesajlar dışarı gönderilmez; geçmiş uygulama belleğinde tutulur ve Yeni Sohbet ile temizlenir.
+- Eşleşmeyen sorularda konu seçimi ve destek seçenekleri; birden fazla eşleşmede konu seçimi. Enter ile gönderme, Shift+Enter ile yeni satır.
 - Sağ üstte kutusuz ayarlar, bildirim ve açık/karanlık görünüm simgeleri. Bildirimler sade kart listesi ve okunmamış sayı ile gösterilir.
 - Cloud durumu yeşil noktayla sol alta taşınır; üstte kayıtlı cihaz sayısı gösterilmez.
-- İşletme adı yalnızca Cloud `owner` rolü tarafından değiştirilebilir. Sunucu onayı sonrası başlık ve yerel önbellek güncellenir. Aynı anda yapılan değişikliklerde eski veriyle yeni adın üzerine yazılmaz.
+- İşletme adı yalnızca Cloud hesap sahibi tarafından değiştirilebilir. Sunucu onayından sonra üst başlık güncellenir. Başka cihazdan yapılmış yeni değişikliğin üzerine eski adla yazılmaz.
 - Ayarlardaki uzun özet kartı sıralama/gizleme bölümü kaldırıldı. Özetler görünür kalır.
-- İngilizce metinlere ve açık görünümün okunabilirliğine göre menü, sosyal düğme ve finans özeti düzenlendi.
+- İngilizce metinler ve açık görünüm için menü, sosyal düğme ve finans özeti düzenlendi.
 
-Sunucu kurulumu: `server/ASSISTANT_SETUP_0260.md`.
+Arama ve işletme adı yetkisi için `DEPORIAQ_CLOUD_0.26.0_UPDATE.sql` gerekir. Asistan için sunucu kurulumu veya OpenAI anahtarı gerekmez. Güncelleme mevcut stok kayıtlarını veya abonelik bitiş tarihini sıfırlamaz.
 
-Doğrulama: 95 uygulama testi, farklı pencere boylarında Qt çizimi, owner/yönetici ayrımı, şirketler arası arama yalıtımı, değişmeyen stok/abonelik kayıtları ve 8 asistan sınır/hata testi geçti. Windows kurulum, açık uygulamada yükseltme ve otomatik yeniden açılma başarılı. Test edilen paket Microsoft Defender ve ClamAV taramalarından geçti. Kanıtlar ve canlı kurulumda kalanlar: `RELEASE_0.26.0.md`.
+Windows güncellemesi uygulamayı kapatıp kurulumdan sonra yeniden açar. Güncellemeden önce açık işlemlerinizi kaydedin.
