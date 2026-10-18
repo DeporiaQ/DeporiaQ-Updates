@@ -14,7 +14,8 @@ async function management(path,body,method=body?'POST':'GET') {
 }
 async function sql(query,read_only=false){return management('/database/query',{query,read_only});}
 if(phase==='migrate') {
- const script=fs.readFileSync('server/012_onboarding_billing.sql','utf8').replace(/^begin;\s*$/mi,'').replace(/^commit;\s*$/mi,'');
+ const script=['server/012_onboarding_billing.sql','supabase/migrations/20261018224000_enrollment_access.sql']
+   .map(path=>fs.readFileSync(path,'utf8').replace(/^begin;\s*$/mi,'').replace(/^commit;\s*$/mi,'')).join('\n');
  await sql(`begin; set local lock_timeout='10s'; set local statement_timeout='40s';
  lock table public.company_subscriptions in share mode;
  create temporary table dpq_expiry_checkpoint on commit drop as select company_id,status,valid_until,plan_code from public.company_subscriptions;

@@ -1,0 +1,55 @@
+# DeporiaQ 0.27.0 doğrulama ve yayın durumu
+
+**Aday sürüm — müşterilere yayımlanmadı.** Ana güncelleme manifesti ve en son kararlı sürüm 0.26.0 olarak korunuyor.
+
+## İncelenen kaynak
+
+Masaüstü kaynak commit'i: `e30e6cfb9eef3d5352d44a51d7c7f0816d9197cb`.
+
+- [Windows derleme, gerçek 3D ve kurulum testleri](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39172829950)
+- [PostgreSQL, ödeme HTTP işleyicisi ve Windows işlev testleri](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39172829884)
+- Aynı kurulum paketinin güvenlik taraması bu aday üzerinde yeniden çalıştırılacak.
+
+Sonradan eklenen sunucu erişim geçişi ve belgeler masaüstü kodunu değiştirmez. Önceki adayın güvenlik sonucu, yeniden derlenen dosya için kanıt olarak kullanılmaz.
+
+## Yapılan değişiklikler
+
+- On ana sayfa panelinde bağımsız taşıma, boyutlandırma, gizleme, kilitleme ve yerleşim sıfırlama. Gizlenen panelin verisi yenilenir; diğer paneller boşluğa taşınmaz.
+- Qt Quick 3D ile eklemli kedi; bakış, gezinme, oyun, el sallama, panel kenarından bakma, beslenme, uyku ve irkilme. Adı, görünürlüğü, boyutu ve hareket tercihi kullanıcıya göre saklanır.
+- Kediye tıklama ile uygulama içi asistan; kedi gizlenince üst menü düğmesi. Asistan ana sayfayı daraltmaz ve açılışta konu kataloğu göstermez.
+- Asistan: 116 ayrı kullanım anlatımı; 1.392 Türkçe/İngilizce soru biçimi. Bunlar 1.392 farklı konu değildir. Dizin, uygulamaya sahte içerik eklenmeden 1.500 ayrı test kaydıyla kapasite kontrolünden geçirildi.
+- Mavi D ve kutu temalı uygulama/kurulum simgesi.
+- Doğrulanmış e-posta, işletme oluşturma, yarım kalan kayda devam etme ve 30 günlük deneme altyapısı. Mevcut üyelik tekrar kayıtla yeni denemeye dönüşmez.
+- Sunucunun belirlediği fiyat, iyzico Checkout Form, doğrulanmış sonuç, webhook/IFN ve tekrar ödeme bildirimi koruması. Gerçek tahsilat henüz etkin değil.
+
+## Doğrulama
+
+- Son kaynakta 110 Windows işlev testi başarılı. Uzun yanıtta satır kesilmesi ve yanıtın altında boşluğa kayma için görünürlük kontrolleri eklendi.
+- PostgreSQL yetki/işletme ayrımı, kayıt tekrarları, mevcut abonelik süresi, ödeme tutarı/para birimi, tekrar iletim, sandbox ayrımı ve eşzamanlı işlem kontrolleri başarılı.
+- Gerçek Edge HTTP işleyicisi, taklit dış hizmet yanıtlarıyla sınandı. Sahte ödeme bildirimi abonelik açmaz. Bu test gerçek iyzico sandbox kabul testi değildir.
+- Gerçek Windows grafik sistemiyle dokuz kedi duruşunda görünür piksellerin maske tarafından kesilmediği kontrol edildi. Asistanın üstte açılması, beslenme, uyku/irkilme, küçük pencere ve gizlenen panelin yerinin korunması sınandı.
+- Son kurulum, yeniden açılma ve güvenlik taraması sonuçları tamamlandığında aşağıdaki paket kanıtı güncellenecek.
+
+## Canlı hizmette kalanlar
+
+0.27 SQL ve kayıt erişim geçişleri doğrudan Supabase bağlantısıyla uygulandı; mevcut paket tarih, plan ve durumları veritabanı içinde karşılaştırılarak korundu. Yeni işletme/sahip/30 günlük deneme ve tekrar kayıt akışı canlı şemada geri alınan işlemle sınandı. Test hesabı kalmadı. Ödeme Edge Function dağıtıldı; yetkisiz istekler reddediliyor.
+
+Kayıt e-postasının gerçek teslimi ve uçtan uca yeni kullanıcı kaydı henüz doğrulanmadı. Genel kayıt kapalı tutuluyor. Bağlı Supabase aracı Auth/SMTP yapılandırması sunmuyor; GitHub Management token'ı bu ayarda da HTTP 403 veriyor. Web panelinde giriş gerekiyor.
+
+Eski işletme oluşturma çağrısı da doğrulanmış kayıt kurallarına bağlandı. Anonim rolün eski yönetici yetkili işlevlere erişimi kaldırıldı; oturum açmış kullanıcıların gerekli üyelik/işlem erişimi korundu. Yeni özel tabloların RLS politikası olmaması doğrudan istemci erişimini kapatmak için kasıtlıdır. Supabase'in mevcut Auth parola sızıntısı koruması kapalı uyarısı ve eski tabloların performans önerileri ayrıca değerlendirilmelidir; tüm danışman uyarılarının temizlendiği iddia edilmiyor.
+
+Gerçek ödeme için onaylı üye işyeri hesabı, paket fiyatları, satış/gizlilik adresleri, sağlayıcı test hesabı ve gerçek callback/webhook/IFN teslim kontrolleri gerekiyor. Bu bilgiler tamamlanmadan canlı ödeme açılmaz.
+
+[Bir defalık ticari kurulum adımları](server/COMMERCIAL_SETUP_0270.md)
+
+## Kalıcı indirme bağlantısı
+
+[Windows kurulumunu indir](https://github.com/DeporiaQ/DeporiaQ-Updates/releases/latest/download/DeporiaQ_Setup.exe)
+
+18 Ekim 2026'da mevcut **0.26.0** kurulumunun aynı dosya içeriği `DeporiaQ_Setup.exe` adıyla eklendi. [Bağlantı hazırlama işlemi](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39138941168) başarılı. Dosya 80.453.458 bayt; SHA-256:
+
+```
+c603d5103b798f3d3f5d6c25cb2fa450c80299759760c17099e521550add5761
+```
+
+Bu işlem 0.27.0'ı yayımlamaz veya uygulama içi güncelleme manifestini değiştirmez. Her yeni sürüm `latest` yapılmadan önce test edilmiş dosyanın aynı sabit adı da yüklenmelidir.

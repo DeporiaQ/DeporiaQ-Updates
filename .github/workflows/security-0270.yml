@@ -21,8 +21,8 @@ jobs:
       - name: Verify exact candidate source, build and tests
         run: |
           set -euo pipefail
-          for run in 39138600869 39138600878; do
-            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)" = 215aff0c18f8cb05219741bebbbca1cfdc2f25f8
+          for run in 39172829950 39172829884; do
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)" = e30e6cfb9eef3d5352d44a51d7c7f0816d9197cb
             gh run watch "$run" --exit-status --interval 30
             test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .conclusion)" = success
           done
@@ -37,7 +37,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory evidence,package | Out-Null
-          $artifacts = gh api repos/DeporiaQ/DeporiaQ-Updates/actions/runs/39138600869/artifacts | ConvertFrom-Json
+          $artifacts = gh api repos/DeporiaQ/DeporiaQ-Updates/actions/runs/39172829950/artifacts | ConvertFrom-Json
           $artifact = $artifacts.artifacts | Where-Object name -eq 'DeporiaQ-0.27.0-candidate-setup'
           if (-not $artifact.id -or $artifact.expired) { throw "Verified artifact unavailable" }
           gh api "repos/DeporiaQ/DeporiaQ-Updates/actions/artifacts/$($artifact.id)/zip" > candidate.zip

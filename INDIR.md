@@ -6,8 +6,8 @@ Bu kalıcı bağlantıyı Instagram biyografinize ve YouTube kanalınızın bağ
 
 [Sürüm açıklamalarını aç](https://github.com/DeporiaQ/DeporiaQ-Updates/releases/latest). Alternatif olarak **Assets** bölümünden sürüm numaralı **DeporiaQ_Setup_…exe** dosyasını indirebilirsiniz. `Source code` arşivleri kurulum dosyası değildir.
 
-Kurulumdan sonra yeni kullanıcı **Yeni İşletme Oluştur** ekranından kaydolur; e-posta doğrulaması ve genel kayıt hizmetinin sunucuda etkin olması gerekir. Mevcut kullanıcılar aynı Cloud hesabıyla giriş yapar.
+**Şu anda indirilen kararlı sürüm 0.26.0.** Mevcut kullanıcılar aynı Cloud hesabıyla giriş yapabilir. Yeni işletme kaydı ve uygulamadan paket satın alma henüz genel kullanıma açılmadı.
 
-0.27.0 henüz yayımlanmadıysa bağlantı önceki kararlı sürümü gösterir. Kayıt ve ödeme durumunu o sürümün açıklamasından kontrol edin.
+0.27.0 yayımlandığında aynı bağlantı yeni kurulumu indirecek. Yeni müşterinin uygulama içinden e-postasını doğrulayıp işletmesini açacağı kayıt akışı bu sürüm için hazırlanıyor.
 
 Yayın işlemi: Her yeni kararlı sürümde test edilen kurulumun aynı baytları ayrıca `DeporiaQ_Setup.exe` adıyla ve SHA-256 özetiyle yüklenmelidir. Bu dosya doğrulanmadan sürüm `latest` yapılmamalıdır.
