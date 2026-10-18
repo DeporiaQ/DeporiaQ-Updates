@@ -39,6 +39,8 @@ def test_compact_assistant_does_not_resize_dashboard(application,window):
     window.assistant_open();application.processEvents();panel=window.assistant_panel
     assert window.kaydir.viewport().size()==size
     assert panel.width()<=430 and panel.height()<=530
+    window.resize(1000,720);application.processEvents()
+    assert panel.width()<=430 and panel.x()+panel.width()<=window.width()
     assert not panel.findChildren(QComboBox) and panel.messages_layout.count()==1
     # Native Windows previously gave the composer white text on a white base.
     def luminance(color):

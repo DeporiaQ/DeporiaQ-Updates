@@ -42,10 +42,10 @@ class AssistantPanel(Localized,QDockWidget):
     def __init__(self,window):
         super().__init__(window);self.setWindowTitle(T('DeporiaQ Asistan'));self.window=window;self.job=None;self.history=[];self.ready=True;self.last_topic=None
         self.setObjectName('assistantDock');self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
-        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable);self.setMinimumWidth(345);self.setMaximumWidth(460)
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable);self.setMinimumWidth(345);self.setMaximumWidth(430)
         titlebar=QWidget();titlebar.setFixedHeight(0);self.setTitleBarWidget(titlebar)
         root=QFrame();root.setObjectName('assistantSurface');layout=QVBoxLayout(root);layout.setContentsMargins(16,14,16,14);layout.setSpacing(10)
-        top=QHBoxLayout();heading=QLabel(T('DeporiaQ Asistan'));heading.setObjectName('sayfaBaslik');top.addWidget(heading,1)
+        top=QHBoxLayout();heading=QLabel(T('DeporiaQ Asistan'));heading.setObjectName('sayfaBaslik');heading.setWordWrap(True);heading.setMinimumWidth(0);heading.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred);top.addWidget(heading,1)
         close=QPushButton('×');close.setObjectName('assistantClose');close.setFixedSize(28,28);close.setAccessibleName(T('Kapat'));close.setToolTip(T('Kapat'));close.clicked.connect(self.close);top.addWidget(close);layout.addLayout(top)
         self.status=QLabel(T('DeporiaQ kullanımında yanınızdayım.'));self.status.setWordWrap(True);layout.addWidget(self.status)
         self.scroll=QScrollArea();self.scroll.setObjectName('assistantScroll');self.scroll.setWidgetResizable(True);self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
