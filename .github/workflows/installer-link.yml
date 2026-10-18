@@ -1,0 +1,32 @@
+name: Publish stable link for the verified DeporiaQ installer
+on:
+  push:
+    branches: ['codex/deporiaq-0.27.0']
+    paths: ['.github/workflows/installer-link.yml']
+permissions:
+  contents: write
+concurrency:
+  group: deporiaq-installer-link
+  cancel-in-progress: false
+jobs:
+  alias:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: DeporiaQ/DeporiaQ-Updates
+    steps:
+      - name: Verify the existing public release and copy its exact installer
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GH_REPO/releases/latest" --jq .id)" = 415869545
+          gh release download v0.26.0 --pattern DeporiaQ_Setup_0.26.0.exe
+          echo 'c603d5103b798f3d3f5d6c25cb2fa450c80299759760c17099e521550add5761  DeporiaQ_Setup_0.26.0.exe' | sha256sum -c -
+          cp DeporiaQ_Setup_0.26.0.exe DeporiaQ_Setup.exe
+          sha256sum DeporiaQ_Setup.exe > DeporiaQ_Setup.exe.sha256
+      - name: Add the permanent download filename without changing the release or update manifest
+        run: |
+          set -euo pipefail
+          # No --clobber: an existing asset must be reviewed, never overwritten.
+          gh release upload v0.26.0 DeporiaQ_Setup.exe DeporiaQ_Setup.exe.sha256
+          gh api "repos/$GH_REPO/releases/tags/v0.26.0" --jq '.assets[] | select(.name=="DeporiaQ_Setup.exe") | {name,size,digest,browser_download_url}'
