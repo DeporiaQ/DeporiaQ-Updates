@@ -50,7 +50,12 @@ class AssistantPanel(Localized,QDockWidget):
         self.status=QLabel(T('DeporiaQ kullanımında yanınızdayım.'));self.status.setWordWrap(True);layout.addWidget(self.status)
         self.scroll=QScrollArea();self.scroll.setObjectName('assistantScroll');self.scroll.setWidgetResizable(True);self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.messages=QWidget();self.messages.setObjectName('assistantMessages');self.messages_layout=QVBoxLayout(self.messages);self.messages_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.messages_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);self.scroll.setWidget(self.messages);layout.addWidget(self.scroll,1)
+        # A word-wrapped label's minimumSizeHint is measured at its narrowest
+        # width. Enforcing it made a short answer hundreds of pixels too tall.
+        # Let QScrollArea use the layout's heightForWidth at the viewport width.
+        self.messages_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint);self.messages.setMinimumSize(1,1)
+        self.scroll.setWidget(self.messages);layout.addWidget(self.scroll,1)
+        self.scroll.verticalScrollBar().rangeChanged.connect(self.reveal_latest)
         self.input=QPlainTextEdit();self.input.setPlaceholderText(T('Örneğin: Şubeler arası transfer nasıl yapılır?'));self.input.setAccessibleName(T('Kullanım sorunuzu yazın'));self.input.setMaximumHeight(86);self.input.installEventFilter(self);layout.addWidget(self.input)
         self.input.textChanged.connect(self.input_changed)
         bar=QHBoxLayout();self.send=QPushButton(T('Gönder'));self.send.setObjectName('birincil');self.send.clicked.connect(self.submit);bar.addWidget(self.send)
@@ -96,7 +101,7 @@ class AssistantPanel(Localized,QDockWidget):
     def append(self,name,text,actions=(),choices=()):
         frame=QFrame();frame.setObjectName('assistantMessage');frame.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Minimum);box=QVBoxLayout(frame)
         label=QLabel(name);label.setObjectName('soluk');box.addWidget(label)
-        content=QLabel(text);content.setTextFormat(Qt.TextFormat.PlainText);content.setWordWrap(True);content.setMinimumWidth(0)
+        content=QLabel(text);content.setObjectName('assistantAnswer');content.setTextFormat(Qt.TextFormat.PlainText);content.setWordWrap(True);content.setMinimumWidth(0)
         content.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Minimum)
         content.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);box.addWidget(content)
         for key in choices:
@@ -109,7 +114,14 @@ class AssistantPanel(Localized,QDockWidget):
         self.messages_layout.addWidget(frame)
         while self.messages_layout.count()>self.MAX_MESSAGES:
             old=self.messages_layout.takeAt(0).widget();old.hide();old.deleteLater()
-        QTimer.singleShot(0,self,lambda:self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
+        QTimer.singleShot(0,self,self.reveal_latest)
+
+    def reveal_latest(self,*_):
+        if not self.messages_layout.count():return
+        frame=self.messages_layout.itemAt(self.messages_layout.count()-1).widget()
+        # Keep the start of a long answer visible, rather than jumping past it
+        # to its final button. rangeChanged also handles deferred Qt relayout.
+        self.scroll.verticalScrollBar().setValue(max(0,frame.y()-self.messages_layout.contentsMargins().top()))
 
     def show_topic(self,key):
         topic=BY_KEY[key];self.last_topic=key

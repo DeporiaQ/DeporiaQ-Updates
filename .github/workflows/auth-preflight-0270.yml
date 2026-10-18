@@ -1,0 +1,18 @@
+name: DeporiaQ 0.27 Read-only Email Readiness
+on:
+  push:
+    branches: ['codex/deporiaq-0.27.0']
+    paths: ['.github/workflows/auth-preflight-0270.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+      - name: Inspect email readiness without sending mail or exporting settings
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python tools/preflight_0270.py --auth-only

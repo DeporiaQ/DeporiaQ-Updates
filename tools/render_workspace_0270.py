@@ -47,7 +47,14 @@ QTest.mouseClick(pet.view,Qt.MouseButton.LeftButton,pos=pet.view.rect().center()
 assert window.assistant_panel.isVisible() and not pet.view.isVisible(),'Assistant must remain above the companion'
 shot('assistant')
 window.assistant_panel.input.setPlainText('Paneli büyütmek istiyorum');window.assistant_panel.submit();shot('assistant-answer')
-window.toggle_mode();shot('assistant-light');window.toggle_mode()
+def answer_visible():
+    panel=window.assistant_panel;frame=panel.messages_layout.itemAt(panel.messages_layout.count()-1).widget()
+    body=frame.findChild(ui.QLabel,'assistantAnswer');viewport=panel.scroll.viewport()
+    top=body.mapTo(viewport,QPoint(0,0)).y()
+    assert 0<=top<viewport.height()-20,('Answer scrolled out of view',top,viewport.height())
+    bottom=frame.y()+frame.height()+panel.messages_layout.contentsMargins().bottom()
+    assert panel.messages.height()<=max(viewport.height(),bottom)+2,'Trailing blank space after answer'
+answer_visible();window.toggle_mode();shot('assistant-light');answer_visible();window.toggle_mode()
 window.assistant_panel.close();pet.tick();assert pet.view.isVisible()
 # Keyboard/mouse access to feeding, hunger and the sleep/startle transition.
 pet.state.last_fed=0;assert pet.state.hungry();pet.state.motion=False

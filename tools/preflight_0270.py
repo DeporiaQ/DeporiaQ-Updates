@@ -1,5 +1,5 @@
 """Read-only compatibility gates; never log or export production metadata."""
-import os,json,urllib.request,urllib.parse,urllib.error
+import os,sys,json,urllib.request,urllib.parse,urllib.error
 base=os.environ['SUPABASE_URL'].rstrip('/')
 host=urllib.parse.urlparse(base).hostname or ''
 if not host.endswith('.supabase.co'):raise SystemExit('Invalid project URL')
@@ -12,11 +12,26 @@ def management(path,body=None):
         with urllib.request.urlopen(req,timeout=25) as response:return json.load(response)
     except urllib.error.HTTPError as error:raise SystemExit('Compatibility check unavailable (HTTP '+str(error.code)+'); no server changes were made.')
     except Exception as error:raise SystemExit('Compatibility check unavailable ('+type(error).__name__+'); no server changes were made.')
+def check_auth():
+    # Boolean readiness only; credentials and configuration values stay in memory.
+    auth=management('/config/auth')
+    gates={
+        'signup_enabled':not auth.get('disable_signup'),
+        'email_enabled':bool(auth.get('external_email_enabled')),
+        'confirmation_required':not auth.get('mailer_autoconfirm'),
+        'custom_smtp':bool(auth.get('smtp_host') and auth.get('smtp_pass')),
+        'code_template':'{{ .Token }}' in str(auth.get('mailer_templates_confirmation_content','')),
+        'desktop_captcha_supported':not auth.get('security_captcha_enabled'),
+        'password_minimum':int(auth.get('password_min_length') or 0)>=14,
+    }
+    for name,ready in gates.items():print(('PASS: ' if ready else 'PENDING: ')+name)
+if '--auth-only' in sys.argv:
+    check_auth();raise SystemExit(0)
 # The database returns a single Boolean. No schema definitions or customer rows
 # leave the database, and no report/artifact is uploaded to the repository.
 result=management('/database/query',{'read_only':True,'query':"""
 with required(table_schema,table_name,column_name) as (values
- ('public','companies','id'),('public','companies','name'),
+ ('public','companies','id'),('public','companies','name'),('public','companies','created_by'),
  ('public','company_members','company_id'),('public','company_members','user_id'),
  ('public','company_members','role'),('public','company_members','active'),
  ('public','locations','id'),('public','locations','company_id'),('public','locations','name'),
@@ -34,9 +49,4 @@ select not exists(select 1 from required r where not exists(
 """})
 if not result or result[0].get('compatible') is not True:raise SystemExit('Schema compatibility gate failed; no server changes were made.')
 print('PASS: enrollment schema compatibility gate')
-# Configuration stays in memory. Print neither SMTP values nor tokens.
-auth=management('/config/auth')
-ready=bool(not auth.get('disable_signup') and auth.get('external_email_enabled')
-    and not auth.get('mailer_autoconfirm') and auth.get('smtp_host') and auth.get('smtp_pass')
-    and '{{ .Token }}' in str(auth.get('mailer_templates_confirmation_content','')))
-print('PASS: email registration readiness gate' if ready else 'PENDING: email registration configuration required')
+check_auth()

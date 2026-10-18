@@ -61,6 +61,26 @@ def test_companion_remembers_food_name_and_hunger_without_clock_cheats():
     assert PetState({'last_fed':float('nan')},now=10).last_fed==10
     assert PetState({'last_fed':999},now=10).last_fed==10
 
+def test_assistant_answer_stays_visible_without_trailing_blank_space(application,window):
+    window.show();window.assistant_open();panel=window.assistant_panel
+    def visible_answer():
+        QTest.qWait(80)
+        frame=panel.messages_layout.itemAt(panel.messages_layout.count()-1).widget()
+        body=frame.findChild(ui.QLabel,'assistantAnswer');viewport=panel.scroll.viewport()
+        top=body.mapTo(viewport,QPoint(0,0)).y()
+        assert 0<=top<viewport.height()-20,(top,viewport.height())
+        bottom=frame.y()+frame.height()+panel.messages_layout.contentsMargins().bottom()
+        assert panel.messages.height()<=max(viewport.height(),bottom)+2
+        assert body.height()>=body.heightForWidth(body.width())
+    for code,width in [('tr',1000),('en',1366)]:
+        window.resize(width,750);window.change_language(code);panel.reset()
+        panel.input.setPlainText('Paneli büyütmek istiyorum');panel.submit()
+        assert panel.last_topic=='panel_resize';visible_answer()
+        window.toggle_mode();visible_answer()
+        panel.append('Long answer','A longer instruction with several lines. '*100)
+        visible_answer()
+    window.change_language('tr');panel.close()
+
 def test_cancelled_close_keeps_companion_alive(application,window):
     class RefuseClose(ui.QDialog):
         def closeEvent(self,event):event.ignore()

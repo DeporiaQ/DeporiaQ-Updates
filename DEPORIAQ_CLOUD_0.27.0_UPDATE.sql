@@ -56,7 +56,7 @@ begin
  if exists(select 1 from public.company_members where user_id=u) then raise exception 'DPQ_ALREADY_MEMBER';end if;
  if not exists(select 1 from dpq.commercial_config where id and enrollment_enabled) then raise exception 'DPQ_SIGNUP_CLOSED';end if;
  if n is null or char_length(n) not between 2 and 120 or n ~ '[[:cntrl:]]' then raise exception 'DPQ_INPUT';end if;
- insert into public.companies(name) values(n) returning id into c;
+ insert into public.companies(name,created_by) values(n,u) returning id into c;
  insert into public.company_members(company_id,user_id,role,active) values(c,u,'owner',true);
  insert into public.locations(company_id,name,location_type,active) values(c,'Merkez Depo','center',true) returning id into center;
  -- Identity comes from auth.users, never a client-supplied hash or user id.
