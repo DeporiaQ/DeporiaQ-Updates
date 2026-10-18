@@ -39,9 +39,9 @@ Item {
         PrincipledMaterial { id: whisker; baseColor: "#a4b2c9"; roughness: 1 }
         Node {
             id: cat
-            y: scene.sleepy ? -28 : scene.bounce + (scene.mood === "startle" ? 10 : 0)
+            y: scene.sleepy ? -21 : scene.bounce + (scene.mood === "startle" ? 10 : 0)
             eulerRotation.y: scene.facing
-            eulerRotation.z: scene.sleepy ? -14 : (scene.mood === "play" ? Math.sin(scene.phase * 4) * 12 : 0)
+            eulerRotation.z: scene.sleepy ? 78 : (scene.mood === "play" ? Math.sin(scene.phase * 4) * 12 : 0)
             Behavior on y { NumberAnimation { duration: 350 } }
             Behavior on eulerRotation { Vector3dAnimation { duration: 250 } }
             Model { source: "#Sphere"; position: Qt.vector3d(0,-26,-4); scale: Qt.vector3d(0.79,scene.sleepy ? 0.61 : 0.92,0.67); materials: [fur] }

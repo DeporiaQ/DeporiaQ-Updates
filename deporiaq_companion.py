@@ -79,9 +79,10 @@ class CompanionController(QObject):
     def resize(self):
         if self.view:
             self.view.resize(self.state.size,round(self.state.size*236/220));self.view.setToolTip(self.state.name+' · '+str(T('Asistanı aç')))
-            # Transparent corners must not block dashboard clicks.
+            # Keep clear corners clickable without cutting off ears, paws or a
+            # turning head. The previous head-shaped mask clipped real 3D poses.
             w,h=self.view.width(),self.view.height()
-            outline=[(.16,.06),(.34,.18),(.65,.18),(.84,.06),(.91,.49),(.99,.51),(.99,.78),(.81,.91),(.22,.91),(.14,.61),(.08,.44)]
+            outline=[(.08,0),(.92,0),(1,.08),(1,.92),(.92,1),(.08,1),(0,.92),(0,.08)]
             self.view.setMask(QRegion(QPolygon([QPoint(round(w*x),round(h*y)) for x,y in outline])));self.clamp_position()
     def apply(self):
         if self.state.enabled:self.ensure_view()
@@ -90,13 +91,20 @@ class CompanionController(QObject):
         self.window.header.assistant.setVisible(not self.state.enabled or self.failed or self.view is None)
         self.dock.update()
     def home_point(self):
-        p=self.dock.mapTo(self.window,QPoint(90,0));height=self.view.height() if self.view else 190
-        return QPoint(max(0,p.x()-90),max(0,p.y()-height+17))
+        # Align the visible paws with the bowl/cushion, not the transparent
+        # bottom margin of the 3D viewport.
+        width=self.view.width() if self.view else self.state.size
+        height=self.view.height() if self.view else round(width*236/220)
+        p=self.dock.mapTo(self.window,QPoint(29 if self.state.food else 112,20))
+        return QPoint(max(0,p.x()-width//2),max(0,p.y()-round(height*.77)))
     def home(self):
         if self.view:self.view.move(self.home_point());self.view.raise_()
     def clamp_position(self):
         if self.view:
-            self.view.move(max(0,min(self.view.x(),self.window.width()-self.view.width())),max(self.window.header.height(),min(self.view.y(),self.window.height()-self.view.height())))
+            # The viewport's empty lower margin may extend beyond the window;
+            # the visible cat stays inside, including when resting on its bed.
+            floor=self.window.height()-round(self.view.height()*.82)-8
+            self.view.move(max(0,min(self.view.x(),self.window.width()-self.view.width())),max(self.window.header.height(),min(self.view.y(),floor)))
     def feed(self):
         self.state.food=True;self.save();self.dock.update()
         if self.state.motion:self.target=self.home_point();self.set_mode('walk',20)

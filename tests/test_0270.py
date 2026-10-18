@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from test_operations_ui import application,window,ui
 from PySide6.QtCore import Qt,QPoint,QEvent
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent,QPalette
 from PySide6.QtWidgets import QDialog,QComboBox,QWidget
 from PySide6.QtTest import QTest
 from deporiaq_panels import PanelCanvas
@@ -40,6 +40,15 @@ def test_compact_assistant_does_not_resize_dashboard(application,window):
     assert window.kaydir.viewport().size()==size
     assert panel.width()<=430 and panel.height()<=530
     assert not panel.findChildren(QComboBox) and panel.messages_layout.count()==1
+    # Native Windows previously gave the composer white text on a white base.
+    def luminance(color):
+        channels=[v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4 for v in (color.redF(),color.greenF(),color.blueF())]
+        return sum(a*b for a,b in zip(channels,(.2126,.7152,.0722)))
+    for _ in range(2):
+        application.processEvents();palette=panel.input.palette()
+        a,b=sorted((luminance(palette.color(QPalette.ColorRole.Base)),luminance(palette.color(QPalette.ColorRole.Text))))
+        assert (b+.05)/(a+.05)>=4.5
+        window.toggle_mode()
     panel.close()
 
 def test_companion_remembers_food_name_and_hunger_without_clock_cheats():

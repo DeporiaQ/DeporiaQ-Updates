@@ -1692,7 +1692,7 @@ QWidget { background:#131A26; color:#F8FAFC; font-family:'Segoe UI'; font-size:1
 QWidget#dashboardArkaPlan, QWidget#dashboardSosyal { background:transparent; }
 HalkaGrafik, CubukGrafik, SutunGrafik, FinansOzetGrafik { background:transparent; }
 QLabel { background:transparent; }
-QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox { background:#1E2635; border:1px solid #3B4B63; padding:8px; min-height:20px; }
+QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox,QPlainTextEdit { background:#1E2635; border:1px solid #3B4B63; padding:8px; min-height:20px; }
 QComboBox {padding-right:30px;}
 QComboBox::drop-down {subcontrol-origin:padding;subcontrol-position:top right;width:28px;border:0;}
 QComboBox::down-arrow {image:url(__CHEVRON__);width:12px;height:8px;}

@@ -47,9 +47,13 @@ def apply_appearance(window):
     QPushButton#assistantEntry {background:transparent;border:0;padding:7px;color:#38BDF8;}
     QFrame#searchResults {background:#1E2B3D;border:1px solid #506C88;border-radius:10px;}
     QFrame#notificationCard,QFrame#assistantMessage {background:rgba(125,150,180,18);border:1px solid rgba(126,155,185,70);border-radius:9px;}
+    QFrame#assistantSurface {background:#142237;border:1px solid #47627F;border-radius:14px;}
+    QScrollArea#assistantScroll,QWidget#assistantMessages {background:#142237;border:0;}
+    QPushButton#assistantClose {background:transparent;border:0;padding:0;font-size:22px;}
+    QPushButton#assistantClose:hover {background:rgba(126,155,185,45);}
     QLabel#cloud {background:transparent;border:0;padding:7px 0;font-size:12px;}
     '''
-    if mode=='light':style+='QFrame#searchResults {background:#FFFFFF;} QPushButton#assistantEntry {color:#006BA6;}'
+    if mode=='light':style+='QFrame#searchResults {background:#FFFFFF;} QPushButton#assistantEntry {color:#006BA6;} QFrame#assistantSurface {background:#F3F6FA;border-color:#AFC3D8;} QScrollArea#assistantScroll,QWidget#assistantMessages {background:#F3F6FA;}'
     size=int(vt.ayar_getir('ui_font_size','14'))
     style+=f'\nQWidget {{font-size:{max(12,min(size,18))}px;}}'
     app=QApplication.instance()

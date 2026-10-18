@@ -32,9 +32,22 @@ def shot(name):
 frame=pet.view.grabFramebuffer();assert not frame.isNull()
 assert sum(frame.pixelColor(x,y).alpha()>10 for x in range(0,frame.width(),3) for y in range(0,frame.height(),3))>150
 shot('dashboard-cat')
+# Check the actual rendered alpha against the input mask in every major pose.
+# A visually clipped ear can otherwise pass a generic "3D is visible" check.
+root=pet.view.rootObject()
+for mood in ('idle','wave','walk','happy','sleep','hungry','eat','startle','peek'):
+    root.setProperty('mood',mood);root.setProperty('phase',1.3);root.setProperty('lookX',0);root.setProperty('lookY',0)
+    QTest.qWait(500);frame=pet.view.grabFramebuffer();mask=pet.view.mask()
+    clipped=[(x,y) for x in range(0,frame.width(),2) for y in range(0,frame.height(),2)
+        if frame.pixelColor(x,y).alpha()>64 and not mask.contains(QPoint(round(x/frame.devicePixelRatio()),round(y/frame.devicePixelRatio())))]
+    assert not clipped,(mood,'Opaque 3D pixels outside input mask',clipped[:8])
+    assert frame.save(str(out/('pose-'+mood+'.png')))
+root.setProperty('mood','idle');QTest.qWait(400)
 QTest.mouseClick(pet.view,Qt.MouseButton.LeftButton,pos=pet.view.rect().center());app.processEvents();pet.tick()
 assert window.assistant_panel.isVisible() and not pet.view.isVisible(),'Assistant must remain above the companion'
 shot('assistant')
+window.assistant_panel.input.setPlainText('Paneli büyütmek istiyorum');window.assistant_panel.submit();shot('assistant-answer')
+window.toggle_mode();shot('assistant-light');window.toggle_mode()
 window.assistant_panel.close();pet.tick();assert pet.view.isVisible()
 # Keyboard/mouse access to feeding, hunger and the sleep/startle transition.
 pet.state.last_fed=0;assert pet.state.hungry();pet.state.motion=False
