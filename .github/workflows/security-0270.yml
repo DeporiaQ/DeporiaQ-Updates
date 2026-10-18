@@ -1,0 +1,116 @@
+name: DeporiaQ 0.27 Candidate Security Validation
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/deporiaq-0.27.0']
+    paths: ['.github/workflows/security-0270.yml']
+concurrency:
+  group: security-0270
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: DeporiaQ/DeporiaQ-Updates
+    steps:
+      - name: Verify exact candidate source, build and tests
+        run: |
+          set -euo pipefail
+          for run in 39138313329 39138313352; do
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)" = 5663e4786881818ba77fe8f63433c7fbd3681ad9
+            gh run watch "$run" --exit-status --interval 30
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .conclusion)" = success
+          done
+  defender:
+    needs: gates
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Download exact previously built artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory evidence,package | Out-Null
+          $artifacts = gh api repos/DeporiaQ/DeporiaQ-Updates/actions/runs/39138313329/artifacts | ConvertFrom-Json
+          $artifact = $artifacts.artifacts | Where-Object name -eq 'DeporiaQ-0.27.0-candidate-setup'
+          if (-not $artifact.id -or $artifact.expired) { throw "Verified artifact unavailable" }
+          gh api "repos/DeporiaQ/DeporiaQ-Updates/actions/artifacts/$($artifact.id)/zip" > candidate.zip
+          if ($LASTEXITCODE -ne 0) { throw "Artifact download failed" }
+          $hash = (Get-FileHash candidate.zip -Algorithm SHA256).Hash.ToLower()
+          if ("sha256:$hash" -ne $artifact.digest) { throw "Artifact digest mismatch" }
+          Expand-Archive candidate.zip package
+          Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | Format-List | Out-File evidence/hashes.txt
+          Get-Content evidence/hashes.txt
+          Get-ChildItem package -Recurse -Filter *.exe | Get-AuthenticodeSignature | Select-Object Path,Status,StatusMessage | ConvertTo-Json | Tee-Object evidence/signatures.json
+      - name: Update and run Microsoft Defender
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-Service WinDefend | Format-List
+          Start-Service WinDefend
+          Update-MpSignature
+          $status = Get-MpComputerStatus
+          $status | Select-Object AMServiceEnabled,AntivirusEnabled,AMRunningMode,AntivirusSignatureVersion,AntivirusSignatureLastUpdated | ConvertTo-Json | Tee-Object evidence/defender-status.json
+          if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) { throw "Defender unavailable; no clean verdict" }
+          $cmd = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $cmd) { $cmd = "$env:ProgramFiles/Windows Defender/MpCmdRun.exe" }
+          & $cmd -Scan -ScanType 3 -File "$PWD/package" -DisableRemediation 2>&1 | Tee-Object evidence/defender-scan.txt
+          $scanExit = $LASTEXITCODE
+          Get-MpThreatDetection | ConvertTo-Json -Depth 6 | Out-File evidence/detections.json
+          "Defender scan exit code: $scanExit" | Tee-Object -Append evidence/defender-scan.txt
+          if ($scanExit -ne 0) { throw "Defender did not return a clean scan; inspect evidence" }
+      - name: Inspect installed payload on isolated runner
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP "DeporiaQ Security Inspection"
+          $process = Start-Process "$PWD/package/DeporiaQ_Setup_0.27.0.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=`"$stage`"" -PassThru
+          if (-not $process.WaitForExit(180000)) { throw "Installer did not exit within 180 seconds" }
+          if ($process.ExitCode -ne 0) { throw "Isolated installation failed" }
+          $cmd = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          & $cmd -Scan -ScanType 3 -File $stage -DisableRemediation 2>&1 | Tee-Object evidence/defender-payload.txt
+          if ($LASTEXITCODE -ne 0) { throw "Payload scan failed" }
+          Get-ChildItem $stage -Recurse -File | Get-FileHash -Algorithm SHA256 | Format-List | Out-File evidence/payload-hashes.txt
+          Copy-Item $stage extracted -Recurse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inspected-installed-payload
+          path: extracted/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-security-evidence
+          path: evidence/
+
+  clamav:
+    needs: defender
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: inspected-installed-payload
+          path: extracted/
+      - name: Install and update scanner
+        run: |
+          mkdir evidence
+          sudo apt-get update -qq
+          sudo apt-get install -y clamav
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam
+      - name: Scan installed payload with ClamAV
+        run: |
+          clamscan --version | tee evidence/scanner-version.txt
+          find extracted -type f -exec sha256sum {} + > evidence/files-sha256.txt
+          set -o pipefail
+          clamscan --recursive --max-filesize=1G --max-scansize=2G extracted | tee evidence/clamav.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-clamav-evidence
+          path: evidence/
