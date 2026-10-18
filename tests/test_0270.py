@@ -72,10 +72,10 @@ def test_assistant_answer_stays_visible_without_trailing_blank_space(application
         bottom=frame.y()+frame.height()+panel.messages_layout.contentsMargins().bottom()
         assert panel.messages.height()<=max(viewport.height(),bottom)+2
         assert body.height()>=body.heightForWidth(body.width())
-    for code,width in [('tr',1000),('en',1366)]:
+    for code,width,question,topic in [('tr',1000,'Şubeler arası transfer nasıl yapılır?','transfer'),('en',1366,'Paneli büyütmek istiyorum','panel_resize')]:
         window.resize(width,750);window.change_language(code);panel.reset()
-        panel.input.setPlainText('Paneli büyütmek istiyorum');panel.submit()
-        assert panel.last_topic=='panel_resize';visible_answer()
+        panel.input.setPlainText(question);panel.submit()
+        assert panel.last_topic==topic;visible_answer()
         window.toggle_mode();visible_answer()
         panel.append('Long answer','A longer instruction with several lines. '*100)
         visible_answer()

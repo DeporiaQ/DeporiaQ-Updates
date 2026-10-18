@@ -37,6 +37,20 @@ ADMIN_ACTIONS={'management','operations','backup'}
 BUSINESS_ACTIONS={'catalog','stock_menu','receive','transfer','count','sales','branch_sale','management','reports','operations','backup','orders'}
 WRITE_SCREENS={'receive','transfer','count','sales','branch_sale','orders'}
 
+class MessageFrame(QFrame):
+    """Keep translated/wrapped text fully readable at the actual column width."""
+    def event(self,event):
+        result=super().event(event)
+        if event.type() in (QEvent.Type.LayoutRequest,QEvent.Type.Resize):
+            QTimer.singleShot(0,self,self.fit_body)
+        return result
+
+    def fit_body(self):
+        body=getattr(self,'body',None)
+        if body is None or body.width()<=0:return
+        height=body.heightForWidth(body.width())
+        if height>0 and body.minimumHeight()!=height:body.setMinimumHeight(height)
+
 class AssistantPanel(Localized,QDockWidget):
     MAX_MESSAGES=24
     def __init__(self,window):
@@ -99,11 +113,11 @@ class AssistantPanel(Localized,QDockWidget):
         method()
 
     def append(self,name,text,actions=(),choices=()):
-        frame=QFrame();frame.setObjectName('assistantMessage');frame.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Minimum);box=QVBoxLayout(frame)
+        frame=MessageFrame();frame.setObjectName('assistantMessage');frame.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Minimum);box=QVBoxLayout(frame)
         label=QLabel(name);label.setObjectName('soluk');box.addWidget(label)
         content=QLabel(text);content.setObjectName('assistantAnswer');content.setTextFormat(Qt.TextFormat.PlainText);content.setWordWrap(True);content.setMinimumWidth(0)
         content.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Minimum)
-        content.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);box.addWidget(content)
+        content.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);frame.body=content;box.addWidget(content)
         for key in choices:
             button=QPushButton(T(BY_KEY[key].title));button.setMinimumHeight(38);button.setProperty('topic_id',key);button.clicked.connect(lambda checked=False,k=key:self.show_topic(k));box.addWidget(button)
         for action in actions:
