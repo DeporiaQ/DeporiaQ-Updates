@@ -28,6 +28,11 @@ class RegistrationClient:
         if not result.get('access_token') or not result.get('user',{}).get('id'):raise ValueError('DPQ_AUTH')
         self.cloud.access_token=result['access_token'];self.cloud.refresh_token=result.get('refresh_token','');self.cloud.user_id=result['user']['id']
         return True
+    def resume(self,email,password):
+        result=self.cloud._istek('/auth/v1/token?grant_type=password','POST',{'email':email,'password':password},auth=False)
+        if not result.get('access_token') or not result.get('user',{}).get('email_confirmed_at'):raise ValueError('DPQ_EMAIL_VERIFY')
+        self.cloud.access_token=result['access_token'];self.cloud.refresh_token=result.get('refresh_token','');self.cloud.user_id=result['user']['id']
+        return True
     def enroll(self,name):return self.cloud._istek('/rest/v1/rpc/dpq_enroll','POST',{'p_name':name})
 
 class RegistrationDialog(ServerDialog):
@@ -44,6 +49,8 @@ class RegistrationDialog(ServerDialog):
         self.code=QLineEdit();self.code.setPlaceholderText(T('E-postadaki doğrulama kodu'));self.code.setMaxLength(10);self.body.addWidget(self.code)
         self.verify_button=self.button(T('E-postayı Doğrula ve İşletmeyi Aç'),self.verify);self.verify_button.setEnabled(False)
         self.resend_button=self.button(T('Kodu Yeniden Gönder'),self.resend);self.resend_button.setEnabled(False)
+        self.resume_button=self.button(T('Doğrulanmış Kaydı Tamamla'),self.resume)
+        self.resume_button.setToolTip(T('E-postanızı daha önce doğruladıysanız aynı hesapla yarım kalan işletme kurulumuna devam edin.'))
         self.cooldown=QTimer(self);self.cooldown.setSingleShot(True);self.cooldown.timeout.connect(lambda:self.resend_button.setEnabled(True))
     def signup(self):
         if not 2<=len(self.name.text().strip())<=120 or self.password.text()!=self.confirm.text():self.status_label.setText(T('İşletme adını ve eşleşen parolaları kontrol edin.'));return
@@ -59,6 +66,13 @@ class RegistrationDialog(ServerDialog):
         email=self.email.text().strip();code=self.code.text().strip();name=self.name.text().strip()
         def operation():
             if not self.verified:self.registration.verify(email,code);self.verified=True
+            return self.registration.enroll(name)
+        self.run(operation,lambda _:self.accept())
+    def resume(self):
+        email=self.email.text().strip();password=self.password.text();name=self.name.text().strip()
+        if not 2<=len(name)<=120 or not email or not password:self.status_label.setText(T('İşletme adını ve eşleşen parolaları kontrol edin.'));return
+        def operation():
+            self.registration.resume(email,password);self.verified=True
             return self.registration.enroll(name)
         self.run(operation,lambda _:self.accept())
 

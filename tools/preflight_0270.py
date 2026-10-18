@@ -14,7 +14,7 @@ def management(path,body=None):
     except Exception as error:raise SystemExit('Compatibility check unavailable ('+type(error).__name__+'); no server changes were made.')
 # The database returns a single Boolean. No schema definitions or customer rows
 # leave the database, and no report/artifact is uploaded to the repository.
-result=management('/database/query',{'query':"""
+result=management('/database/query',{'read_only':True,'query':"""
 with required(table_schema,table_name,column_name) as (values
  ('public','companies','id'),('public','companies','name'),
  ('public','company_members','company_id'),('public','company_members','user_id'),

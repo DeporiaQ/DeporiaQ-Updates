@@ -32,14 +32,27 @@ export async function providerRequest(config,path,payload,fetcher=fetch) {
 export function verifiedPayment(result,order) {
   // No redirect status, browser payload, card brand or client amount is trusted.
   if(result.status!=='success'||result.paymentStatus!=='SUCCESS')return {pending:true};
-  if(Number(result.fraudStatus)!==1)return {pending:Number(result.fraudStatus)===0,rejected:Number(result.fraudStatus)===-1};
   if(result.basketId!==order.id||result.conversationId!==order.id||result.currency!==order.currency||
      minorUnits(result.price)!==order.amount_minor||minorUnits(result.paidPrice)!==order.amount_minor||
      typeof result.paymentId!=='string'||!result.paymentId)throw new Error('DPQ_PAYMENT_MISMATCH');
+  // 2 means approved after manual fraud review; 0 is still pending.
+  if(![1,2].includes(Number(result.fraudStatus)))return {pending:Number(result.fraudStatus)!==-1,rejected:Number(result.fraudStatus)===-1,payment_id:result.paymentId};
   const items=result.itemTransactions;
   if(!Array.isArray(items)||items.length!==1||items[0].itemId!==order.offer||minorUnits(items[0].price)!==order.amount_minor||
      ![1,2].includes(Number(items[0].transactionStatus))||!items[0].paymentTransactionId)throw new Error('DPQ_PAYMENT_MISMATCH');
   return {event:`iyzico:${order.environment}:${result.paymentId}`,transaction:String(items[0].paymentTransactionId)};
+}
+
+export async function verifiedWebhook(payload,signature,secret) {
+  if(!/^[a-fA-F0-9]{64}$/.test(signature||'')||payload?.iyziEventType!=='CHECKOUT_FORM_AUTH')return false;
+  for(const key of ['iyziPaymentId','token','paymentConversationId','status']) {
+    if(!['string','number'].includes(typeof payload[key])||!String(payload[key])||String(payload[key]).length>200)return false;
+  }
+  const message=secret+payload.iyziEventType+payload.iyziPaymentId+payload.token+payload.paymentConversationId+payload.status;
+  const encoder=new TextEncoder();
+  const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);
+  const bytes=Uint8Array.from(signature.match(/../g),x=>parseInt(x,16));
+  return crypto.subtle.verify('HMAC',key,bytes,encoder.encode(message));
 }
 export function buyerPayload(input,user,ip) {
   const fields={};

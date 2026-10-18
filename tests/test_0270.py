@@ -125,3 +125,16 @@ def test_guide_index_scales_to_more_than_one_thousand_authored_records():
     assert index.lookup('Help me with Fixture operation 1499')==('fixture_1499',)
     assert index.lookup('fixture1499')==('fixture_1499',)
     assert time.monotonic()-started<1.5
+
+def test_verified_registration_can_resume_after_interrupted_enrollment(window,monkeypatch):
+    cloud=window.cloud_client;client=RegistrationClient(cloud);calls=[]
+    def request(path,method,payload,**kw):
+        calls.append((path,payload))
+        if path.startswith('/auth/v1/token'):return {'access_token':'resumed','refresh_token':'refresh','user':{'id':'owner','email_confirmed_at':'2026-10-18T09:00:00Z'}}
+        return {'company_id':'same-company','created':False}
+    monkeypatch.setattr(cloud,'_istek',request)
+    client.resume('test@example.invalid','LongPassword!2026')
+    assert client.enroll('My Store')['created'] is False
+    assert len(calls)==2 and cloud.user_id=='owner'
+    assert not any('signup' in path for path,_ in calls)
+    cloud.cikis_yap()

@@ -1806,3 +1806,7 @@ EN.update({
 })
 
 EN.update({"Büyük harf, küçük harf, rakam ve özel sembol kullanın. Parolanızda boşluk bulunmasın.":"Use uppercase, lowercase, a number and a symbol. Do not include spaces."})
+EN.update({
+ 'Doğrulanmış Kaydı Tamamla':'Complete Verified Registration',
+ 'E-postanızı daha önce doğruladıysanız aynı hesapla yarım kalan işletme kurulumuna devam edin.':'If you already verified your email, resume business setup with the same account.',
+})

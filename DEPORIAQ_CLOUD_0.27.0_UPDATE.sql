@@ -29,9 +29,11 @@ alter table dpq.checkout_orders add column if not exists provider_token text;
 alter table dpq.checkout_orders add column if not exists payment_url text;
 alter table dpq.checkout_orders add column if not exists payment_state text not null default 'created';
 alter table dpq.checkout_orders add column if not exists provider_transaction text;
+alter table dpq.checkout_orders add column if not exists provider_payment_id text;
 alter table dpq.checkout_orders add column if not exists last_checked_at timestamptz;
 create unique index if not exists dpq_checkout_request on dpq.checkout_orders(actor,request_id);
 create unique index if not exists dpq_checkout_token on dpq.checkout_orders(provider_token) where provider_token is not null;
+create unique index if not exists dpq_checkout_provider_payment on dpq.checkout_orders(environment,provider_payment_id) where provider_payment_id is not null;
 revoke all on dpq.commercial_config,dpq.offers,dpq.enrollments from public,anon,authenticated;
 alter table dpq.commercial_config enable row level security;
 alter table dpq.offers enable row level security;
@@ -181,6 +183,22 @@ begin
 end $$;
 create or replace function public.dpq_checkout_by_token(p_token text)
 returns jsonb language sql security definer set search_path='' as $$ select to_jsonb(o) from dpq.checkout_orders o where provider_token=p_token $$;
+-- Payment IDs come only from a server-verified provider response. IFN merely
+-- triggers another provider lookup; its posted fraudStatus is never trusted.
+create or replace function public.dpq_checkout_observe(p_order uuid,p_token text,p_payment text)
+returns void language plpgsql security definer set search_path='' as $$
+begin
+ if p_payment is null or p_payment!~'^[0-9]{1,40}$' then raise exception 'DPQ_PAYMENT_MISMATCH';end if;
+ update dpq.checkout_orders set provider_payment_id=p_payment where id=p_order and provider_token=p_token
+ and (provider_payment_id is null or provider_payment_id=p_payment);
+ if not found then raise exception 'DPQ_PAYMENT_MISMATCH';end if;
+end $$;
+create or replace function public.dpq_checkout_by_payment(p_payment text,p_environment text)
+returns jsonb language sql security definer set search_path='' as $$
+ select to_jsonb(o) from dpq.checkout_orders o where provider_payment_id=p_payment and environment=p_environment
+$$;
+revoke all on function public.dpq_checkout_observe(uuid,text,text),public.dpq_checkout_by_payment(text,text) from public,anon,authenticated;
+grant execute on function public.dpq_checkout_observe(uuid,text,text),public.dpq_checkout_by_payment(text,text) to service_role;
 revoke all on function public.dpq_checkout_create(uuid,text,uuid),public.dpq_checkout_attach(uuid,text,text),public.dpq_checkout_confirm(uuid,text,text,bigint,text,text),public.dpq_checkout_get(uuid,uuid),public.dpq_checkout_by_token(text),public.dpq_checkout_claim(uuid),public.dpq_checkout_poll_claim(uuid) from public,anon,authenticated;
 grant execute on function public.dpq_checkout_create(uuid,text,uuid),public.dpq_checkout_attach(uuid,text,text),public.dpq_checkout_confirm(uuid,text,text,bigint,text,text),public.dpq_checkout_get(uuid,uuid),public.dpq_checkout_by_token(text),public.dpq_checkout_claim(uuid),public.dpq_checkout_poll_claim(uuid) to service_role;
 create or replace function public.dpq_0270_ready() returns text language sql set search_path='' as $$select '0.27.0'::text$$;

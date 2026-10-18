@@ -1,4 +1,4 @@
-import {providerRequest,paymentURL,money,verifiedPayment,buyerPayload} from './provider.mjs';
+import {providerRequest,paymentURL,money,verifiedPayment,buyerPayload,verifiedWebhook} from './provider.mjs';
 const base=Deno.env.get('SUPABASE_URL')!;
 const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,6 +27,7 @@ async function reconcile(order:any) {
   if(!await rpc('dpq_checkout_poll_claim',{p_order:order.id}))return {paid:false,pending:true};
   const result=await providerRequest(config(order.environment),'/payment/iyzipos/checkoutform/auth/ecom/detail',{locale:'tr',conversationId:order.id,token:order.provider_token});
   const verified=verifiedPayment(result,order);
+  if(verified.payment_id)await rpc('dpq_checkout_observe',{p_order:order.id,p_token:order.provider_token,p_payment:verified.payment_id});
   if(!verified.event)return {paid:false,...verified};
   const applied=await rpc('dpq_checkout_confirm',{p_order:order.id,p_token:order.provider_token,p_event:verified.event,p_amount:order.amount_minor,p_currency:order.currency,p_transaction:verified.transaction});
   return {paid:applied.applied===true,sandbox:applied.sandbox===true,valid_until:applied.valid_until};
@@ -36,7 +37,24 @@ Deno.serve(async(req:Request)=>{
   try {
     if(Number(req.headers.get('content-length')||0)>8192)throw new Error('DPQ_INPUT');
     const text=await req.text();if(text.length>8192)throw new Error('DPQ_INPUT');
-    if(new URL(req.url).searchParams.get('action')==='callback') {
+    const action=new URL(req.url).searchParams.get('action');
+    if(action==='webhook') {
+      const payload=JSON.parse(text),settings=config(Deno.env.get('DPQ_IYZICO_ENVIRONMENT')||'');
+      if(!await verifiedWebhook(payload,req.headers.get('x-iyz-signature-v3'),settings.secret))throw new Error('DPQ_AUTH');
+      const order=await rpc('dpq_checkout_by_token',{p_token:payload.token});
+      if(!order||order.id!==payload.paymentConversationId||order.environment!==settings.environment)throw new Error('DPQ_CHECKOUT');
+      const result=await reconcile(order);
+      return json({received:true},result.pending?503:200);
+    }
+    if(action==='fraud') {
+      const payload=JSON.parse(text),payment=String(payload.paymentId||'');
+      if(!/^[0-9]{1,40}$/.test(payment))throw new Error('DPQ_INPUT');
+      const order=await rpc('dpq_checkout_by_payment',{p_payment:payment,p_environment:Deno.env.get('DPQ_IYZICO_ENVIRONMENT')});
+      // An IFN is a wake-up signal, never proof of payment or of a refund.
+      if(!order)return json({received:false},503);
+      const result=await reconcile(order);return json({received:true},result.pending?503:200);
+    }
+    if(action==='callback') {
       const token=new URLSearchParams(text).get('token')||'';
       if(token.length<10||token.length>200)throw new Error('DPQ_CHECKOUT');
       const order=await rpc('dpq_checkout_by_token',{p_token:token});if(!order)throw new Error('DPQ_CHECKOUT');

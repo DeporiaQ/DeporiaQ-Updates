@@ -1,0 +1,35 @@
+name: DeporiaQ 0.27 One-time Server Setup
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Reviewed setup phase'
+        required: true
+        type: choice
+        options: [migrate, email, enrollment]
+      email_delivery_tested:
+        description: 'A real verification-code delivery has been checked'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: deporiaq-server-setup
+  cancel-in-progress: false
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run selected phase without exporting production data
+        env:
+          DPQ_SETUP_PHASE: ${{ inputs.phase }}
+          DPQ_REGISTRATION_EMAIL_TESTED: ${{ inputs.email_delivery_tested }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DPQ_SMTP_PASSWORD: ${{ secrets.DPQ_SMTP_PASSWORD }}
+        run: node server/deploy_0270.mjs "$DPQ_SETUP_PHASE"

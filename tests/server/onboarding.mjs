@@ -2,7 +2,7 @@ import {PGlite} from '@electric-sql/pglite';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {randomUUID,createHmac} from 'node:crypto';
-import {authorization,minorUnits,paymentURL,verifiedPayment,buyerPayload} from '../../supabase/functions/payment-checkout/provider.mjs';
+import {authorization,minorUnits,paymentURL,verifiedPayment,buyerPayload,verifiedWebhook} from '../../supabase/functions/payment-checkout/provider.mjs';
 const db=new PGlite();
 for(const file of ['tests/server/fixture.sql','tests/server/exported_legacy.sql','DEPORIAQ_CLOUD_0.24.0_MIGRATION.sql'])await db.exec(fs.readFileSync(file,'utf8'));
 await db.exec('create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz)');
@@ -67,7 +67,16 @@ assert.equal(minorUnits('123.45'),12345);assert.throws(()=>minorUnits('123.451')
 for(const value of ['https://evil.test/','https://payment.iyzipay.com.evil.test/','http://payment.iyzipay.com/','https://user@payment.iyzipay.com/','https://sandbox-payment.iyzipay.com/pay'])assert.throws(()=>paymentURL(value,'live'));
 const reply={status:'success',paymentStatus:'SUCCESS',fraudStatus:1,basketId:order.id,conversationId:order.id,currency:'TRY',price:'123.45',paidPrice:'123.45',paymentId:'payment-1',itemTransactions:[{itemId:'monthly',price:'123.45',transactionStatus:1,paymentTransactionId:'line-1'}]};
 assert.equal(verifiedPayment(reply,order).event,'iyzico:live:payment-1');
+assert.equal(verifiedPayment({...reply,fraudStatus:2},order).event,'iyzico:live:payment-1');
 for(const change of [{currency:'USD'},{paidPrice:'1.00'},{basketId:randomUUID()},{conversationId:'other'},{itemTransactions:[]}])assert.throws(()=>verifiedPayment({...reply,...change},order));
 assert.equal(verifiedPayment({...reply,fraudStatus:0},order).pending,true);assert.equal(verifiedPayment({...reply,fraudStatus:-1},order).rejected,true);
 const buyer=buyerPayload({name:'Test',surname:'Buyer',email:'attacker@example.invalid',identityNumber:'11111111110',gsmNumber:'+905551234567',address:'Test street',city:'Izmir',country:'Turkey'},{id:u,email:'verified@example.invalid'},'127.0.0.1');assert.equal(buyer.email,'verified@example.invalid');
 console.log('PASS enrollment isolation, email verification, no trial reset, disabled unconfigured billing, server pricing, checkout idempotence, payment verification, replay guards, sandbox isolation and expiry preservation');
+
+const notice={iyziEventType:'CHECKOUT_FORM_AUTH',iyziPaymentId:12345,token:'random-token-123',paymentConversationId:order.id,status:'SUCCESS'};
+const signature=createHmac('sha256',secret).update(secret+notice.iyziEventType+notice.iyziPaymentId+notice.token+notice.paymentConversationId+notice.status).digest('hex');
+assert.equal(await verifiedWebhook(notice,signature,secret),true);
+assert.equal(await verifiedWebhook({...notice,status:'FAILURE'},signature,secret),false);
+assert.equal(await verifiedWebhook(notice,'0'.repeat(64),secret),false);
+assert.equal(await verifiedWebhook(notice,'',secret),false);
+console.log('PASS delayed fraud approval and independently calculated webhook signature/tamper checks');
