@@ -45,7 +45,8 @@ Item {
             Behavior on y { NumberAnimation { duration: 350 } }
             Behavior on eulerRotation { Vector3dAnimation { duration: 250 } }
             Model { source: "#Sphere"; position: Qt.vector3d(0,-26,-4); scale: Qt.vector3d(0.79,scene.sleepy ? 0.61 : 0.92,0.67); materials: [fur] }
-            Model { geometry: FurGeometry {}; position: Qt.vector3d(0,-26,-4); scale: Qt.vector3d(0.79,scene.sleepy ? 0.61 : 0.92,0.67); materials: [coat] }
+            Model { geometry: FurGeometry {}
+                position: Qt.vector3d(0,-26,-4); scale: Qt.vector3d(0.79,scene.sleepy ? 0.61 : 0.92,0.67); materials: [coat] }
             Model { source: "#Sphere"; position: Qt.vector3d(0,-28,21); scale: Qt.vector3d(0.50,0.62,0.34); materials: [muzzle] }
             // A curved articulated tail, rather than a flat animated image.
             Node {
@@ -82,7 +83,8 @@ Item {
                 eulerRotation.z: scene.mood === "hungry" ? -12 : (scene.mood === "happy" ? Math.sin(scene.phase*3)*7 : 0)
                 Behavior on eulerRotation { Vector3dAnimation { duration: 180 } }
                 Model { source: "#Sphere"; scale: Qt.vector3d(1.17,0.98,0.82); materials: [fur] }
-                Model { geometry: FurGeometry {}; scale: Qt.vector3d(1.17,0.98,0.82); materials: [coat] }
+                Model { geometry: FurGeometry {}
+                    scale: Qt.vector3d(1.17,0.98,0.82); materials: [coat] }
                 // Soft cheek silhouette and outer ear cones.
                 Model { source: "#Sphere"; position: Qt.vector3d(-41,-14,4); scale: Qt.vector3d(0.43,0.52,0.54); materials: [fur] }
                 Model { source: "#Sphere"; position: Qt.vector3d(41,-14,4); scale: Qt.vector3d(0.43,0.52,0.54); materials: [fur] }
