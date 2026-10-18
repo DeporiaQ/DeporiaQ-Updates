@@ -2,10 +2,13 @@ name: DeporiaQ Candidate Windows Validation
 on:
   push:
     branches:
-      - 'codex/deporiaq-0.26.0'
+      - 'codex/deporiaq-0.27.0'
     paths:
       - '**.py'
       - '**.iss'
+      - 'companion/**'
+      - '**.svg'
+      - '**.ico'
       - '.github/workflows/candidate-windows.yml'
 permissions:
   contents: read
@@ -35,7 +38,7 @@ jobs:
       - name: Sürüm tutarlılığını doğrula
         shell: pwsh
         run: |
-          $version = "0.26.0"
+          $version = "0.27.0"
           if ((Get-Content deporiaq_qt.py -Raw) -notmatch ('SURUM = "' + [regex]::Escape($version) + '"')) {
             throw "deporiaq_qt.py sürümü ile yayın sürümü uyuşmuyor."
           }
@@ -49,12 +52,18 @@ jobs:
       - name: Operasyon Merkezi ve başlangıç sözleşmesi testleri
         shell: pwsh
         run: |
-          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py tests/test_session_pos.py tests/test_0243.py tests/test_0250.py tests/test_0260.py -q
-          if ($LASTEXITCODE -ne 0) { throw "0.26.0 işlev testleri başarısız." }
+          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py tests/test_session_pos.py tests/test_0243.py tests/test_0250.py tests/test_0260.py tests/test_0270.py -q --junitxml=test-results/windows-unit.xml
+          if ($LASTEXITCODE -ne 0) { throw "0.27.0 işlev testleri başarısız." }
           $tokens = $null
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'deporiaq_restart.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+
+      - name: Native 3D companion and workspace integration
+        shell: pwsh
+        run: |
+          python tools/render_workspace_0270.py
+          if ($LASTEXITCODE -ne 0) { throw "Native 3D workspace test failed." }
 
       - name: Cloud istemci yapılandırmasını hazırla
         shell: pwsh
@@ -76,7 +85,7 @@ jobs:
       - name: Windows uygulamalarını oluştur
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --add-data "chevron.svg;." --add-data "chevron_up.svg;." --add-data "whatsapp_icon.svg;." --add-data "x_icon.svg;." --add-data "backgrounds;backgrounds" --add-data "dashboard_background.jpg;." --add-data "deporiaq_cloud.json;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --icon deporiaq_icon.ico --add-data "deporiaq_icon.svg;." --add-data "youtube_icon.svg;." --add-data "instagram_icon.svg;." --add-data "chevron.svg;." --add-data "chevron_up.svg;." --add-data "whatsapp_icon.svg;." --add-data "x_icon.svg;." --add-data "backgrounds;backgrounds" --add-data "companion;companion" --hidden-import PySide6.QtQuick3D --hidden-import PySide6.QtQml --hidden-import deporiaq_fur --add-data "dashboard_background.jpg;." --add-data "deporiaq_cloud.json;." --collect-all ttkbootstrap --name DeporiaQ deporiaq_qt.py
           if ($LASTEXITCODE -ne 0) { throw "DeporiaQ derlenemedi." }
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name DeporiaQUpdate deporiaq_guncelleme_bildirici.py
           if ($LASTEXITCODE -ne 0) { throw "Güncelleyici derlenemedi." }
@@ -105,13 +114,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DeporiaQ-0.26.0-test-results
+          name: DeporiaQ-0.27.0-test-results
           path: test-results/
           if-no-files-found: warn
 
       - name: Aday kurulum dosyasını sakla
         uses: actions/upload-artifact@v4
         with:
-          name: DeporiaQ-0.26.0-candidate-setup
-          path: kurulum/DeporiaQ_Setup_0.26.0.exe
+          name: DeporiaQ-0.27.0-candidate-setup
+          path: kurulum/DeporiaQ_Setup_0.27.0.exe
 

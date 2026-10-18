@@ -30,24 +30,22 @@ ACTIONS={
  'notifications':(T('Bildirimleri Aç'),'notification_history'),
  'shortcuts':(T('Kısayolları Aç'),'kisayollar_ac'),
  'updates':(T('Güncellemeleri Denetle'),'guncelleme_denetle'),
+ 'panels':(T('Panelleri Aç'),'panels_open'),
+ 'orders':(T('İnternet Siparişlerini Aç'),'internet_ac'),
 }
 ADMIN_ACTIONS={'management','operations','backup'}
-BUSINESS_ACTIONS={'catalog','stock_menu','receive','transfer','count','sales','branch_sale','management','reports','operations','backup'}
-WRITE_SCREENS={'receive','transfer','count','sales','branch_sale'}
+BUSINESS_ACTIONS={'catalog','stock_menu','receive','transfer','count','sales','branch_sale','management','reports','operations','backup','orders'}
+WRITE_SCREENS={'receive','transfer','count','sales','branch_sale','orders'}
 
 class AssistantPanel(Localized,QDockWidget):
     MAX_MESSAGES=24
     def __init__(self,window):
         super().__init__(window);self.setWindowTitle(T('DeporiaQ Asistan'));self.window=window;self.job=None;self.history=[];self.ready=True;self.last_topic=None
         self.setObjectName('assistantDock');self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
-        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable);self.setMinimumWidth(345)
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable);self.setMinimumWidth(345);self.setMaximumWidth(460)
         root=QWidget();layout=QVBoxLayout(root);layout.setContentsMargins(16,14,16,14);layout.setSpacing(10)
         heading=QLabel(T('DeporiaQ Asistan'));heading.setObjectName('sayfaBaslik');layout.addWidget(heading)
-        self.status=QLabel(T('Çevrimdışı kullanım rehberi'));self.status.setWordWrap(True);layout.addWidget(self.status)
-        note=QLabel(T('Sorunuzu hazır kullanım anlatımlarıyla eşleştirir. Mesajlarınız bu bilgisayarda kalır; canlı stok okumaz ve işlem yapmaz.'));note.setWordWrap(True);note.setObjectName('soluk');layout.addWidget(note)
-        self.topics=QComboBox();self.topics.setAccessibleName(T('Rehber konusu'));self.topics.addItem(T('Bir konu seçin…'),'')
-        for topic in TOPICS:self.topics.addItem(T(topic.title),topic.key)
-        self.topics.activated.connect(self.selected_topic);layout.addWidget(self.topics)
+        self.status=QLabel(T('DeporiaQ kullanımında yanınızdayım.'));self.status.setWordWrap(True);layout.addWidget(self.status)
         self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.messages=QWidget();self.messages_layout=QVBoxLayout(self.messages);self.messages_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.messages_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize);self.scroll.setWidget(self.messages);layout.addWidget(self.scroll,1)
@@ -55,16 +53,20 @@ class AssistantPanel(Localized,QDockWidget):
         self.input.textChanged.connect(self.input_changed)
         bar=QHBoxLayout();self.send=QPushButton(T('Gönder'));self.send.setObjectName('birincil');self.send.clicked.connect(self.submit);bar.addWidget(self.send)
         self.clear=QPushButton(T('Yeni sohbet'));self.clear.clicked.connect(self.reset);bar.addWidget(self.clear);layout.addLayout(bar)
-        self.setWidget(root);self.resize(390,650);self.reset()
+        self.setStyleSheet("QDockWidget#assistantDock{background:#101b2c;border:1px solid #344d69;border-radius:16px;}");self.setWidget(root);self.resize(410,500);self.reset()
+
+    def position_in_window(self):
+        w=self.window;self.resize(min(430,max(345,w.width()-40)),min(530,max(350,w.height()-180)))
+        self.move(max(10,w.width()-self.width()-24),max(100,w.height()-self.height()-76))
 
     def check(self):
         # Kept as a local availability hook for the main window; no network check.
-        self.ready=True;self.status.setText(T('Çevrimdışı kullanım rehberi'))
+        self.ready=True;self.status.setText(T('DeporiaQ kullanımında yanınızdayım.'))
 
     def input_changed(self):
         length=len(self.input.toPlainText().strip());self.send.setEnabled(0<length<=2000)
         if length>2000:self.status.setText(T('Sorunuzu en fazla 2000 karakterle yazın.'))
-        else:self.status.setText(T('Çevrimdışı kullanım rehberi'))
+        else:self.status.setText(T('DeporiaQ kullanımında yanınızdayım.'))
 
     def eventFilter(self,obj,event):
         if obj is self.input and event.type()==QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
@@ -107,15 +109,10 @@ class AssistantPanel(Localized,QDockWidget):
             old=self.messages_layout.takeAt(0).widget();old.hide();old.deleteLater()
         QTimer.singleShot(0,self,lambda:self.scroll.verticalScrollBar().setValue(self.scroll.verticalScrollBar().maximum()))
 
-    def selected_topic(self,index):
-        key=self.topics.itemData(index)
-        if key:self.show_topic(key)
-        self.topics.setCurrentIndex(0)
-
     def show_topic(self,key):
         topic=BY_KEY[key];self.last_topic=key
         self.append(T(topic.title),T(topic.body),topic.actions)
-        self.status.setText(T('İlgili düğme yalnızca ekranı açar; işlemi siz onaylarsınız.'))
+        self.status.setText(T('DeporiaQ kullanımında yanınızdayım.'))
 
     def submit(self):
         text=self.input.toPlainText().strip()
@@ -123,7 +120,7 @@ class AssistantPanel(Localized,QDockWidget):
         self.append(T('Siz'),text);self.history=(self.history+[text])[-12:];self.input.clear()
         normalized=fold(text)
         if normalized in GREETINGS:
-            self.append(T('DeporiaQ Asistan'),T('Merhaba! DeporiaQ kullanımını anlatabilirim. Bir konu seçin veya nasıl yapılacağını sorun.'),choices=('receive','sale','transfer'));return
+            self.append(T('DeporiaQ Asistan'),T('Merhaba! Size nasıl yardımcı olabilirim?'));return
         keys=(self.last_topic,) if normalized in FOLLOW_UP and self.last_topic else lookup(text)
         if len(keys)==1:self.show_topic(keys[0])
         elif keys:
@@ -131,11 +128,11 @@ class AssistantPanel(Localized,QDockWidget):
             self.append(T('Konu seçimi'),T('Sorunuz birden fazla konuyla eşleşti. Hangisini açalım?'),choices=keys)
         else:
             self.last_topic=None
-            self.append(T('Rehberde eşleşme bulunamadı'),T('Bu soru için doğrulanmış bir anlatım bulamadım. Üstten bir rehber konusu seçebilir veya destek talebi ekranını açabilirsiniz.'),actions=('help','support'),choices=('receive','sale','transfer'))
+            self.append(T('DeporiaQ Asistan'),T('Hangi ekranda ne yapmak istediğinizi biraz daha ayrıntılı yazar mısınız? Bir hata görüyorsanız hata metnini de ekleyebilirsiniz.'),actions=('support',))
 
     def reset(self):
-        self.history=[];self.last_topic=None;self.input.clear();self.topics.setCurrentIndex(0)
+        self.history=[];self.last_topic=None;self.input.clear()
         while self.messages_layout.count():
             item=self.messages_layout.takeAt(0);item.widget().hide();item.widget().deleteLater()
-        self.append(T('DeporiaQ Asistan'),T('DeporiaQ kullanımını buradan öğrenebilirsiniz. Örneğin “Stok nasıl eklenir?” yazın veya bir konu seçin.'),choices=('receive','sale','transfer'))
+        self.append(T('DeporiaQ Asistan'),T('Merhaba! Size nasıl yardımcı olabilirim?'))
         self.check();self.input_changed()

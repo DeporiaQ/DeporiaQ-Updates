@@ -23,7 +23,7 @@ sys.excepthook = startup_error
 from deporiaq_analiz_ui import AnalysisWindow, CommandPalette
 from deporiaq_commerce import CommerceClient, SHORTCUTS
 from deporiaq_preferences import apply_appearance,extend_settings,save_notifications,SessionGuard
-from deporiaq_commerce_ui import PlansDialog, StockDialog, OrdersDialog, SupportDialog, SaleDialog, SubscriptionClock
+from deporiaq_commerce_ui import PlansDialog, StockDialog, OrdersDialog, SupportDialog, SaleDialog, SubscriptionClock,Job
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal, QRectF
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QIntValidator,
@@ -47,9 +47,11 @@ from deporiaq_visuals import WorkspaceDialog as QDialog
 from deporiaq_i18n import T,render,language,set_language,join_text
 from deporiaq_experience import ExperienceHeader,FlagButton,SearchController
 from deporiaq_assistant import AssistantPanel
+from deporiaq_panels import PanelCanvas,PanelsDialog
+from deporiaq_companion import CompanionController,PetDock,companion_settings
 from deporiaq_i18n import T, render, Text ,QCheckBox,QComboBox,QFileDialog,QFormLayout,QInputDialog,QLabel,QLineEdit,QMainWindow,QMessageBox,QPlainTextEdit,QPushButton,QTabWidget,QTableWidget,QTableWidgetItem,QWidget
 
-SURUM = "0.26.0"
+SURUM = "0.27.0"
 
 
 def kaynak_yolu(ad):
@@ -293,6 +295,7 @@ class IlkKurulumPenceresi(QDialog):
     def __init__(self, vt, parent=None):
         super().__init__(parent)
         self.vt = vt
+        self.job=None
         self.setWindowTitle(T('{v0} {v1} • İşletmeye Bağlan', v0=PROGRAM_ADI, v1=SURUM))
         self.setMinimumSize(520, 500)
         ana = QVBoxLayout(self)
@@ -315,9 +318,27 @@ class IlkKurulumPenceresi(QDialog):
         secenekler.addWidget(self.m_hatirla);secenekler.addStretch();secenekler.addWidget(goster);ana.addLayout(secenekler)
         self.durum=QLabel(T('İlk girişte verileriniz güvenli biçimde bu bilgisayara hazırlanır.'));self.durum.setWordWrap(True);self.durum.setObjectName("soluk");ana.addWidget(self.durum)
         self.m_tamam=QPushButton(T('Giriş Yap ve İşletmeyi Hazırla'));self.m_tamam.setObjectName("birincil");self.m_tamam.clicked.connect(self.mevcut_isletme);ana.addWidget(self.m_tamam)
+        self.new_business=QPushButton(T('Yeni İşletme Oluştur · 30 Gün Dene'));self.new_business.clicked.connect(self.yeni_isletme);ana.addWidget(self.new_business)
         ana.addStretch()
 
+    def yeni_isletme(self):
+        from deporiaq_onboarding import RegistrationDialog
+        url,key=cloud_yapilandirmasi_oku()
+        if not url or not key:self.durum.setText(T('Cloud yapılandırması eksik'));return
+        cloud=DeporiaQCloud(self.vt,'');cloud.yapilandir(url,key)
+        dialog=RegistrationDialog(cloud,self)
+        if dialog.exec()==QDialog.DialogCode.Accepted:
+            self.m_email.setText(dialog.email.text().strip());self.m_cloud_pw.setText(dialog.password.text());self.mevcut_isletme()
+
+    def closeEvent(self,event):
+        if self.job is not None:event.ignore()
+        else:super().closeEvent(event)
+
+    def reject(self):
+        if self.job is None:super().reject()
+
     def mevcut_isletme(self):
+        if self.job is not None:return
         email=self.m_email.text().strip();parola=self.m_cloud_pw.text()
         if not email or not parola:
             QMessageBox.warning(self,T('Eksik bilgi'),T('E-posta adresinizi ve parolanızı yazın.'));return
@@ -328,19 +349,29 @@ class IlkKurulumPenceresi(QDialog):
         if not cihaz:
             cihaz="DPQ-"+secrets.token_hex(6).upper(); yerel_ayari_kaydet("cihaz_kimligi",cihaz)
         kullanici="".join(c for c in email.split("@",1)[0].upper() if c.isalnum() or c in "_-") or "DEPORIAQ"
-        cloud=DeporiaQCloud(self.vt,cihaz);cloud.local_username=kullanici
-        self.m_tamam.setEnabled(False);self.durum.setText(T('Cloud hesabı doğrulanıyor ve işletme verileri indiriliyor…'));QApplication.processEvents()
-        try:
-            cloud.yapilandir(url,anahtar);sirket=cloud.giris_yap(email,parola)
-            urun,konum,stok=cloud.mevcut_isletmeyi_bu_cihaza_kur(kullanici,parola)
-            yerel_ayari_kaydet("cloud_url",url);yerel_ayari_kaydet("cloud_publishable_key",anahtar);yerel_ayari_kaydet("cloud_email",email)
-            yerel_ayari_kaydet("hatirlanan_kullanici",kullanici)
-            # Cloud parolası değil, Supabase'in iptal edilebilir oturum anahtarı DPAPI ile korunur.
-            yerel_ayari_kaydet("cloud_refresh_token_dpapi",windows_sifrele(cloud.refresh_token))
-        except Exception as e:
-            self.m_tamam.setEnabled(True);self.durum.setText(T('Bağlantı kurulamadı. Bilgilerinizi kontrol edip yeniden deneyin.'));QMessageBox.warning(self,T('İşletmeye bağlanılamadı'),str(e));return
-        QMessageBox.information(self,T('Bağlantı tamamlandı'),T('{v0} bu bilgisayara bağlandı.\n{v1} konum, {v2} ürün ve {v3} stok kaydı indirildi.\n\nSonraki girişlerde kullanıcı adınız: {v4}', v0=sirket, v1=konum, v2=urun, v3=stok, v4=kullanici))
-        self.accept()
+        remember=self.m_hatirla.isChecked();path=self.vt.yol
+        self.m_tamam.setEnabled(False);self.new_business.setEnabled(False);self.durum.setText(T('Cloud hesabı doğrulanıyor ve işletme verileri indiriliyor…'))
+        def prepare():
+            # Each thread owns its SQLite connection; the first-run UI stays responsive.
+            local=Veritabani(path)
+            try:
+                cloud=DeporiaQCloud(local,cihaz);cloud.local_username=kullanici;cloud.yapilandir(url,anahtar)
+                sirket=cloud.giris_yap(email,parola);urun,konum,stok=cloud.mevcut_isletmeyi_bu_cihaza_kur(kullanici,parola)
+                yerel_ayari_kaydet('cloud_url',url);yerel_ayari_kaydet('cloud_publishable_key',anahtar);yerel_ayari_kaydet('cloud_email',email if remember else '')
+                yerel_ayari_kaydet('hatirlanan_kullanici',kullanici if remember else '')
+                yerel_ayari_kaydet('cloud_refresh_token_dpapi',windows_sifrele(cloud.refresh_token) if remember else '')
+                return sirket,urun,konum,stok
+            finally:local.kapat()
+        self.job=Job(prepare,self)
+        def finished():
+            job=self.job;self.job=None;self.m_tamam.setEnabled(True);self.new_business.setEnabled(True)
+            if job.error:
+                self.durum.setText(T('Bağlantı kurulamadı. Bilgilerinizi kontrol edip yeniden deneyin.'));QMessageBox.warning(self,T('İşletmeye bağlanılamadı'),job.error)
+            else:
+                sirket,urun,konum,stok=job.result
+                QMessageBox.information(self,T('Bağlantı tamamlandı'),T('{v0} bu bilgisayara bağlandı.\n{v1} konum, {v2} ürün ve {v3} stok kaydı indirildi.\n\nSonraki girişlerde kullanıcı adınız: {v4}', v0=sirket, v1=konum, v2=urun, v3=stok, v4=kullanici));self.accept()
+            job.deleteLater()
+        self.job.finished.connect(finished);self.job.start()
 
 
 class GirisPenceresi(QWidget):
@@ -818,6 +849,7 @@ class AyarlarPenceresi(QDialog):
             button.clicked.connect(navigate);gl.addWidget(button)
         gl.addStretch();sek.addTab(gizli,T('Gizli Komutlar'))
         extend_settings(self,g,q,n)
+        if parent and hasattr(parent,"companion"):companion_settings(parent.companion,sek)
     def genel_kaydet(self):
         if self.job is not None:return
         if not self.cloud.bagli or self.cloud.role!='owner':self.company_status.setText(T('İşletme adını yalnızca ana hesap sahibi değiştirebilir.'));return
@@ -1013,12 +1045,13 @@ class AnaPencere(QMainWindow):
         orta = QHBoxLayout(); orta.setContentsMargins(0, 0, 0, 0); orta.setSpacing(0)
         orta.addWidget(self.yan_menu())
         self.kaydir = QScrollArea(); self.kaydir.setWidgetResizable(True)
-        self.kaydir.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.kaydir.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.icerik = DashboardArkaPlan(); self.icerik.setObjectName("dashboardArkaPlan"); self.icerik.setMinimumWidth(0)
         self.kaydir.setWidget(self.icerik); orta.addWidget(self.kaydir, 1)
         ana.addLayout(orta, 1)
         ana.addWidget(self.alt_cubuk())
         self.dashboard_kur()
+        self.companion=CompanionController(self,self.pet_dock)
         self.notification_storage_key='notification_history_'+str(self.kullanici['id'])
         try:self.notifications=json.loads(self.vt.ayar_getir(self.notification_storage_key,'[]'))[-100:]
         except (ValueError,TypeError):self.notifications=[]
@@ -1066,6 +1099,7 @@ class AnaPencere(QMainWindow):
             self.presence_worker=PresenceWorker(self.cloud_client,self.presence_session,self.kullanici['kullanici_adi'],True,self)
             self.presence_worker.finished.connect(self.close);self.presence_worker.start();return
         if hasattr(self,'session_guard'):self.session_guard.timer.stop();QApplication.instance().removeEventFilter(self.session_guard)
+        if hasattr(self,'companion'):self.companion.stop()
         if self.vt.ayar_getir('ui_animation','1')=='1':play_brand(kaynak_yolu('deporiaq_icon.svg'),True)
         if getattr(self,'_logout_requested',False):
             self.vt.aktif_kullanici_id=None;self.cloud_client.cikis_yap();self.giris.auth_cloud=None
@@ -1191,9 +1225,9 @@ class AnaPencere(QMainWindow):
 
     def assistant_open(self):
         if not hasattr(self,'assistant_panel'):
-            self.assistant_panel=AssistantPanel(self);self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.assistant_panel)
+            self.assistant_panel=AssistantPanel(self)
             self.assistant_panel.check()
-        self.assistant_panel.show();self.assistant_panel.raise_();self.assistant_panel.input.setFocus()
+        self.assistant_panel.position_in_window();self.assistant_panel.show();self.assistant_panel.raise_();self.assistant_panel.input.setFocus()
 
     def refresh_company(self):
         if not self.cloud_client.bagli or time.monotonic()-getattr(self,'company_checked',0)<30:return
@@ -1219,7 +1253,7 @@ class AnaPencere(QMainWindow):
                  (T('Satışlar'),self.satis_merkezi_ac),(T('Depolar ve Transferler'),self.depo_merkezi_ac),
                  (T('Raporlar'),self.rapor_merkezi_ac)]
         if self.kullanici["rol"]=="ANA_YONETICI":entries.append((T('Yönetim'),self.yonetim_merkezi_ac))
-        entries += [(T('Paketim ve Abonelik'),self.paket_ac),(T('Ayarlar'),self.ayarlar_ac),(T('Yardım ve Destek'),self.destek_merkezi_ac)]
+        entries += [(T('Paneller'),self.panels_open),(T('Paketim ve Abonelik'),self.paket_ac),(T('Ayarlar'),self.ayarlar_ac),(T('Yardım ve Destek'),self.destek_merkezi_ac)]
         for ad,komut in entries:
             b=QPushButton(ad);b.clicked.connect(komut);d.addWidget(b)
         flags=QHBoxLayout();flags.setSpacing(8);self.language_flags={}
@@ -1248,14 +1282,18 @@ class AnaPencere(QMainWindow):
     def alt_cubuk(self):
         alt = QFrame(); alt.setObjectName("altCubuk")
         d = QHBoxLayout(alt); d.setContentsMargins(18, 8, 18, 8)
-        durum = QLabel(T('0.26.0 • Özetler yerel önbellektir')); durum.setObjectName("durum")
+        durum = QLabel(T('0.27.0 • Özetler yerel önbellektir')); durum.setObjectName("durum")
         d.addWidget(durum)
+        self.pet_dock=PetDock();d.addWidget(self.pet_dock)
         d.addStretch()
         guncelle=QPushButton(T('Güncellemeleri Denetle'));guncelle.clicked.connect(lambda:self.guncelleme_denetle(False));d.addWidget(guncelle)
         cikis = QPushButton(T('Çıkış Yap')); cikis.clicked.connect(self.cikis_yap)
         kapat = QPushButton(T('Programı Kapat')); kapat.setObjectName("tehlike"); kapat.clicked.connect(self.close)
         d.addWidget(cikis); d.addWidget(kapat)
         return alt
+
+    def panels_open(self):
+        PanelsDialog(self.panel_canvas,self).exec()
 
     def dashboard_kur(self):
         d = QVBoxLayout(self.icerik); d.setContentsMargins(14, 10, 14, 10); d.setSpacing(8)
@@ -1282,7 +1320,7 @@ class AnaPencere(QMainWindow):
             deger = QLabel("0"); deger.setObjectName("kartDeger");deger.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter);kd.addWidget(deger)
             k.setMinimumHeight(66)
             self.kart_widgetlari.append(k); self.kartlar.append(deger)
-        d.addLayout(self.kart_yerlesim)
+
         self.grafik_yerlesim = QGridLayout(); self.grafik_yerlesim.setSpacing(8)
         stok_karti = QFrame(); stok_karti.setObjectName("panel"); sk = QVBoxLayout(stok_karti)
         sk.addWidget(QLabel(T('Stok Sağlığı'))); stok_grafikleri=QHBoxLayout(); self.stok_grafikleri=stok_grafikleri; self.halka_grafik = HalkaGrafik(); self.stok_sutun_grafik=SutunGrafik()
@@ -1291,13 +1329,13 @@ class AnaPencere(QMainWindow):
         dk.addWidget(QLabel(T('En Değerli 5 Ürün'))); self.cubuk_grafik = CubukGrafik(); dk.addWidget(self.cubuk_grafik)
         hareket_grafik_karti = QFrame(); hareket_grafik_karti.setObjectName("panel"); hg = QVBoxLayout(hareket_grafik_karti)
         hg.addWidget(QLabel(T('Hareket Dağılımı'))); self.hareket_grafik = CubukGrafik(); hg.addWidget(self.hareket_grafik)
-        self.grafik_widgetlari=[stok_karti,deger_karti,hareket_grafik_karti]; d.addLayout(self.grafik_yerlesim)
+        self.grafik_widgetlari=[stok_karti,deger_karti,hareket_grafik_karti]
 
         self.alt_yerlesim = QGridLayout(); self.alt_yerlesim.setSpacing(8)
         hareket_karti = QFrame(); hareket_karti.setObjectName("panel"); hk = QVBoxLayout(hareket_karti)
         hk.addWidget(QLabel(T('Son Stok Hareketleri'))); self.hareket_tablosu = QTableWidget(0, 3)
         self.hareket_tablosu.setHorizontalHeaderLabels([T('Tarih'), T('İşlem'), T('Miktar')]); tablo_standardi(self.hareket_tablosu, 27)
-        self.hareket_tablosu.setMinimumHeight(245); hk.addWidget(self.hareket_tablosu,1)
+        self.hareket_tablosu.setMinimumHeight(80); hk.addWidget(self.hareket_tablosu,1)
         finans = QFrame(); finans.setObjectName("panel"); fk = QVBoxLayout(finans)
         fb = QHBoxLayout(); fb.addWidget(QLabel(T('Finans Merkezi'))); fb.addStretch(); fk.addLayout(fb)
         self.kur_bilgileri = QLabel(T('TCMB kurları yükleniyor…')); self.kur_bilgileri.setObjectName("kurBilgisi"); fk.addWidget(self.kur_bilgileri)
@@ -1306,7 +1344,21 @@ class AnaPencere(QMainWindow):
         self.kur_durumu = QLabel(T('Resmî TCMB gösterge kurları')); self.kur_durumu.setObjectName("soluk"); fk.addWidget(self.kur_durumu)
         aktif = QFrame(); aktif.setObjectName("panel"); ad = QVBoxLayout(aktif); ad.addWidget(QLabel(T('Aktif Kullanıcılar')))
         self.aktif_kullanicilar=QLabel(T('Cloud bağlantısı bekleniyor…')); self.aktif_kullanicilar.setObjectName("soluk"); self.aktif_kullanicilar.setAlignment(Qt.AlignmentFlag.AlignTop); self.aktif_kullanicilar.setWordWrap(True)
-        ad.addWidget(self.aktif_kullanicilar,1); self.alt_widgetlari=[hareket_karti,finans,aktif]; d.addLayout(self.alt_yerlesim)
+        ad.addWidget(self.aktif_kullanicilar,1); self.alt_widgetlari=[hareket_karti,finans,aktif]
+        self.panel_canvas=PanelCanvas(self);d.addWidget(self.panel_canvas,1)
+        titles=[T('Ürün çeşidi'),T('Seçili konum stoğu'),T('Toplam stok değeri'),T('Kritik stok')]
+        for i,(key,widget,title) in enumerate(zip(('products','stock','value','critical'),self.kart_widgetlari,titles)):
+            widget.findChildren(QLabel)[0].hide()
+            self.panel_canvas.add(key,title,widget,(i*402,0,394,100),(200,90))
+        for key,title,widget,rect in [
+            ('health',T('Stok Sağlığı'),stok_karti,(0,110,796,290)),
+            ('top',T('En Değerli 5 Ürün'),deger_karti,(806,110,394,290)),
+            ('movements_chart',T('Hareket Dağılımı'),hareket_grafik_karti,(1210,110,390,290)),
+            ('movements',T('Son Stok Hareketleri'),hareket_karti,(0,410,636,490)),
+            ('finance',T('Finans Merkezi'),finans,(646,410,636,490)),
+            ('users',T('Aktif Kullanıcılar'),aktif,(1292,410,308,490))]:
+            widget.findChildren(QLabel)[0].hide()
+            self.panel_canvas.add(key,title,widget,rect,(180,150))
         self.hizli_yerlesim = QGridLayout(); self.hizli_yerlesim.setSpacing(8); self.hizli_dugmeler=[]
         for ad, komut in ((T('Ürün Özelleştirmeleri'), self.urun_ozellestirmeleri_ac), (T('Ürünler'), self.urun_yonetimi_ac),
                           (T('Kritik Stoklar'), self.kritikleri_ac), (T('Sipariş Önerileri'), self.siparis_onerileri_ac),
@@ -1324,6 +1376,7 @@ class AnaPencere(QMainWindow):
     def resizeEvent(self, olay):
         super().resizeEvent(olay)
         self.schedule(0,self.duyarli_yerlesimi_guncelle)
+        if hasattr(self,'assistant_panel'):self.assistant_panel.position_in_window()
 
     def duyarli_yerlesimi_guncelle(self):
         if not hasattr(self, "kaydir") or not hasattr(self, "ust_yerlesim"): return
@@ -1331,10 +1384,10 @@ class AnaPencere(QMainWindow):
         mod = "genis" if genislik >= 1400 else "orta" if genislik >= 760 else "dar"
         if mod == self.duyarli_mod: return
         self.duyarli_mod = mod
-        for yerlesim in (self.ust_yerlesim,self.kart_yerlesim,self.grafik_yerlesim,self.alt_yerlesim,self.hizli_yerlesim):
+        for yerlesim in (self.ust_yerlesim,self.hizli_yerlesim):
             self.yerlesimi_bosalt(yerlesim)
         # Clear stretches left behind by the previous window width.
-        for yerlesim in (self.ust_yerlesim,self.kart_yerlesim,self.grafik_yerlesim,self.alt_yerlesim,self.hizli_yerlesim):
+        for yerlesim in (self.ust_yerlesim,self.hizli_yerlesim):
             for sutun in range(5): yerlesim.setColumnStretch(sutun,0)
         self.stok_grafikleri.setDirection(QBoxLayout.Direction.TopToBottom if mod == "dar" else QBoxLayout.Direction.LeftToRight)
         if mod == "genis":
@@ -1349,29 +1402,7 @@ class AnaPencere(QMainWindow):
             self.ust_yerlesim.addWidget(self.baslik,0,0,1,2); self.ust_yerlesim.addWidget(self.konum,1,0)
             self.ust_yerlesim.addWidget(self.yenile_dugmesi,1,1); self.ust_yerlesim.addWidget(self.sosyal,2,0,1,2,Qt.AlignmentFlag.AlignLeft)
             kart_sutun,grafik_sutun=2,1
-        orders=[(0,1,2,3),(3,1,0,2),(2,1,3,0)]
-        order=orders[max(0,min(2,int(self.vt.ayar_getir('dashboard_order','0'))))];visible=[]
-        for index in order:
-            widget=self.kart_widgetlari[index];show=True;widget.setVisible(show)
-            if show:visible.append(widget)
-        for i,w in enumerate(visible):self.kart_yerlesim.addWidget(w,i//kart_sutun,i%kart_sutun)
-        if mod == "orta":
-            self.grafik_yerlesim.addWidget(self.grafik_widgetlari[0],0,0,1,2)
-            for i,w in enumerate(self.grafik_widgetlari[1:]): self.grafik_yerlesim.addWidget(w,1,i)
-        else:
-            for i,w in enumerate(self.grafik_widgetlari): self.grafik_yerlesim.addWidget(w,i//grafik_sutun,i%grafik_sutun)
-        if mod == "genis":
-            for i,oran in enumerate((2,1,1)): self.grafik_yerlesim.setColumnStretch(i,oran)
-        if mod == "genis":
-            for i,(w,oran) in enumerate(zip(self.alt_widgetlari,(2,2,1))):
-                self.alt_yerlesim.addWidget(w,0,i); self.alt_yerlesim.setColumnStretch(i,oran)
-            hizli_sutun=5
-        elif mod == "orta":
-            self.alt_yerlesim.addWidget(self.alt_widgetlari[0],0,0,1,2); self.alt_yerlesim.addWidget(self.alt_widgetlari[1],1,0,1,2)
-            self.alt_yerlesim.addWidget(self.alt_widgetlari[2],2,0,1,2); hizli_sutun=3
-        else:
-            for i,w in enumerate(self.alt_widgetlari): self.alt_yerlesim.addWidget(w,i,0)
-            hizli_sutun=2
+        hizli_sutun=5 if mod=='genis' else 3 if mod=='orta' else 2
         for i,w in enumerate(self.hizli_dugmeler): self.hizli_yerlesim.addWidget(w,i//hizli_sutun,i%hizli_sutun)
 
     def konumlari_yenile(self):

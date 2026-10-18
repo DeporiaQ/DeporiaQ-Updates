@@ -1,6 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <rect width="256" height="256" rx="52" fill="#21354d"/>
-  <path d="M128 34 220 128 128 222 36 128Z" fill="none" stroke="#38bdf8" stroke-width="22"/>
-  <circle cx="128" cy="128" r="43" fill="none" stroke="#ffffff" stroke-width="19"/>
-  <path d="m158 158 36 36" stroke="#ffffff" stroke-width="19" stroke-linecap="round"/>
-</svg>
+<defs><linearGradient id="d" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#12d2ff"/><stop offset="1" stop-color="#0665f5"/></linearGradient><linearGradient id="top" x2="1" y2="1"><stop stop-color="#a6f2ff"/><stop offset="1" stop-color="#1eb9ff"/></linearGradient><linearGradient id="left"><stop stop-color="#14b7ff"/><stop offset="1" stop-color="#006deb"/></linearGradient><linearGradient id="right" x2="0" y2="1"><stop stop-color="#197ffd"/><stop offset="1" stop-color="#0642a8"/></linearGradient></defs>
+<rect x="4" y="4" width="248" height="248" rx="54" fill="#04122f"/>
+<path d="M48 35h72c65 0 99 33 99 93s-34 93-99 93H48V35zm39 38v110h31c40 0 61-18 61-55s-21-55-61-55H87z" fill="url(#d)" fill-rule="evenodd"/>
+<g stroke="#013f9e" stroke-width="1.4" stroke-linejoin="round">
+<g transform="translate(109 103)"><path d="M0 9 20 0 40 9 20 20z" fill="url(#top)"/><path d="M0 9v25l20 11V20z" fill="url(#left)"/><path d="M20 20v25l20-11V9z" fill="url(#right)"/><path d="m8 6 20 10v9l6-3v-9L15 3" fill="#9ce8ff" stroke="none"/></g>
+<g transform="translate(91 139)"><path d="M0 9 20 0 40 9 20 20z" fill="url(#top)"/><path d="M0 9v25l20 11V20z" fill="url(#left)"/><path d="M20 20v25l20-11V9z" fill="url(#right)"/><path d="m8 6 20 10v9l6-3v-9L15 3" fill="#9ce8ff" stroke="none"/></g>
+<g transform="translate(133 139)"><path d="M0 9 20 0 40 9 20 20z" fill="url(#top)"/><path d="M0 9v25l20 11V20z" fill="url(#left)"/><path d="M20 20v25l20-11V9z" fill="url(#right)"/><path d="m8 6 20 10v9l6-3v-9L15 3" fill="#9ce8ff" stroke="none"/></g></g></svg>

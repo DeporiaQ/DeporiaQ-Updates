@@ -1,5 +1,5 @@
 """Read-only compatibility gates; never log or export production metadata."""
-import os,json,urllib.request,urllib.parse
+import os,json,urllib.request,urllib.parse,urllib.error
 base=os.environ['SUPABASE_URL'].rstrip('/')
 host=urllib.parse.urlparse(base).hostname or ''
 if not host.endswith('.supabase.co'):raise SystemExit('Invalid project URL')
@@ -10,7 +10,8 @@ def management(path,body=None):
         headers={'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'],'Content-Type':'application/json'})
     try:
         with urllib.request.urlopen(req,timeout=25) as response:return json.load(response)
-    except Exception:raise SystemExit('Compatibility check unavailable; no server changes were made.')
+    except urllib.error.HTTPError as error:raise SystemExit('Compatibility check unavailable (HTTP '+str(error.code)+'); no server changes were made.')
+    except Exception as error:raise SystemExit('Compatibility check unavailable ('+type(error).__name__+'); no server changes were made.')
 # The database returns a single Boolean. No schema definitions or customer rows
 # leave the database, and no report/artifact is uploaded to the repository.
 result=management('/database/query',{'query':"""

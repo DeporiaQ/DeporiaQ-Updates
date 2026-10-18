@@ -78,7 +78,7 @@ class ExperienceHeader(QFrame):
         window.subscription_label=QLabel(T('Abonelik doğrulanıyor'));window.subscription_label.setObjectName('profil');pv.addWidget(window.subscription_label)
         self.search=QLineEdit(self);self.search.setObjectName('globalSearch');self.search.setPlaceholderText(T('Ürün, barkod veya menü ara…'));self.search.setAccessibleName(T('Uygulamada ara'))
         self.search.setMaxLength(120);self.search.addAction(search_icon(),QLineEdit.ActionPosition.TrailingPosition).triggered.connect(window.global_search_open)
-        self.assistant=QPushButton(T('✧ Asistan'),self);self.assistant.setObjectName('assistantEntry');self.assistant.clicked.connect(window.assistant_open)
+        self.assistant=QPushButton(T('Asistan'),self);self.assistant.setObjectName('assistantEntry');self.assistant.setStyleSheet('QPushButton{font-family:Segoe UI;font-size:16px;font-weight:600;color:#74d8ff;background:transparent;border:0;padding:4px;} QPushButton:hover{color:#b8eeff;}');self.assistant.clicked.connect(window.assistant_open)
         self.controls=QFrame(self);self.controls.setObjectName("headerActions");bar=QHBoxLayout(self.controls);bar.setContentsMargins(0,0,0,0);bar.setSpacing(4)
         self.settings=IconButton('settings',T('Ayarlar'));self.settings.clicked.connect(window.ayarlar_ac)
         window.notification_button=IconButton('bell',T('Bildirimler'));window.notification_button.clicked.connect(window.notification_history)
@@ -108,7 +108,7 @@ class SearchController(QFrame):
         self.list.itemActivated.connect(self.open_selected);self.list.itemClicked.connect(self.open_selected);self.hide()
     def commands(self):
         w=self.window
-        entries=[(T('Ana Sayfa'),w.home),(T('Stok ve Ürünler'),w.stok_merkezi_ac),(T('Satışlar'),w.satis_merkezi_ac),(T('Depolar ve Transferler'),w.depo_merkezi_ac),(T('Raporlar'),w.rapor_merkezi_ac),(T('Ayarlar'),w.ayarlar_ac),(T('Paketim ve Abonelik'),w.paket_ac),(T('Yardım ve Destek'),w.destek_merkezi_ac),(T('DeporiaQ Asistan'),w.assistant_open)]
+        entries=[(T('Ana Sayfa'),w.home),(T('Paneller'),w.panels_open),(T('Stok ve Ürünler'),w.stok_merkezi_ac),(T('Satışlar'),w.satis_merkezi_ac),(T('Depolar ve Transferler'),w.depo_merkezi_ac),(T('Raporlar'),w.rapor_merkezi_ac),(T('Ayarlar'),w.ayarlar_ac),(T('Paketim ve Abonelik'),w.paket_ac),(T('Yardım ve Destek'),w.destek_merkezi_ac),(T('DeporiaQ Asistan'),w.assistant_open)]
         if w.kullanici['rol']=='ANA_YONETICI':entries.append((T('Yönetim'),w.yonetim_merkezi_ac))
         return [{'kind':'menu','title':label,'subtitle':T('Menü'),'action':action} for label,action in entries if not self.query or fold(self.query) in fold(label) or fold(self.query) in fold(label.source)]
     def position(self):

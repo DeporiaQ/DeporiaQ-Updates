@@ -17,6 +17,7 @@ class Topic:
     body_en: str
     phrases: tuple[str, ...]
     actions: tuple[str, ...]
+    source: str = 'deporiaq_assistant_guide.py'
 
 TOPICS = (
     Topic('product','Ürün kartı oluşturma','Create a product',
@@ -136,6 +137,8 @@ TOPICS = (
           'Permissions come from Cloud business membership. Changing a local name or role does not grant server permissions. Only the account owner can rename the business.\n\nPresence is checked every 10 seconds; disconnected sessions disappear about 30 seconds after their last heartbeat. Contact your primary administrator for access issues.',
           ('kullanici','yetki','online','aktif kisi','user','permission','role','active users'),('help',)),
 )
+from deporiaq_knowledge import CARDS
+TOPICS=TOPICS+tuple(Topic(*row) for row in CARDS)
 BY_KEY={topic.key:topic for topic in TOPICS}
 
 
@@ -151,21 +154,13 @@ def word_matches(term,word):
 
 
 def lookup(question):
-    """Return up to three authored topics; never generate a factual answer."""
-    words=fold(question).split()
-    ranked=[]
-    for topic in TOPICS:
-        scores=[]
-        for phrase in topic.phrases:
-            terms=fold(phrase).split()
-            if all(any(word_matches(term,word) for word in words) for term in terms):
-                scores.append(len(terms)*6 + sum(min(len(t),8) for t in terms)/10)
-        if scores:ranked.append((max(scores)+min(len(scores)-1,3)*.2,topic.key))
-    ranked.sort(key=lambda row:(-row[0],row[1]))
-    if not ranked:return ()
-    best=ranked[0][0]
-    return tuple(key for score,key in ranked[:3] if score>=best*.78)
+    """Return authored instructions only; broad unmatched questions stay unanswered."""
+    return GUIDE_INDEX.lookup(question)
 
 
 FOLLOW_UP={'nereden acacagim','nereden acilir','nereye tiklayacagim','nereye tiklayayim','bunu ac','ekrani ac','how do i open it','where do i click','open it','where is it'}
 GREETINGS={'merhaba','selam','selamlar','hello','hi','hey','tesekkurler','tesekkur ederim','thanks','thank you'}
+
+from deporiaq_knowledge_index import GuideIndex
+GUIDE_INDEX=GuideIndex(TOPICS,fold)
+QUESTION_FORMS=GUIDE_INDEX.questions

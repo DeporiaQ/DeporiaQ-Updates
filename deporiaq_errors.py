@@ -7,7 +7,7 @@ ERRORS={
  'DPQ_SESSION':('Oturum doğrulanamadı. Yeniden giriş yapın.','The session could not be verified. Sign in again.'),
  'DPQ_COMPANY':('Tek ve etkin işletme üyeliği gereklidir.','One active business membership is required.'),
  'DPQ_TENANT':('Bu kayıt işletmenize ait değil.','This record does not belong to your business.'),
- 'DPQ_OWNER':('İşletme adını yalnızca ana hesap sahibi değiştirebilir.','Only the primary account owner can change the business name.'),
+ 'DPQ_OWNER':('Bu işlem yalnızca işletmenin ana hesap sahibine açıktır.','This action is available only to the primary business owner.'),
  'DPQ_ROLE':('Bu işlem için yetkiniz bulunmuyor.','You do not have permission for this action.'),
  'DPQ_LOCATION_ROLE':('Bu konumda işlem yapma yetkiniz bulunmuyor.','You do not have permission to act at this location.'),
  'DPQ_CONFLICT':('Kayıt başka bir işlemde değişti. Ekranı yenileyip tekrar kontrol edin.','The record changed in another action. Refresh the screen and review it again.'),
@@ -28,12 +28,31 @@ ERRORS={
  'DPQ_AI_QUOTA':('Asistanın günlük kullanım sınırına ulaşıldı.','The daily assistant limit has been reached.'),
  'DPQ_AI_RATE':('Yeni soru için birkaç saniye bekleyin.','Wait a few seconds before asking another question.'),
  'DPQ_RATE':('İşlem sınırına ulaşıldı. Bir süre sonra yeniden deneyin.','The request limit has been reached. Try again shortly.')}
+ERRORS.update({
+ 'DPQ_EMAIL_VERIFY':('Önce e-posta adresinizi doğrulayın.','Verify your email address first.'),
+ 'DPQ_EMAIL_CODE':('E-postadaki doğrulama kodunu kontrol edin.','Check the verification code in your email.'),
+ 'DPQ_REGISTRATION_INPUT':('Geçerli e-posta ve en az 14 karakterlik parola yazın.','Enter a valid email and a password of at least 14 characters.'),
+ 'DPQ_ALREADY_MEMBER':('Bu hesap zaten bir işletmeye bağlı. Giriş ekranını kullanın.','This account already belongs to a business. Use the sign-in screen.'),
+ 'DPQ_MEMBERSHIP':('İşletme üyeliğiniz etkin değil. Destek ekibiyle iletişime geçin.','Your business membership is inactive. Contact support.'),
+ 'DPQ_SIGNUP_CLOSED':('Yeni işletme kaydı henüz açılmadı. Bir süre sonra tekrar deneyin.','New business registration is not available yet. Try again later.'),
+ 'DPQ_BILLING_CLOSED':('Çevrimiçi ödeme henüz açılmadı.','Online payment is not available yet.'),
+ 'DPQ_BILLING_DETAILS':('Fatura bilgilerini ve uluslararası biçimde telefon numaranızı kontrol edin.','Check your billing details and phone number in international format.'),
+ 'DPQ_CHECKOUT_EXPIRED':('Ödeme bağlantısının süresi doldu. Paket ekranını yeniden açın.','The payment link expired. Reopen the plan screen.'),
+ 'DPQ_CHECKOUT_REVIEW':('Ödeme bağlantısının sonucu belirsiz. Yeniden ödeme yapmadan destek talebi oluşturun.','The payment-link result is uncertain. Contact support before paying again.'),
+ 'DPQ_PAYMENT_MISMATCH':('Ödeme bilgileri doğrulanamadı. Yeniden ödeme yapmadan destek talebi oluşturun.','Payment details could not be verified. Contact support before paying again.'),
+ 'DPQ_PAYMENT_UNAVAILABLE':('Ödeme hizmetine ulaşılamadı. Ödeme durumunu denetleyin.','The payment service is unavailable. Check the payment status.'),
+ 'DPQ_PROVIDER_UNAVAILABLE':('Ödeme sağlayıcısından yanıt alınamadı. Ödeme durumunu kontrol edin.','No response from the payment provider. Check the payment status.'),
+ 'DPQ_DOWNGRADE':('Mevcut ödenmiş süre bitmeden daha küçük pakete geçilemez.','A smaller plan cannot replace the current paid plan before it expires.'),
+ 'DPQ_DOWNGRADE_REVIEW':('Paketiniz bu ödeme sırasında değişmiş. Destek ekibi ödemenizi kontrol etmelidir.','Your plan changed during payment. Support needs to review this payment.'),
+ 'DPQ_SUBSCRIPTION_REVIEW':('Abonelik durumu için destek ekibinin incelemesi gerekiyor.','Support needs to review the subscription status.'),
+ 'DPQ_BILLING_RATE':('Çok fazla ödeme bağlantısı açıldı. Bir süre sonra yeniden deneyin.','Too many payment links were created. Try again later.'),
+})
 for tr,en in ERRORS.values():EN[tr]=en
 
 def error_text(message):
     text=str(message)
-    if language()=='tr':return text
     match=re.search(r'\bDPQ_[A-Z_]+\b',text)
     if match and match.group() in ERRORS:return match.group()+': '+str(T(ERRORS[match.group()][0]))
+    if language()=='tr':return text
     if 'PGRST202' in text:return str(T(ERRORS['DPQ_NOT_READY'][0]))
     return T(text) if text in EN else text

@@ -106,7 +106,7 @@ class PlansDialog(ServerDialog):
         info=QLabel(T('İşletmenize uygun bilgisayar sayısını seçin. Demo: 30 gün, 1 bilgisayar.'));info.setWordWrap(True);self.body.addWidget(info)
         t=table([T('Paket'),T('Bilgisayar'),T('Kullanım')]);t.setMinimumHeight(205);rows(t,[(name,n,desc) for code,name,n,desc in PLANS]);self.body.addWidget(t)
         self.summary=QLabel(T('Fiyatlar ve ödeme sağlayıcısı henüz yapılandırılmadı. Satın alma kapalı.'));self.summary.setWordWrap(True);self.body.addWidget(self.summary)
-        self.purchase=self.button(T('Paket Satın Al / Yükselt'),lambda:None);self.purchase.setEnabled(False)
+        self.purchase=self.button(T('Paket Satın Al / Yükselt'),self.checkout);self.purchase.setEnabled(False)
         self.cancel=self.button(T('Otomatik Yenilemeyi Sonlandır'),self.cancel_renewal);self.cancel.setEnabled(False)
         self.device_table=table([T('Cihaz'),T('Durum'),T('Kod')]);self.body.addWidget(self.device_table)
         self.remove=self.button(T('Seçili Cihazın Erişimini Kapat'),self.disable_device);self.remove.setEnabled(False)
@@ -118,6 +118,9 @@ class PlansDialog(ServerDialog):
             self.button(T('Bilgileri Yenile'),self.refresh);self.refresh()
         else:self.status_label.setText(T('Paket bilgileri bilgilendirme amaçlıdır. Hesabınızla giriş yapın.'))
     def refresh(self):self.run(self.client.status,self.show_status)
+    def checkout(self):
+        from deporiaq_onboarding import CheckoutDialog
+        CheckoutDialog(self.client.cloud,self).exec();self.refresh()
     def show_status(self,s):
         self.subscription_clock=SubscriptionClock(s)
         end=self.subscription_clock.end
@@ -126,6 +129,7 @@ class PlansDialog(ServerDialog):
         self.summary.setText(T('Paket: {v0}  •  Cihaz: {v1}/{v2}\nBitiş: {v3}\n', v0=plan, v1=s.get('devices_used', 0), v2=s.get('device_limit') or '—', v3=date)+(T('Kullanım etkin.') if s.get('allowed') else T('İşletme işlemleri kapalı. Verileriniz korunur.')))
         self.tick()
         admin=s.get('role') in ('owner','admin');self.cancel.setEnabled(admin and bool(s.get('enabled')));self.remove.setEnabled(admin and bool(s.get('enabled')))
+        self.purchase.setEnabled(s.get('role')=='owner' and bool(s.get('enabled')))
         if admin and s.get('enabled'):self.run(lambda:self.client.read('devices'),lambda ds:rows(self.device_table,[(d['name'],T('Etkin') if d['active'] else T('Kapalı'),d['code']) for d in ds]))
     def tick(self):
         clock=getattr(self,'subscription_clock',None)

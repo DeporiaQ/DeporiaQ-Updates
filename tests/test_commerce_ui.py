@@ -20,7 +20,8 @@ class Client:
 def test_five_shortcuts_and_small_sidebar(window):
  assert len(window.quick_shortcuts)==5
  labels=[b.text() for b in window.menu_kaydir.findChildren(ui.QPushButton)]
- assert len(labels)==9
+ assert len(labels)==10
+ assert 'Paneller' in labels
  assert not any('Hızlı Komut' in x for x in labels)
  assert 'Paketim ve Abonelik' in labels
  assert [x.key().toString() for x in window.quick_shortcuts]==[x[0] for x in SHORTCUTS]

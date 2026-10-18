@@ -2,3 +2,8 @@
 verify_jwt = false
 # The handler validates the user token through /auth/v1/user before any RPC.
 
+[functions.payment-checkout]
+verify_jwt = false
+# Authenticated actions validate /auth/v1/user; callbacks retrieve the provider
+# result server-to-server before granting an entitlement.
+

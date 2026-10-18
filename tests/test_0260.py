@@ -134,7 +134,7 @@ def test_offline_assistant_navigation_language_and_no_network(application,window
         assert panel.grab().save(str(out/f'0260-guide-{code}.png'))
     assert before==list(window.vt.baglanti.execute('SELECT * FROM stoklar').fetchall())
     panel.input.setPlainText('What will the weather be tomorrow?');panel.submit()
-    assert any('No matching guide topic' in label.text() for label in panel.findChildren(QLabel))
+    assert any('Could you describe the screen' in label.text() for label in panel.findChildren(QLabel))
     panel.reset();assert panel.history==[] and panel.last_topic is None and panel.messages_layout.count()==1
     window.change_language('tr');panel.close()
 

@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.26.0"
+PROGRAM_SURUMU = "0.27.0"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -1826,7 +1826,8 @@ class DeporiaQCloud:
         except urllib.error.HTTPError as hata:
             ayrinti = hata.read().decode("utf-8", errors="replace")
             try:
-                mesaj = json.loads(ayrinti).get("message") or json.loads(ayrinti).get("error_description")
+                parsed=json.loads(ayrinti)
+                mesaj = parsed.get('message') or parsed.get('error_description') or parsed.get('error') or parsed.get('msg') or 'Sunucu isteği reddetti.'
             except (ValueError, AttributeError):
                 mesaj = ayrinti
             raise RuntimeError(f"Cloud isteği reddedildi ({hata.code}): {mesaj}") from hata
