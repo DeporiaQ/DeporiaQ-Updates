@@ -41,6 +41,7 @@ jobs:
       - run: node tests/server/workspace.mjs
       - run: node tests/server/experience.mjs
       - run: node tests/server/onboarding.mjs
+      - run: node tests/server/payment_edge.mjs
       - run: npm run test:concurrency
       - uses: actions/upload-artifact@v4
         if: always()

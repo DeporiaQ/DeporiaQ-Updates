@@ -55,3 +55,12 @@ Canlıya geçişte webhook ve IFN teslimi, uygulama kapalıyken ödeme aktivasyo
 https://github.com/DeporiaQ/DeporiaQ-Updates/releases/latest
 
 Bu bağlantı Instagram ve YouTube profil bağlantısına eklenebilir. Her sürüm için yeni bir Drive bağlantısı gerektirmez. Kaynak kod ZIP'i kurulum dosyası değildir.
+
+## Uygulama dayanakları
+
+- [iyzico Checkout Form](https://docs.iyzico.com/en/payment-methods/checkoutform)
+- [iyzico webhook imzası](https://docs.iyzico.com/en/advanced/webhook)
+- [iyzico fraud inceleme sonucu](https://docs.iyzico.com/en/advanced/fraud-notifications)
+- [Supabase Auth yapılandırması](https://supabase.com/docs/reference/api/v1-update-auth-service-config)
+
+`tests/server/onboarding.mjs` SQL yetki/ödeme sözleşmesini; `tests/server/payment_edge.mjs` gerçek Edge HTTP işleyicisini, dış bağlantı kurmayan test yanıtlarıyla denetler. Bunlar gerçek sağlayıcı sandbox kabul testinin yerine geçmez.
