@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick3D
+import DeporiaQ.Companion 1.0
 
 Item {
     id: scene
@@ -23,12 +24,13 @@ Item {
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
         }
-        OrthographicCamera { position: Qt.vector3d(0,25,450); eulerRotation.x: -3; horizontalMagnification: scene.width/220; verticalMagnification: scene.height/236 }
+        OrthographicCamera { position: Qt.vector3d(0,19,450); eulerRotation.x: -3; horizontalMagnification: scene.width/265; verticalMagnification: scene.height/280 }
         DirectionalLight { eulerRotation: Qt.vector3d(-30,-25,0); brightness: 1.9; color: "#e8f2ff" }
         DirectionalLight { eulerRotation: Qt.vector3d(-15,120,0); brightness: 1.6; color: "#80baff" }
         PointLight { position: Qt.vector3d(-90,80,100); brightness: 1.4; color: "#ffe8ca" }
-        PrincipledMaterial { id: fur; baseColor: "#232b3b"; roughness: 0.92; metalness: 0.05; specularAmount: 0.45 }
-        PrincipledMaterial { id: muzzle; baseColor: "#394257"; roughness: 0.95 }
+        PrincipledMaterial { id: fur; baseColor: "#151c2a"; roughness: 0.96; metalness: 0; specularAmount: 0.25 }
+        PrincipledMaterial { id: coat; baseColor: "#1c2432"; roughness: 1; cullMode: Material.NoCulling; vertexColorsEnabled: true; specularAmount: 0.1 }
+        PrincipledMaterial { id: muzzle; baseColor: "#293142"; roughness: 0.95 }
         PrincipledMaterial { id: white; baseColor: "#f3efe6"; roughness: 0.27; specularAmount: 0.7 }
         PrincipledMaterial { id: iris; baseColor: "#a2d7cb"; roughness: 0.2; metalness: 0.05 }
         PrincipledMaterial { id: black; baseColor: "#030812"; roughness: 0.15; specularAmount: 0.9 }
@@ -43,6 +45,7 @@ Item {
             Behavior on y { NumberAnimation { duration: 350 } }
             Behavior on eulerRotation { Vector3dAnimation { duration: 250 } }
             Model { source: "#Sphere"; position: Qt.vector3d(0,-26,-4); scale: Qt.vector3d(0.79,scene.sleepy ? 0.61 : 0.92,0.67); materials: [fur] }
+            Model { geometry: FurGeometry {}; position: Qt.vector3d(0,-26,-4); scale: Qt.vector3d(0.79,scene.sleepy ? 0.61 : 0.92,0.67); materials: [coat] }
             Model { source: "#Sphere"; position: Qt.vector3d(0,-28,21); scale: Qt.vector3d(0.50,0.62,0.34); materials: [muzzle] }
             // A curved articulated tail, rather than a flat animated image.
             Node {
@@ -79,6 +82,7 @@ Item {
                 eulerRotation.z: scene.mood === "hungry" ? -12 : (scene.mood === "happy" ? Math.sin(scene.phase*3)*7 : 0)
                 Behavior on eulerRotation { Vector3dAnimation { duration: 180 } }
                 Model { source: "#Sphere"; scale: Qt.vector3d(1.17,0.98,0.82); materials: [fur] }
+                Model { geometry: FurGeometry {}; scale: Qt.vector3d(1.17,0.98,0.82); materials: [coat] }
                 // Soft cheek silhouette and outer ear cones.
                 Model { source: "#Sphere"; position: Qt.vector3d(-41,-14,4); scale: Qt.vector3d(0.43,0.52,0.54); materials: [fur] }
                 Model { source: "#Sphere"; position: Qt.vector3d(41,-14,4); scale: Qt.vector3d(0.43,0.52,0.54); materials: [fur] }
@@ -89,8 +93,8 @@ Item {
                         property real side: index === 0 ? -1 : 1
                         position: Qt.vector3d(side*35,39,-1)
                         eulerRotation.z: side*(scene.mood === "hungry" ? -25 : -12)
-                        Model { source: "#Cone"; scale: Qt.vector3d(0.49,0.64,0.30); materials: [fur] }
-                        Model { source: "#Cone"; position: Qt.vector3d(0,3,9); scale: Qt.vector3d(0.28,0.42,0.09); materials: [pink] }
+                        Model { source: "#Cone"; scale: Qt.vector3d(0.49,0.52,0.30); materials: [fur] }
+                        Model { source: "#Cone"; position: Qt.vector3d(0,3,9); scale: Qt.vector3d(0.28,0.33,0.09); materials: [pink] }
                     }
                 }
                 Repeater3D {

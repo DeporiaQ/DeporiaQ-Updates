@@ -1,6 +1,9 @@
 """Render the actual Quick 3D scene on a Windows RHI, not a mock drawing."""
 import sys
 from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from deporiaq_fur import register_fur
+register_fur()
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt,QUrl,qInstallMessageHandler
 from PySide6.QtQuickWidgets import QQuickWidget
