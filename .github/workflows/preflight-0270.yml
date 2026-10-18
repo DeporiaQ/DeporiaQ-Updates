@@ -1,0 +1,18 @@
+name: DeporiaQ 0.27 Read-only Server Preflight
+on:
+  push:
+    branches: ['codex/deporiaq-0.27.0']
+    paths: ['.github/workflows/preflight-0270.yml', 'tools/preflight_0270.py']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check compatibility without exporting server metadata
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python tools/preflight_0270.py
