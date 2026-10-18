@@ -1,0 +1,23 @@
+name: DeporiaQ 0.27 3D Preview
+on:
+  push:
+    branches: ['codex/deporiaq-0.27.0']
+    paths: ['companion/**', 'tools/render_companion.py', '.github/workflows/preview-0270.yml']
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install PySide6==6.11.2
+      - run: python tools/render_companion.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DeporiaQ-0270-3D-preview
+          path: test-results/companion/
