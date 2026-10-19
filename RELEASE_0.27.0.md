@@ -8,7 +8,8 @@ Masaüstü kaynak commit'i: `e30e6cfb9eef3d5352d44a51d7c7f0816d9197cb`.
 
 - [Windows derleme, gerçek 3D ve kurulum testleri](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39172829950)
 - [PostgreSQL, ödeme HTTP işleyicisi ve Windows işlev testleri](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39172829884)
-- Aynı kurulum paketinin güvenlik taraması bu aday üzerinde yeniden çalıştırılacak.
+- [Ek sunucu erişim testleri](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39173148304)
+- [Aynı kurulum paketinin Microsoft Defender ve ClamAV taramaları](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39173148614)
 
 Sonradan eklenen sunucu erişim geçişi ve belgeler masaüstü kodunu değiştirmez. Önceki adayın güvenlik sonucu, yeniden derlenen dosya için kanıt olarak kullanılmaz.
 
@@ -28,7 +29,23 @@ Sonradan eklenen sunucu erişim geçişi ve belgeler masaüstü kodunu değişti
 - PostgreSQL yetki/işletme ayrımı, kayıt tekrarları, mevcut abonelik süresi, ödeme tutarı/para birimi, tekrar iletim, sandbox ayrımı ve eşzamanlı işlem kontrolleri başarılı.
 - Gerçek Edge HTTP işleyicisi, taklit dış hizmet yanıtlarıyla sınandı. Sahte ödeme bildirimi abonelik açmaz. Bu test gerçek iyzico sandbox kabul testi değildir.
 - Gerçek Windows grafik sistemiyle dokuz kedi duruşunda görünür piksellerin maske tarafından kesilmediği kontrol edildi. Asistanın üstte açılması, beslenme, uyku/irkilme, küçük pencere ve gizlenen panelin yerinin korunması sınandı.
-- Son kurulum, yeniden açılma ve güvenlik taraması sonuçları tamamlandığında aşağıdaki paket kanıtı güncellenecek.
+- Son adayda temiz kurulum, açık uygulama üzerinden yükseltme, eski 0.22.4/0.22.5/0.23 kurulumlarından yükseltme, eski PyInstaller süreçleri ve otomatik yeniden açılma kontrolleri başarılı.
+- Microsoft Defender kurulum dosyası ve kurulan içerikte tehdit bulmadı. ClamAV taramasında enfekte dosya sayısı sıfır. Bu sonuçlar kod imzalama veya Windows SmartScreen uyarılarının kaldırıldığı anlamına gelmez.
+
+## Doğrulanan 0.27.0 paketi
+
+19 Ekim 2026'da sonuçları doğrulandı. Windows derleme işlemi `39172829950`; kurulum artifact'i `12153870560`, test kanıtı artifact'i `12153512505`. Son test raporu: 110 test, sıfır hata, sıfır başarısızlık, sıfır atlanan test.
+
+`DeporiaQ_Setup_0.27.0.exe` SHA-256:
+
+```
+ce48f107acb267bab9c40e95ea38e53eaf608338d2a8d1d0d4202fdf08916113
+```
+
+Kurulum artifact ZIP SHA-256: `61149e744a584174db98c1a0d8dac0cca6feb0dd84187effddea9c940102dd9c`.
+Test kanıtı ZIP SHA-256: `21efa4302b9e0985185f0350b93d48cad333e7637aeb667e63a50e5b7d18ffa4`.
+
+Yayın hazırlama iş akışı bu kaynak ve başarılı kontrol işlemlerini sabitler, aynı dosyayı sürümlü ve sabit adlarla taslağa yükler. Taslak oluşturma ana manifesti veya genel `latest` sürümünü değiştirmez.
 
 ## Canlı hizmette kalanlar
 

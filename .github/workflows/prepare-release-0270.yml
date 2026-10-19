@@ -1,0 +1,86 @@
+name: Prepare DeporiaQ 0.27 Draft Release
+on:
+  push:
+    branches: ['codex/deporiaq-0.27.0']
+    paths: ['.github/workflows/prepare-release-0270.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: deporiaq-0270-draft
+  cancel-in-progress: false
+env:
+  GH_REPO: DeporiaQ/DeporiaQ-Updates
+  CANDIDATE_SHA: e30e6cfb9eef3d5352d44a51d7c7f0816d9197cb
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify pinned source, Windows installation, server tests and scans
+        run: |
+          set -euo pipefail
+          for entry in \
+            39172829950:e30e6cfb9eef3d5352d44a51d7c7f0816d9197cb \
+            39172829884:e30e6cfb9eef3d5352d44a51d7c7f0816d9197cb \
+            39173148304:4777ba5418de02f0272ff5770182f9be867271b8 \
+            39173148614:4777ba5418de02f0272ff5770182f9be867271b8; do
+            run="${entry%%:*}"
+            source="${entry#*:}"
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)" = "$source"
+            gh run watch "$run" --exit-status --interval 30
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .conclusion)" = success
+          done
+  prepare:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Ensure the release tree has the exact tested desktop code
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "$CANDIDATE_SHA"
+          git diff --exit-code "$CANDIDATE_SHA" HEAD -- '*.py' '*.iss' '*.svg' '*.ico' companion backgrounds dashboard_background.jpg
+      - name: Download the exact tested and scanned installer
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/39172829950/artifacts" > artifacts.json
+          id=$(jq -er '.artifacts[] | select(.name=="DeporiaQ-0.27.0-candidate-setup" and .expired==false) | .id' artifacts.json)
+          digest=$(jq -er '.artifacts[] | select(.name=="DeporiaQ-0.27.0-candidate-setup" and .expired==false) | .digest' artifacts.json)
+          gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > candidate.zip
+          echo "${digest#sha256:}  candidate.zip" | sha256sum -c -
+          test "$(unzip -Z1 candidate.zip)" = DeporiaQ_Setup_0.27.0.exe
+          unzip candidate.zip
+          echo 'ce48f107acb267bab9c40e95ea38e53eaf608338d2a8d1d0d4202fdf08916113  DeporiaQ_Setup_0.27.0.exe' | sha256sum -c -
+          cp DeporiaQ_Setup_0.27.0.exe DeporiaQ_Setup.exe
+          cmp DeporiaQ_Setup_0.27.0.exe DeporiaQ_Setup.exe
+          sha256sum DeporiaQ_Setup_0.27.0.exe DeporiaQ_Setup.exe > SHA256SUMS.txt
+          sha256sum DeporiaQ_Setup.exe > DeporiaQ_Setup.exe.sha256
+      - name: Create a draft only; preserve the public release and update manifest
+        run: |
+          set -euo pipefail
+          if gh release view v0.27.0 >/dev/null 2>&1; then
+            echo 'A release already exists; inspect it instead of overwriting its assets.'
+            exit 1
+          fi
+          cp RELEASE_NOTES_0.27.0.md release-notes.md
+          cat >> release-notes.md <<'NOTES'
+
+          ## Paket kanıtı
+          - Masaüstü kaynak: `e30e6cfb9eef3d5352d44a51d7c7f0816d9197cb`.
+          - Windows kurulum/yükseltme/yeniden açılma: Actions `39172829950`.
+          - PostgreSQL ve Windows işlev testleri: `39172829884`; ek sunucu erişim testleri: `39173148304`.
+          - Aynı paketin Microsoft Defender ve ClamAV taramaları: `39173148614`.
+          - Sunucu geçişleri mevcut abonelikleri koruyarak uygulandı. Kayıt e-postası ve gerçek ödeme kabul testleri henüz tamamlanmadı.
+          NOTES
+          gh release create v0.27.0 DeporiaQ_Setup_0.27.0.exe DeporiaQ_Setup.exe DeporiaQ_Setup.exe.sha256 SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'DeporiaQ 0.27.0 — yayın taslağı' --notes-file release-notes.md --draft
+          gh release view v0.27.0 --json isDraft,tagName,url --jq '{draft:.isDraft,tag:.tagName,url:.url}'
