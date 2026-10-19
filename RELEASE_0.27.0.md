@@ -47,6 +47,8 @@ Test kanıtı ZIP SHA-256: `21efa4302b9e0985185f0350b93d48cad333e7637aeb667e63a5
 
 Yayın hazırlama iş akışı bu kaynak ve başarılı kontrol işlemlerini sabitler, aynı dosyayı sürümlü ve sabit adlarla taslağa yükler. Taslak oluşturma ana manifesti veya genel `latest` sürümünü değiştirmez.
 
+[Yayın taslağı](https://github.com/DeporiaQ/DeporiaQ-Updates/releases/tag/untagged-f48024453dff2077d142), [39295043521 numaralı hazırlama işlemi](https://github.com/DeporiaQ/DeporiaQ-Updates/actions/runs/39295043521) ile oluşturuldu. Release ID: `417562061`; kaynak: `f29febd46e74b3e1f009dd624d48d1148c0f1252`. İki EXE dosyası da 199.350.787 bayt ve yukarıdaki SHA-256 değerine sahip. `draft=true`, dört varlığın yükleme durumu `uploaded` ve genel `latest` sürümünün hâlâ 0.26.0 olduğu GitHub API üzerinden doğrulandı. Taslağa erişim için depo yetkisi gerekir.
+
 ## Canlı hizmette kalanlar
 
 0.27 SQL ve kayıt erişim geçişleri doğrudan Supabase bağlantısıyla uygulandı; mevcut paket tarih, plan ve durumları veritabanı içinde karşılaştırılarak korundu. Yeni işletme/sahip/30 günlük deneme ve tekrar kayıt akışı canlı şemada geri alınan işlemle sınandı. Test hesabı kalmadı. Ödeme Edge Function dağıtıldı; yetkisiz istekler reddediliyor.
