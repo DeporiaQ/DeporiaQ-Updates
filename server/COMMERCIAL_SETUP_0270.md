@@ -8,7 +8,11 @@ Müşterilere Supabase erişimi verilmez. Kurulum bir kez hizmet sahibi tarafın
 
 Yeni işletme, sahip yetkisi, 30 günlük deneme ve aynı kaydı tekrar çağırma işlemleri canlı şemada geri alınan bir işlem içinde sınandı; test hesabı/verileri kalmadı. `payment-checkout` Edge Function dağıtıldı. Anonim istek 401, desteklenmeyen HTTP yöntemi 405 döndürdü. Genel kayıt ve tahsilat bayrakları henüz kapalıdır.
 
-Kalan kayıt engeli Auth/SMTP ayarı ve gerçek kod teslimidir. Doğrudan bağlantı bu ayarları düzenleme işlemi sunmuyor; GitHub'daki mevcut Management anahtarı hem veritabanı hem Auth yapılandırması isteğinde HTTP 403 verdi. Supabase web paneli açıldı fakat giriş gerekiyor. Parola veya anahtar sohbet içine gönderilmemelidir. Aşağıdaki Actions yolu alternatif olarak yetkili bir Management token gerektirir.
+19 Ekim'de web paneline giriş yapıldı. E-posta sağlayıcısı, yeni Auth kullanıcı kaydı ve e-posta onay zorunluluğu açık. Minimum parola uzunluğu 14 ve küçük/büyük harf, rakam, sembol gereksinimi kaydedilip yeniden açılan panelde doğrulandı. Mevcut e-posta OTP ayarları 8 hane/3600 saniye olarak korundu. Mevcut CAPTCHA ve oturum kuralları değiştirilmedi.
+
+Kalan kayıt engeli özel SMTP, uygulama içi kodu içeren onay şablonu ve gerçek kod teslimidir. Özel SMTP kapalı bulundu; form açıldı ancak parola girilmedi veya kaydedilmedi. Doğrudan bağlantı bu ayarları düzenleme işlemi sunmuyor; GitHub'daki mevcut Management anahtarı hem veritabanı hem Auth yapılandırması isteğinde HTTP 403 verdi. Kurulum web panelinden tamamlanmalı. Parola veya anahtar sohbet içine gönderilmemelidir. Aşağıdaki Actions yolu alternatif olarak yetkili bir Management token gerektirir.
+
+Web panelindeki gönderici formu için: gönderici adresi ve kullanıcı adı `deporiaq@gmail.com`, gönderici adı `DeporiaQ`, sunucu `smtp.gmail.com`, port `465`. **Password** alanına Gmail hesabının normal parolası yerine daha önce oluşturulan uygulama şifresi hesap sahibi tarafından girilir. Kaydetmeden SMTP etkinleşmiş sayılmaz; kaydetme de tek başına teslim kanıtı değildir. Sonrasında onay şablonu ve gerçek kayıt testi tamamlanmalıdır.
 
 ## Sunucu erişimi ve kayıt
 

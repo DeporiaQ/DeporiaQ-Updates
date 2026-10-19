@@ -53,7 +53,9 @@ Yayın hazırlama iş akışı bu kaynak ve başarılı kontrol işlemlerini sab
 
 0.27 SQL ve kayıt erişim geçişleri doğrudan Supabase bağlantısıyla uygulandı; mevcut paket tarih, plan ve durumları veritabanı içinde karşılaştırılarak korundu. Yeni işletme/sahip/30 günlük deneme ve tekrar kayıt akışı canlı şemada geri alınan işlemle sınandı. Test hesabı kalmadı. Ödeme Edge Function dağıtıldı; yetkisiz istekler reddediliyor.
 
-Kayıt e-postasının gerçek teslimi ve uçtan uca yeni kullanıcı kaydı henüz doğrulanmadı. Genel kayıt kapalı tutuluyor. Bağlı Supabase aracı Auth/SMTP yapılandırması sunmuyor; GitHub Management token'ı bu ayarda da HTTP 403 veriyor. Web panelinde giriş gerekiyor.
+19 Ekim'de Supabase web panelinde e-posta sağlayıcısının ve e-posta onay zorunluluğunun açık olduğu doğrulandı. Yeni kayıt/parola değişikliği politikası en az 14 karakter; küçük/büyük harf, rakam ve sembol olarak kaydedildi ve panel yeniden açılarak doğrulandı. E-posta OTP uzunluğu 8, geçerlilik süresi 3600 saniye olarak korundu. CAPTCHA ayarı mevcut kapalı durumunda bırakıldı; bir koruma devre dışı bırakılmadı. Mevcut hesap parolaları veya oturum ayarları değiştirilmedi.
+
+Özel SMTP henüz yapılandırılmamış. Gönderici formu açıldı; SMTP şifresi girilmedi ve form kaydedilmedi. Kayıt e-postasının gerçek teslimi ve uçtan uca yeni kullanıcı kaydı henüz doğrulanmadığı için DeporiaQ işletme kayıt kapısı kapalı tutuluyor. Bu uygulama kapısı, açık olan Supabase Auth kayıt ayarından ayrıdır. Bağlı Supabase aracı Auth/SMTP yapılandırması sunmuyor; GitHub Management token'ı bu ayarda da HTTP 403 veriyor. Gönderici kurulumu web panelinden tamamlanmalı.
 
 Eski işletme oluşturma çağrısı da doğrulanmış kayıt kurallarına bağlandı. Anonim rolün eski yönetici yetkili işlevlere erişimi kaldırıldı; oturum açmış kullanıcıların gerekli üyelik/işlem erişimi korundu. Yeni özel tabloların RLS politikası olmaması doğrudan istemci erişimini kapatmak için kasıtlıdır. Supabase'in mevcut Auth parola sızıntısı koruması kapalı uyarısı ve eski tabloların performans önerileri ayrıca değerlendirilmelidir; tüm danışman uyarılarının temizlendiği iddia edilmiyor.
 
