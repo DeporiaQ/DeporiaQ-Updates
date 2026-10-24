@@ -7,7 +7,8 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 os.environ.setdefault('QT_QPA_PLATFORM','windows' if sys.platform=='win32' else 'xcb')
 sandbox=tempfile.TemporaryDirectory(prefix='dpq-native-0271-');os.environ['LOCALAPPDATA']=sandbox.name
 import deporiaq_qt as ui
-from PySide6.QtCore import Qt,QPoint,qInstallMessageHandler
+from PySide6.QtCore import Qt,QPoint,QRect,qInstallMessageHandler
+from deporiaq_i18n import render
 from PySide6.QtGui import QCursor
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtTest import QTest
@@ -29,13 +30,19 @@ pet.timer.stop();pet.home();QCursor.setPos(window.mapToGlobal(QPoint(700,150)));
 out=ROOT/'test-results/native-0271';out.mkdir(parents=True,exist_ok=True)
 def shot(name):
     QTest.qWait(350);assert window.grab().save(str(out/(name+'.png')))
+def cat_fully_visible():
+    rect=QRect(pet.view.mapTo(window,QPoint(0,0)),pet.view.size())
+    assert window.rect().contains(rect),('Cat clipped by window',rect,window.rect())
+    assert pet.view.parentWidget().rect().contains(pet.view.geometry()),'Cat clipped by sidebar home'
+    for widget in (pet.view,pet.dock,window.language_flags['tr'],window.support_mail):
+        assert not widget.visibleRegion().isEmpty(),('Sidebar control clipped',widget.objectName())
 frame=pet.view.grabFramebuffer();assert not frame.isNull()
 assert sum(frame.pixelColor(x,y).alpha()>10 for x in range(0,frame.width(),3) for y in range(0,frame.height(),3))>150
-shot('dashboard-cat')
+cat_fully_visible();shot('dashboard-cat')
 # Fixed seated scene, readable signs and pointer-following gaze.
 root=pet.view.rootObject();position=pet.view.pos()
 for mode in ('idle','hungry','eat','happy'):
-    root.setProperty('mood',mode);root.setProperty('messageText',str(pet.message()));root.setProperty('phase',1.3)
+    pet.mode=mode;root.setProperty('mood',mode);root.setProperty('messageText',render(pet.message()));root.setProperty('phase',1.3)
     QTest.qWait(400);frame=pet.view.grabFramebuffer()
     assert frame.save(str(out/('pose-'+mode+'.png')))
     assert frame.pixelColor(0,0).alpha()<10
@@ -71,6 +78,10 @@ canvas.set_visible(key,False);window.yenile();app.processEvents()
 assert others=={k:p.geometry() for k,p in canvas.panels.items() if k!=key};assert canvas.panels[key].isHidden()
 shot('hidden-panel');canvas.reset();pet.set_enabled(True)
 window.resize(1000,720);QTest.qWait(250);pet.home();pet.tick();shot('small-window')
+cat_fully_visible()
+window.change_language('en');pet.mode='idle';pet.message_index=1;pet.message_until=pet.next_message=10**12;pet.tick()
+assert root.property('messageText')=='You can rename me in Settings.'
+shot('english-sign');cat_fully_visible()
 for timer in (window.canli_zamanlayici,window.senkron_zamanlayici,window.kur_zamanlayici):timer.stop()
 window.close();db.kapat();assert not errors,errors
 print('PASS: native 3D display, clickable cat, assistant layering, feed/hunger, seated feeding and gaze, fallback, hidden-panel stability and small window')

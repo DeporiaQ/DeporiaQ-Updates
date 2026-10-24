@@ -170,7 +170,7 @@ class StockDialog(ServerDialog):
         self.body.addLayout(f)
         if mode!='catalog':self.submit=self.button({'sale':T('Satışı Tamamla'),'receive':T('Stok Girişini Kaydet'),'transfer':T('Transferi Tamamla'),'count':T('Sayımı Kaydet')}[mode],self.commit)
         else:
-            self.button(T('Yeni Ürün'),self.product_edit)
+            self.button(T('Yeni Ürün'),self.product_edit).setEnabled(getattr(getattr(client,'cloud',None),'role','viewer') in ('owner','admin'))
             self.button(T('Ürünleri Düzenle / Sil'),self.product_catalog)
             self.button(T('Depo / Şube Ekle'),self.location_edit)
         self.button(T('Stokları Yenile'),self.refresh);self.refresh()

@@ -1247,39 +1247,42 @@ class AnaPencere(QMainWindow):
 
     def yan_menu(self):
         menu = QFrame(); menu.setObjectName("yanMenu")
+        menu.setFixedWidth(218)
         d = QVBoxLayout(menu); d.setContentsMargins(10, 14, 10, 12); d.setSpacing(5)
         d.addWidget(QLabel(T('MENÜ')))
+        navigation=QWidget();navigation.setObjectName('menuNavigation')
+        nav=QVBoxLayout(navigation);nav.setContentsMargins(0,0,0,0);nav.setSpacing(5)
         entries=[(T('Ana Sayfa'),self.home),(T('Stok ve Ürünler'),self.stok_merkezi_ac),
                  (T('Satışlar'),self.satis_merkezi_ac),(T('Depolar ve Transferler'),self.depo_merkezi_ac),
                  (T('Raporlar'),self.rapor_merkezi_ac)]
         if self.kullanici["rol"]=="ANA_YONETICI":entries.append((T('Yönetim'),self.yonetim_merkezi_ac))
         entries += [(T('Paneller'),self.panels_open),(T('Paketim ve Abonelik'),self.paket_ac),(T('Ayarlar'),self.ayarlar_ac),(T('Yardım ve Destek'),self.destek_merkezi_ac)]
         for ad,komut in entries:
-            b=QPushButton(ad);b.clicked.connect(komut);d.addWidget(b)
+            b=QPushButton(ad);b.clicked.connect(komut);nav.addWidget(b)
+        nav.addStretch()
+        kaydir=QScrollArea();kaydir.setObjectName('yanMenuKaydirma');kaydir.setWidgetResizable(True)
+        kaydir.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        kaydir.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        kaydir.setFrameShape(QFrame.Shape.NoFrame);kaydir.setMinimumHeight(80)
+        kaydir.setStyleSheet('QScrollArea#yanMenuKaydirma,QWidget#menuNavigation {background:transparent;border:0;}')
+        kaydir.setWidget(navigation);self.menu_kaydir=kaydir;d.addWidget(kaydir,1)
         flags=QHBoxLayout();flags.setSpacing(8);self.language_flags={}
         flags.addStretch()
         for code in ('tr','en'):
             flag=FlagButton(code);flag.setChecked(language()==code);flag.clicked.connect(lambda checked=False,c=code:self.change_language(c));self.language_flags[code]=flag;flags.addWidget(flag)
-        flags.addStretch();d.addSpacing(14);d.addLayout(flags)
+        flags.addStretch();d.addSpacing(4);d.addLayout(flags)
         self.companion_host=QWidget();self.companion_host.setObjectName("companionHome")
         self.companion_host.setFixedHeight(210);self.companion_host.setMinimumWidth(0)
-        d.addWidget(self.companion_host);d.addStretch()
+        d.addWidget(self.companion_host)
         self.cloud=QLabel(T('Cloud oturumu kapalı'));self.cloud.setObjectName('cloud');self.cloud.setWordWrap(True);d.addWidget(self.cloud)
         self.support_mail=QLabel("deporiaq@gmail.com");d.addWidget(self.support_mail)
-        d.addWidget(QLabel(T('DeporiaQ Modern\nGüvenli • Hızlı • Bulut')))
         telif = QLabel(T('© 2026 DeporiaQ.\nTüm hakları saklıdır.')); telif.setObjectName("soluk")
         d.addWidget(telif)
-        kaydir = QScrollArea(); kaydir.setObjectName("yanMenuKaydirma")
-        kaydir.setWidgetResizable(True)
-        kaydir.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        kaydir.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        kaydir.setFrameShape(QFrame.Shape.NoFrame); kaydir.setFixedWidth(218)
         for label in menu.findChildren(QLabel):
             label.setWordWrap(True);label.setMinimumWidth(0);label.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred)
         for button in menu.findChildren(QPushButton):
             button.setMinimumWidth(0);button.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Fixed)
-        kaydir.setWidget(menu); self.menu_kaydir = kaydir
-        return kaydir
+        return menu
 
     def alt_cubuk(self):
         alt = QFrame(); alt.setObjectName("altCubuk")

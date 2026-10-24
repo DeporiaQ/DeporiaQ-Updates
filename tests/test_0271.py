@@ -99,3 +99,23 @@ def test_companion_stays_seated_and_food_and_signs_persist(window):
 def test_guide_knows_delete_edit_and_archive():
     from deporiaq_assistant_guide import lookup
     for query,key in [('bir ürünü silmek istiyorum','product_delete'),('Barkod düzelt','product_edit'),('Ürün arşivle','product_archive')]:assert key in lookup(query)
+
+def test_sidebar_keeps_companion_visible_at_small_window(application,window):
+    from PySide6.QtWidgets import QWidget
+    from PySide6.QtCore import QPoint,QRect
+    pet=window.companion;pet.timer.stop()
+    # Exercise the widget layout without requiring an offscreen 3D renderer.
+    pet.view=QWidget(window.companion_host);pet.state.size=240;pet.apply()
+    window.resize(1000,720);window.show();application.processEvents();pet.home()
+    for widget in (pet.view,pet.dock,window.language_flags['tr'],window.support_mail):
+        assert window.rect().contains(QRect(widget.mapTo(window,QPoint()),widget.size()))
+        assert not widget.visibleRegion().isEmpty()
+    assert pet.view.parentWidget().rect().contains(pet.view.geometry())
+    assert window.menu_kaydir.verticalScrollBar().maximum()>0
+
+def test_companion_sign_resolves_selected_language(window):
+    from deporiaq_i18n import set_language,render
+    pet=window.companion;pet.timer.stop();pet.mode='idle';pet.message_index=1
+    try:
+        set_language('en');assert render(pet.message())=='You can rename me in Settings.'
+    finally:set_language('tr')

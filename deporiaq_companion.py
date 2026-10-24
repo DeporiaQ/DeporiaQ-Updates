@@ -4,7 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject,QTimer,Qt,QUrl,QPoint,QEvent,QRect
 from PySide6.QtGui import QColor,QPainter,QPen,QBrush,QCursor,QFont,QRegion,QPolygon
 from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QFormLayout,QHBoxLayout,QSpinBox
-from deporiaq_i18n import T,QLabel,QCheckBox,QLineEdit,QPushButton
+from deporiaq_i18n import T,render,QLabel,QCheckBox,QLineEdit,QPushButton
 
 class PetState:
     def __init__(self,saved=None,now=None):
@@ -52,6 +52,7 @@ class CompanionController(QObject):
         except (TypeError,ValueError):self.state=PetState()
         self.view=None;self.failed=False;self.mode='idle';self.mode_until=0
         self.origin=time.monotonic();self.message_until=self.origin+9;self.next_message=self.origin+28;self.message_index=0
+        window.companion_host.installEventFilter(self)
         self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.start(50);self.apply()
     def ensure_view(self):
         if self.view or self.failed:return
@@ -71,13 +72,14 @@ class CompanionController(QObject):
             self.view=view;self.resize();self.home()
         except (ImportError,RuntimeError):self.failed=True
     def eventFilter(self,obj,event):
+        if obj is self.window.companion_host and event.type()==QEvent.Type.Resize:self.resize()
         if obj is self.view and event.type()==QEvent.Type.MouseButtonPress and event.button()==Qt.MouseButton.LeftButton:
             self.window.assistant_open();return True
         return super().eventFilter(obj,event)
     def save(self):self.window.vt.ayar_kaydet(self.key,json.dumps(self.state.export(),ensure_ascii=False));self.window.vt.baglanti.commit()
     def resize(self):
         if self.view:
-            host=self.window.companion_host;size=min(self.state.size,max(140,host.width()))
+            host=self.window.companion_host;size=min(self.state.size,max(1,host.width()),200)
             self.view.resize(size,round(size*1.12));host.setFixedHeight(self.view.height()+4)
             self.view.setToolTip(self.state.name+' · '+str(T('Asistanı aç')));self.home()
     def apply(self):
@@ -127,7 +129,7 @@ class CompanionController(QObject):
         blink_phase=(now-self.origin)%5.4;root.setProperty('blink',.16 if 5.22<blink_phase<5.34 and self.state.motion else 1.0)
         if now>=self.next_message:
             self.message_index+=1;self.message_until=now+9;self.next_message=now+32
-        root.setProperty('messageText',str(self.message()) if self.state.messages and now<self.message_until else '')
+        root.setProperty('messageText',render(self.message()) if self.state.messages and now<self.message_until else '')
     def stop(self):
         self.timer.stop()
         if self.view:self.view.hide()
