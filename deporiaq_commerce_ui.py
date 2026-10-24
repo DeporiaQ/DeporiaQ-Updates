@@ -170,13 +170,14 @@ class StockDialog(ServerDialog):
         self.body.addLayout(f)
         if mode!='catalog':self.submit=self.button({'sale':T('Satışı Tamamla'),'receive':T('Stok Girişini Kaydet'),'transfer':T('Transferi Tamamla'),'count':T('Sayımı Kaydet')}[mode],self.commit)
         else:
-            self.button(T('Ürün Ekle / Fiyat Güncelle'),self.product_edit)
+            self.button(T('Yeni Ürün'),self.product_edit)
+            self.button(T('Ürünleri Düzenle / Sil'),self.product_catalog)
             self.button(T('Depo / Şube Ekle'),self.location_edit)
         self.button(T('Stokları Yenile'),self.refresh);self.refresh()
     def refresh(self):self.run(self.client.snapshot,self.populate)
     def populate(self,s):
         self.data=s;ps={p['id']:p for p in s['products']};ls={l['id']:l for l in s['locations']}
-        self.stock_rows=[(i['product_id'],i['location_id'],ls[i['location_id']]['name'],ps[i['product_id']]['barcode'],ps[i['product_id']]['name'],i['quantity'],Decimal(str(i['quantity']))-Decimal(str(i['available'])),i['available']) for i in s['inventory']]
+        self.stock_rows=[(i['product_id'],i['location_id'],ls[i['location_id']]['name'],ps[i['product_id']]['barcode'],ps[i['product_id']]['name'],i['quantity'],Decimal(str(i['quantity']))-Decimal(str(i['available'])),i['available']) for i in s['inventory'] if ps[i['product_id']]['active']]
         previous=self.filter_location.currentData();self.filter_location.blockSignals(True);self.filter_location.clear();self.filter_location.addItem(T('Tüm konumlar'),None)
         for location in s['locations']:self.filter_location.addItem(location['name'],location['id'])
         self.filter_location.setCurrentIndex(max(0,self.filter_location.findData(previous)));self.filter_location.blockSignals(False)
@@ -230,13 +231,11 @@ class StockDialog(ServerDialog):
             self.refresh()
         self.mutation(self.mode,payload,completed)
     def product_edit(self):
-        d=QDialog(self);d.setWindowTitle(T('Ürün Ekle / Güncelle'));f=QFormLayout(d)
-        barcode=QLineEdit();name=QLineEdit();sale=QDoubleSpinBox();cost=QDoubleSpinBox();critical=QSpinBox()
-        for x in (sale,cost):x.setRange(0,10000000);x.setDecimals(2)
-        critical.setRange(0,1000000)
-        for label,x in [(T('Barkod'),barcode),(T('Ad'),name),(T('Satış fiyatı'),sale),(T('Alış fiyatı'),cost),(T('Kritik stok'),critical)]:f.addRow(label,x)
-        b=QPushButton(T('Kaydet'));b.clicked.connect(d.accept);f.addRow(b)
-        if d.exec()==QDialog.DialogCode.Accepted:self.mutation('catalog_product',{'barcode':barcode.text(),'name':name.text(),'sale_price':sale.value(),'purchase_price':cost.value(),'critical_stock':critical.value()},lambda _:self.refresh())
+        from deporiaq_catalog import ProductEditor
+        if ProductEditor(self.client,parent=self).exec()==QDialog.DialogCode.Accepted:self.refresh()
+    def product_catalog(self):
+        from deporiaq_catalog import ProductCatalogDialog
+        ProductCatalogDialog(self.client,self).exec();self.refresh()
     def location_edit(self):
         name,ok=QInputDialog.getText(self,T('Konum'),T('Depo / şube adı:'))
         if not ok:return

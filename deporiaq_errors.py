@@ -47,6 +47,13 @@ ERRORS.update({
  'DPQ_SUBSCRIPTION_REVIEW':('Abonelik durumu için destek ekibinin incelemesi gerekiyor.','Support needs to review the subscription status.'),
  'DPQ_BILLING_RATE':('Çok fazla ödeme bağlantısı açıldı. Bir süre sonra yeniden deneyin.','Too many payment links were created. Try again later.'),
 })
+ERRORS.update({
+ 'DPQ_BARCODE':('Barkod boşluk veya görünmeyen karakter içeremez.','A barcode cannot contain spaces or invisible characters.'),
+ 'DPQ_BARCODE_DUPLICATE':('Bu barkod zaten kayıtlı. Mevcut ürünü düzenleyin; aynı barkodla ikinci ürün oluşturulamaz.','This barcode is already registered. Edit the existing product instead of creating a duplicate.'),
+ 'DPQ_PRODUCT_STOCK':('Ürünün stoğu var. Önce gerçek stok durumunu sayım veya transfer ile sonuçlandırın; stok otomatik sıfırlanmaz.','The product still has stock. Resolve its physical stock through counting or transfers first; stock is never cleared automatically.'),
+ 'DPQ_PRODUCT_HISTORY':('Ürünün işlem geçmişi veya bağlantılı kaydı var; kalıcı silinemez. Stokları bittiyse Arşivle kullanın.','This product has transaction history or linked records and cannot be permanently deleted. Archive it once its stock is cleared.'),
+ 'DPQ_PRODUCT_ARCHIVED':('Ürün arşivde. Ürün Kartları ekranından yeniden etkinleştirin.','This product is archived. Reactivate it in Product Cards.'),
+})
 for tr,en in ERRORS.values():EN[tr]=en
 
 def error_text(message):

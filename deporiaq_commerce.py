@@ -109,11 +109,35 @@ class CommerceClient:
             for l in data['locations']:
                 vt.baglanti.execute('INSERT INTO konumlar(ad,tur,aktif) VALUES(?,?,?) ON CONFLICT(ad) DO UPDATE SET tur=excluded.tur,aktif=excluded.aktif',
                     (l['name'],{'center':'MERKEZ','warehouse':'DEPO','branch':'SUBE'}[l['location_type']],int(l['active'])))
+            vt.baglanti.execute('CREATE TABLE IF NOT EXISTS dpq_product_cache(server_id TEXT PRIMARY KEY,local_id INTEGER UNIQUE NOT NULL)')
+            pm={row[0]:row[1] for row in vt.baglanti.execute('SELECT server_id,local_id FROM dpq_product_cache')}
+            aliases={}
+            for alias in data.get('catalog_aliases',[]):aliases.setdefault(alias['id'],[]).append(alias['barcode'])
+            # Seed identity links before changing any barcode. Also handles a first
+            # upgraded sync after another computer already renamed the product.
             for p in data['products']:
-                vt.baglanti.execute('INSERT INTO urunler(barkod,ad,fiyat,alis_fiyati,kritik_stok,aktif) VALUES(?,?,?,?,?,?) ON CONFLICT(barkod) DO UPDATE SET ad=excluded.ad,fiyat=excluded.fiyat,alis_fiyati=excluded.alis_fiyati,kritik_stok=excluded.kritik_stok,aktif=excluded.aktif',
-                    (p['barcode'],p['name'],float(p['sale_price']),float(p['purchase_price']),int(p['critical_stock']),int(p['active'])))
+                if p['id'] in pm:continue
+                for code in aliases.get(p['id'],[])+[p['barcode']]:
+                    row=vt.baglanti.execute('SELECT id FROM urunler WHERE barkod=? AND id NOT IN (SELECT local_id FROM dpq_product_cache)',(code,)).fetchone()
+                    if row:
+                        pm[p['id']]=row[0];vt.baglanti.execute('INSERT INTO dpq_product_cache VALUES(?,?)',(p['id'],row[0]));break
+            # Cloud is authoritative. Retired cache rows keep their history but
+            # must not remain active or retain stock from an older snapshot.
+            vt.baglanti.execute('UPDATE urunler SET aktif=0')
+            vt.baglanti.execute('UPDATE stoklar SET miktar=0')
+            for p in data['products']:
+                if p['id'] in pm:
+                    vt.baglanti.execute('UPDATE urunler SET barkod=? WHERE id=?',('__dpq_cache_'+p['id'],pm[p['id']]))
+            for p in data['products']:
+                stale=vt.baglanti.execute('SELECT id FROM urunler WHERE barkod=?',(p['barcode'],)).fetchone()
+                if stale:vt.baglanti.execute('UPDATE urunler SET barkod=? WHERE id=?',('__dpq_retired_'+str(stale[0]),stale[0]))
+                values=(p['barcode'],p['name'],float(p['sale_price']),float(p['purchase_price']),int(p['critical_stock']),int(p['active']))
+                if p['id'] in pm:
+                    vt.baglanti.execute('UPDATE urunler SET barkod=?,ad=?,fiyat=?,alis_fiyati=?,kritik_stok=?,aktif=? WHERE id=?',values+(pm[p['id']],))
+                else:
+                    row=vt.baglanti.execute('INSERT INTO urunler(barkod,ad,fiyat,alis_fiyati,kritik_stok,aktif) VALUES(?,?,?,?,?,?)',values)
+                    pm[p['id']]=row.lastrowid;vt.baglanti.execute('INSERT INTO dpq_product_cache VALUES(?,?)',(p['id'],row.lastrowid))
             lm={l['id']:vt.baglanti.execute('SELECT id FROM konumlar WHERE ad=?',(l['name'],)).fetchone()[0] for l in data['locations']}
-            pm={p['id']:vt.baglanti.execute('SELECT id FROM urunler WHERE barkod=?',(p['barcode'],)).fetchone()[0] for p in data['products']}
             for row in data['inventory']:
                 vt.baglanti.execute('INSERT INTO stoklar(urun_id,konum_id,miktar) VALUES(?,?,?) ON CONFLICT(urun_id,konum_id) DO UPDATE SET miktar=excluded.miktar',
                     (pm[row['product_id']],lm[row['location_id']],row['quantity']))

@@ -19,11 +19,11 @@ view.setClearColor(Qt.GlobalColor.transparent);view.resize(440,472)
 view.setSource(QUrl.fromLocalFile(str(ROOT/'companion/Cat.qml')));view.show();QTest.qWait(1500)
 assert view.status()==QQuickWidget.Status.Ready,[e.toString() for e in view.errors()]
 out=ROOT/'test-results'/'companion';out.mkdir(parents=True,exist_ok=True)
-for mode in ('idle','wave','walk','happy','sleep','hungry','eat','startle','peek'):
-    root=view.rootObject();root.setProperty('mood',mode);root.setProperty('phase',1.3);root.setProperty('facing',-12 if mode=='walk' else 0)
+for mode in ('idle','happy','hungry','eat'):
+    root=view.rootObject();root.setProperty('mood',mode);root.setProperty('phase',1.3);root.setProperty('messageText','Sana nasıl yardımcı olabilirim?')
     QTest.qWait(500);frame=view.grabFramebuffer();assert not frame.isNull()
     colored=sum(frame.pixelColor(x,y).alpha()>10 for x in range(0,frame.width(),5) for y in range(0,frame.height(),5))
     assert colored>150,(mode,colored)
     assert frame.save(str(out/f'{mode}.png'))
 assert not errors,errors
-view.close();print('PASS: nine 3D poses rendered with a real graphics backend',flush=True)
+view.close();print('PASS: four seated 3D states rendered with a real graphics backend',flush=True)

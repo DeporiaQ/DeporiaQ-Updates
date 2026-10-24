@@ -2,7 +2,7 @@ name: DeporiaQ Candidate Windows Validation
 on:
   push:
     branches:
-      - 'codex/deporiaq-0.27.0'
+      - 'codex/deporiaq-0.27.1'
     paths:
       - '**.py'
       - '**.iss'
@@ -38,7 +38,7 @@ jobs:
       - name: Sürüm tutarlılığını doğrula
         shell: pwsh
         run: |
-          $version = "0.27.0"
+          $version = "0.27.1"
           if ((Get-Content deporiaq_qt.py -Raw) -notmatch ('SURUM = "' + [regex]::Escape($version) + '"')) {
             throw "deporiaq_qt.py sürümü ile yayın sürümü uyuşmuyor."
           }
@@ -52,8 +52,8 @@ jobs:
       - name: Operasyon Merkezi ve başlangıç sözleşmesi testleri
         shell: pwsh
         run: |
-          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py tests/test_session_pos.py tests/test_0243.py tests/test_0250.py tests/test_0260.py tests/test_0270.py -q --junitxml=test-results/windows-unit.xml
-          if ($LASTEXITCODE -ne 0) { throw "0.27.0 işlev testleri başarısız." }
+          python -m pytest tests/test_analysis.py tests/test_runtime.py tests/test_operations_ui.py tests/test_commerce_client.py tests/test_commerce_cache.py tests/test_commerce_ui.py tests/test_support_worker.py tests/test_config_security.py tests/test_session_pos.py tests/test_0243.py tests/test_0250.py tests/test_0260.py tests/test_0270.py tests/test_0271.py -q --junitxml=test-results/windows-unit.xml
+          if ($LASTEXITCODE -ne 0) { throw "0.27.1 işlev testleri başarısız." }
           $tokens = $null
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'deporiaq_restart.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
@@ -62,7 +62,7 @@ jobs:
       - name: Native 3D companion and workspace integration
         shell: pwsh
         run: |
-          python tools/render_workspace_0270.py
+          python tools/render_workspace_0271.py
           if ($LASTEXITCODE -ne 0) { throw "Native 3D workspace test failed." }
 
       - name: Cloud istemci yapılandırmasını hazırla
@@ -114,13 +114,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DeporiaQ-0.27.0-test-results
+          name: DeporiaQ-0.27.1-test-results
           path: test-results/
           if-no-files-found: warn
 
       - name: Aday kurulum dosyasını sakla
         uses: actions/upload-artifact@v4
         with:
-          name: DeporiaQ-0.27.0-candidate-setup
-          path: kurulum/DeporiaQ_Setup_0.27.0.exe
+          name: DeporiaQ-0.27.1-candidate-setup
+          path: kurulum/DeporiaQ_Setup_0.27.1.exe
 

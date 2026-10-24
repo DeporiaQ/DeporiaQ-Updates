@@ -51,7 +51,7 @@ from deporiaq_panels import PanelCanvas,PanelsDialog
 from deporiaq_companion import CompanionController,PetDock,companion_settings
 from deporiaq_i18n import T, render, Text ,QCheckBox,QComboBox,QFileDialog,QFormLayout,QInputDialog,QLabel,QLineEdit,QMainWindow,QMessageBox,QPlainTextEdit,QPushButton,QTabWidget,QTableWidget,QTableWidgetItem,QWidget
 
-SURUM = "0.27.0"
+SURUM = "0.27.1"
 
 
 def kaynak_yolu(ad):
@@ -1261,7 +1261,9 @@ class AnaPencere(QMainWindow):
         for code in ('tr','en'):
             flag=FlagButton(code);flag.setChecked(language()==code);flag.clicked.connect(lambda checked=False,c=code:self.change_language(c));self.language_flags[code]=flag;flags.addWidget(flag)
         flags.addStretch();d.addSpacing(14);d.addLayout(flags)
-        d.addStretch()
+        self.companion_host=QWidget();self.companion_host.setObjectName("companionHome")
+        self.companion_host.setFixedHeight(210);self.companion_host.setMinimumWidth(0)
+        d.addWidget(self.companion_host);d.addStretch()
         self.cloud=QLabel(T('Cloud oturumu kapalı'));self.cloud.setObjectName('cloud');self.cloud.setWordWrap(True);d.addWidget(self.cloud)
         self.support_mail=QLabel("deporiaq@gmail.com");d.addWidget(self.support_mail)
         d.addWidget(QLabel(T('DeporiaQ Modern\nGüvenli • Hızlı • Bulut')))
@@ -1282,7 +1284,7 @@ class AnaPencere(QMainWindow):
     def alt_cubuk(self):
         alt = QFrame(); alt.setObjectName("altCubuk")
         d = QHBoxLayout(alt); d.setContentsMargins(18, 8, 18, 8)
-        durum = QLabel(T('0.27.0 • Özetler yerel önbellektir')); durum.setObjectName("durum")
+        durum = QLabel(T('{version} • Özetler yerel önbellektir',version=SURUM)); durum.setObjectName("durum")
         d.addWidget(durum)
         self.pet_dock=PetDock();d.addWidget(self.pet_dock)
         d.addStretch()

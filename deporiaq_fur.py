@@ -19,7 +19,7 @@ def fur_vertices():
         normal=QVector3D(math.cos(angle)*r,y,math.sin(angle)*r)
         tangent=QVector3D.crossProduct(normal,QVector3D(0,1,0)).normalized()
         across=QVector3D.crossProduct(normal,tangent).normalized()
-        center=normal*49.4;length=rng.uniform(2.0,4.2);width=rng.uniform(.35,.9)
+        center=normal*49.4;length=rng.uniform(1.0,2.1);width=rng.uniform(.22,.5)
         tip=normal*(50+length)+tangent*.6+across*(-.65)
         shade=rng.uniform(.72,1.13)
         points=[center+tangent*(math.cos(k*2*math.pi/3)*width)+across*(math.sin(k*2*math.pi/3)*width) for k in range(3)]

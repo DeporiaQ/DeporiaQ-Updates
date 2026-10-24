@@ -30,7 +30,7 @@ from ttkbootstrap.constants import BOTH, CENTER, END, LEFT, RIGHT, X, Y
 
 
 PROGRAM_ADI = "DeporiaQ"
-PROGRAM_SURUMU = "0.27.0"
+PROGRAM_SURUMU = "0.27.1"
 TELIF_METNI = "© 2026 DeporiaQ. Tüm hakları saklıdır."
 
 RENK_ZEMIN = "#212121"
@@ -274,6 +274,8 @@ class Veritabani:
         self.baglanti.row_factory = sqlite3.Row
         self.baglanti.execute("PRAGMA foreign_keys = ON")
         self.tablolari_olustur()
+        from deporiaq_cache_migration import migrate_product_names
+        migrate_product_names(self)
         self.ilk_verileri_ekle()
 
     def tablolari_olustur(self):

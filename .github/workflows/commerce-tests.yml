@@ -39,6 +39,7 @@ jobs:
       - run: npm run test:server
       - run: node tests/server/presence.mjs
       - run: node tests/server/workspace.mjs
+      - run: node tests/server/catalog.mjs
       - run: node tests/server/experience.mjs
       - run: node tests/server/onboarding.mjs
       - run: node tests/server/payment_edge.mjs

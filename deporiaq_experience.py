@@ -47,13 +47,20 @@ class FlagButton(QAbstractButton):
         self.setToolTip('Türkçe' if code=='tr' else 'English');self.setAccessibleName(self.toolTip());self.setCursor(Qt.CursorShape.PointingHandCursor)
     def paintEvent(self,event):
         p=QPainter(self);p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        area=QRectF(8,7,46,28);clip=QPainterPath();clip.addRoundedRect(area,3,3);p.setClipPath(clip)
+        area=QRectF(8.5,6,45,30);clip=QPainterPath();clip.addRect(area);p.setClipPath(clip)
         if self.code=='tr':
-            p.fillRect(area,QColor('#E30A17'));p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('white'));p.drawEllipse(QRectF(20,11,20,20));p.setBrush(QColor('#E30A17'));p.drawEllipse(QRectF(24,11,17,20))
-            star=QPolygonF()
+            # G=30, L=1.5G. Standard circular crescent and left-pointing star.
+            # Source: MEB Türk Bayrağı Kalıbı, table of dimensions.
+            p.save();p.translate(area.x(),area.y());g=area.height()
+            p.fillRect(QRectF(0,0,1.5*g,g),QColor('#E30A17'))
+            p.setPen(Qt.PenStyle.NoPen);p.setBrush(QColor('white'))
+            p.drawEllipse(QPointF(.5*g,.5*g),.25*g,.25*g)
+            p.setBrush(QColor('#E30A17'));p.drawEllipse(QPointF(.5625*g,.5*g),.2*g,.2*g)
+            star=QPolygonF();cx=(.5625-.2+1/3+.125)*g
             for i in range(10):
-                angle=i*math.pi/5-math.pi/2;r=6 if i%2==0 else 2.5;star.append(QPointF(40+math.cos(angle)*r,21+math.sin(angle)*r))
-            p.setBrush(QColor('white'));p.drawPolygon(star)
+                angle=math.pi+i*math.pi/5;r=.125*g*(1 if i%2==0 else (3-math.sqrt(5))/2)
+                star.append(QPointF(cx+math.cos(angle)*r,.5*g+math.sin(angle)*r))
+            p.setBrush(QColor('white'));p.drawPolygon(star);p.restore()
         else:
             p.fillRect(area,QColor('#012169'))
             for col,width in [('white',8),('#C8102E',3)]:
