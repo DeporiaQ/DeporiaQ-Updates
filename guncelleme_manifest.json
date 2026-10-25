@@ -1,7 +1,7 @@
 {
-  "version": "0.26.0",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.26.0/DeporiaQ_Setup_0.26.0.exe",
-  "sha256": "c603d5103b798f3d3f5d6c25cb2fa450c80299759760c17099e521550add5761",
-  "notes": "Türkçe/İngilizce arayüz, uygulama içi arama ve ücretsiz çevrimdışı DeporiaQ Asistan. İşletme adı yetkisi ve üst menü düzenlemeleri. SQL 0.26.0 bu projede doğrulandı; asistan için API anahtarı gerekmez.",
-  "notes_en": "Turkish/English interface, in-app search and the free offline DeporiaQ guide assistant. Owner-only business renaming and refreshed header. SQL 0.26.0 verified for this project; no API key is needed for the assistant."
+  "version": "0.27.1",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.27.1/DeporiaQ_Setup_0.27.1.exe",
+  "sha256": "e7089a514d970e90f552e9df5cfa05ca7b5f5710425aeacbed96683d9006a9c4",
+  "notes": "Ürün düzenleme, arşiv ve güvenli silme; sabit oturan, fareyi izleyen 3D kedi; yardım tabelaları ve düzeltilmiş Türk bayrağı. Cloud geçişi tamamlandı.",
+  "notes_en": "Product editing, archiving and protected deletion; a seated 3D cat with pointer-following gaze and help signs; corrected Turkish flag. Cloud migration completed."
 }
