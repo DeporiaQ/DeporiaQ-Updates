@@ -1,0 +1,121 @@
+name: Publish DeporiaQ 0.27.1 maintenance update
+on:
+  push:
+    branches: ['codex/deporiaq-0.27.1']
+    paths: ['.github/workflows/release-0271.yml']
+concurrency:
+  group: release-0271
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: read
+env:
+  GH_REPO: DeporiaQ/DeporiaQ-Updates
+  CANDIDATE_SHA: 78ee697508b5ebb8dbf23008ca3e67a9d3a0ec8e
+  INSTALLER_SHA256: e7089a514d970e90f552e9df5cfa05ca7b5f5710425aeacbed96683d9006a9c4
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify exact source, Windows upgrade, server tests and security scans
+        run: |
+          set -euo pipefail
+          for entry in \
+            40108265109:78ee697508b5ebb8dbf23008ca3e67a9d3a0ec8e \
+            40108265123:78ee697508b5ebb8dbf23008ca3e67a9d3a0ec8e \
+            40108372624:047aacf1f64daa4b85cdb5902f477c4155c25bba; do
+            run="${entry%%:*}"
+            source="${entry#*:}"
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)" = "$source"
+            gh run watch "$run" --exit-status --interval 30
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .conclusion)" = success
+          done
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify the tested source and maintenance scope
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "$CANDIDATE_SHA"
+          git diff --exit-code "$CANDIDATE_SHA" HEAD -- '*.py' '*.iss' '*.svg' '*.ico' companion backgrounds dashboard_background.jpg server
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          evidence=json.loads(Path('release-evidence-0.27.1.json').read_text())
+          assert evidence['scope']=='maintenance_for_existing_businesses'
+          assert evidence['desktop_source']==os.environ['CANDIDATE_SHA']
+          assert evidence['live_server_review']['ready_rpc']=='0.27.1'
+          assert evidence['live_server_review']['existing_product_count_stock_and_subscription_unchanged']
+          assert not any(evidence['commercial_launch'].values())
+          PY
+      - name: Download the exact tested and scanned installer
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/40108265109/artifacts" > artifacts.json
+          id=$(jq -er '.artifacts[] | select(.name=="DeporiaQ-0.27.1-candidate-setup" and .expired==false) | .id' artifacts.json)
+          digest=$(jq -er '.artifacts[] | select(.name=="DeporiaQ-0.27.1-candidate-setup" and .expired==false) | .digest' artifacts.json)
+          gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > candidate.zip
+          echo "${digest#sha256:}  candidate.zip" | sha256sum -c -
+          test "$(unzip -Z1 candidate.zip)" = DeporiaQ_Setup_0.27.1.exe
+          unzip candidate.zip
+          echo "$INSTALLER_SHA256  DeporiaQ_Setup_0.27.1.exe" | sha256sum -c -
+          cp DeporiaQ_Setup_0.27.1.exe DeporiaQ_Setup.exe
+          sha256sum DeporiaQ_Setup_0.27.1.exe DeporiaQ_Setup.exe > SHA256SUMS.txt
+          sha256sum DeporiaQ_Setup.exe > DeporiaQ_Setup.exe.sha256
+      - name: Publish verified maintenance release
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)" = v0.26.0
+          if gh release view v0.27.1 >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to overwrite assets.'
+            exit 1
+          fi
+          cp RELEASE_NOTES_0.27.1.md release-notes.md
+          cat >> release-notes.md <<'NOTES'
+
+          ## Doğrulama
+          - Kaynak: `78ee697508b5ebb8dbf23008ca3e67a9d3a0ec8e`.
+          - Windows kurulum, açık uygulamada yükseltme ve yeniden açılma: Actions `40108265109`.
+          - PostgreSQL yetki, veri koruma ve eşzamanlı işlem testleri: `40108265123`.
+          - Aynı kurulum paketi ve kurulan dosyalar Microsoft Defender; kurulan dosyalar ayrıca ClamAV ile tarandı: `40108372624`. Taramalarda tehdit bulunmadı.
+          - 3D kedi ve küçük pencere yerleşimi gerçek Windows görüntüleriyle kontrol edildi.
+          NOTES
+          gh release create v0.27.1 DeporiaQ_Setup_0.27.1.exe DeporiaQ_Setup.exe DeporiaQ_Setup.exe.sha256 SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'DeporiaQ 0.27.1' --notes-file release-notes.md --latest
+      - name: Enable in-app update with optimistic manifest revision
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/contents/guncelleme_manifest.json?ref=main" > current-manifest.json
+          python - <<'PY'
+          import base64,hashlib,json,os
+          from pathlib import Path
+          current=json.loads(Path('current-manifest.json').read_text())
+          old=json.loads(base64.b64decode(current['content']))
+          if tuple(map(int,old['version'].split('.'))) >= (0,27,1):
+              raise SystemExit('Newer or equal manifest exists; refusing to overwrite')
+          digest=hashlib.sha256(Path('DeporiaQ_Setup_0.27.1.exe').read_bytes()).hexdigest()
+          assert digest==os.environ['INSTALLER_SHA256']
+          manifest={
+              'version':'0.27.1',
+              'download_url':'https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.27.1/DeporiaQ_Setup_0.27.1.exe',
+              'sha256':digest,
+              'notes':'Ürün düzenleme, arşiv ve güvenli silme; sabit oturan, fareyi izleyen 3D kedi; yardım tabelaları ve düzeltilmiş Türk bayrağı. Cloud geçişi tamamlandı.',
+              'notes_en':'Product editing, archiving and protected deletion; a seated 3D cat with pointer-following gaze and help signs; corrected Turkish flag. Cloud migration completed.'
+          }
+          payload={'message':'Publish verified DeporiaQ 0.27.1 maintenance update','branch':'main','sha':current['sha'],
+                   'content':base64.b64encode((json.dumps(manifest,ensure_ascii=False,indent=2)+'\n').encode()).decode()}
+          Path('manifest-update.json').write_text(json.dumps(payload))
+          PY
+          gh api "repos/$GH_REPO/contents/guncelleme_manifest.json" -X PUT --input manifest-update.json --silent
+          gh release view v0.27.1 --json tagName,isDraft,isPrerelease,url

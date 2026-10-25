@@ -1,0 +1,38 @@
+{
+  "version": "0.27.1",
+  "scope": "maintenance_for_existing_businesses",
+  "desktop_source": "78ee697508b5ebb8dbf23008ca3e67a9d3a0ec8e",
+  "windows_build_run": 40108265109,
+  "commerce_run": 40108265123,
+  "security_run": 40108372624,
+  "security_source": "047aacf1f64daa4b85cdb5902f477c4155c25bba",
+  "live_server_review": {
+    "date_utc": "2026-10-24",
+    "migration": "deporiaq_0271_catalog_lifecycle",
+    "ready_rpc": "0.27.1",
+    "authenticated_product_lifecycle_rollback_test": "passed",
+    "live_stock_stale_edit_and_viewer_role_rejections": "passed",
+    "existing_product_count_stock_and_subscription_unchanged": true,
+    "private_helper_not_callable_by_authenticated": true,
+    "security_advisor_counts_unchanged": true
+  },
+  "commercial_launch": {
+    "general_enrollment": false,
+    "live_payments": false,
+    "full_commercial_readiness_claimed": false
+  },
+  "publication": "workflow_must_verify_successful_exact_runs_and_artifact_digests",
+  "windows_build_attempt": 2,
+  "security_attempt": 2,
+  "installer_sha256": "e7089a514d970e90f552e9df5cfa05ca7b5f5710425aeacbed96683d9006a9c4",
+  "installer_bytes": 199351728,
+  "installer_artifact_id": 12580404755,
+  "installer_artifact_sha256": "93ed50238e03a41d6784df692960f162d7c999ffac548c71cf0bcdc788b265a1",
+  "unit_tests": {
+    "passed": 119,
+    "failed": 0,
+    "errors": 0
+  },
+  "native_visual_review": "passed: seated cat and signs fully visible at 1000x720, both languages",
+  "windows_install_and_relaunch": "passed: fresh, open-app-upgrade, legacy-upgrade, 0.22.5, 0.23.0, dirty-environment"
+}
