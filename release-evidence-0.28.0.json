@@ -1,0 +1,32 @@
+{
+  "version": "0.28.0",
+  "status": "candidate_verified_live_migration_blocked",
+  "desktop_source": "744e79713e62ff0105c5d02bc40976252d7b1ca3",
+  "windows_build_run": 40282644767,
+  "retail_native_and_postgres_run": 40282644812,
+  "commerce_tests_run": 40282645037,
+  "security_run": 40282797297,
+  "security_source": "8082b8ddf2ac1e1c574166520a139c4c478b7953",
+  "installer_sha256": "2df95d253a065215653adafac7710ae85402e3789e8a90d3ba04697d4294f8ff",
+  "installer_artifact_id": 12633550067,
+  "unit_tests": 125,
+  "live_server_review": {
+    "ready_rpc": null,
+    "migration_applied": false,
+    "sample_layouts_created": false,
+    "error": "Supabase apply_migration returned Invalid or expired requestState twice; readback confirmed new marker and table absent",
+    "before": {
+      "products": 101,
+      "stock": "34729.000",
+      "subscription_valid_until": "2027-09-30T21:15:17.089802+00:00"
+    }
+  },
+  "published": false,
+  "update_manifest_changed": false,
+  "limitations": [
+    "Shelf estimates are unverified; physical dimensions and positions must be confirmed.",
+    "Marketing consent is stored; no automated email or SMS delivery was added.",
+    "Financial results exclude unrecorded expenses and do not replace statutory accounting.",
+    "Installer is unsigned."
+  ]
+}
