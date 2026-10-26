@@ -3,6 +3,13 @@ import re
 from deporiaq_i18n import T,language
 from deporiaq_translations import EN
 ERRORS={
+ 'DPQ_COST':('İndirimli satış fiyatı güncel ürün maliyetinin altında. Fiyat veya kampanyayı düzeltin.','The discounted price is below the current product cost. Update the price or offer.'),
+ 'DPQ_LAYOUT':('Raf kodlarını, kat sayılarını ve ölçüleri kontrol edin.','Check rack codes, level counts and dimensions.'),
+ 'DPQ_SHELF_FULL':('Raf kapasitesi yetersiz veya kaldırılacak rafta ürün var. Önce ürünleri taşıyın.','The shelf lacks capacity or contains products. Move its products first.'),
+ 'DPQ_OFFER':('Kampanya/setin süresini, konumunu ve üyelik koşulunu kontrol edin.','Check the offer dates, location and membership requirement.'),
+ 'DPQ_CONSENT':('Müşterinin açık izninin tarihini, yöntemini ve kaynağını belirtin.','Record the date, method and source of the customer’s explicit consent.'),
+ 'DPQ_CUSTOMER':('Etkin müşteri kartını yeniden seçin.','Select an active customer record again.'),
+ 'DPQ_LOCATION_STOCK':('Bu konumda stok/açık işlem var veya merkez olarak kullanılıyor. Kapatmadan önce bunları düzenleyin.','This location has stock, open operations or is the configured hub. Resolve these before closing it.'),
  'DPQ_AUTH':('Cloud oturumunuzu doğrulayın.','Verify your Cloud session.'),
  'DPQ_SESSION':('Oturum doğrulanamadı. Yeniden giriş yapın.','The session could not be verified. Sign in again.'),
  'DPQ_COMPANY':('Tek ve etkin işletme üyeliği gereklidir.','One active business membership is required.'),

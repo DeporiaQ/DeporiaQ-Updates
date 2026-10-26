@@ -261,7 +261,7 @@ class DashboardArkaPlan(QWidget):
             x = max(0, (kapla.width() - self.width()) // 2); y = max(0, (kapla.height() - self.height()) // 2)
             p.drawPixmap(QRectF(self.rect()), kapla, QRectF(x, y, self.width(), self.height()))
         # Görsel belirgin kalır; koyu katman metinlerin okunabilirliğini korur.
-        p.fillRect(self.rect(), QColor(242,246,251,max(170,self.overlay) if self.background_enabled else 255) if getattr(self,'light_mode',False) else QColor(7, 15, 28, self.overlay if self.background_enabled else 255))
+        p.fillRect(self.rect(), QColor(211,222,234,max(150,self.overlay) if self.background_enabled else 255) if getattr(self,'light_mode',False) else QColor(7, 15, 28, self.overlay if self.background_enabled else 255))
 
 
 class FinansOzetGrafik(QWidget):
@@ -1051,6 +1051,9 @@ class AnaPencere(QMainWindow):
         ana.addLayout(orta, 1)
         ana.addWidget(self.alt_cubuk())
         self.dashboard_kur()
+        from deporiaq_retail import RetailHub
+        self.retail_hub=RetailHub(self)
+        self.retail_hub.install(self.panel_canvas)
         self.companion=CompanionController(self,self.pet_dock)
         self.notification_storage_key='notification_history_'+str(self.kullanici['id'])
         try:self.notifications=json.loads(self.vt.ayar_getir(self.notification_storage_key,'[]'))[-100:]
@@ -1083,6 +1086,11 @@ class AnaPencere(QMainWindow):
         timer=QTimer(self);timer.setSingleShot(True);timer.timeout.connect(fn);timer.start(delay);self.startup_timers.append(timer)
 
     def closeEvent(self,event):
+        if hasattr(self,'retail_hub'):
+            self.retail_hub.timer.stop()
+            from deporiaq_commerce_ui import Job
+            if any(job.isRunning() for job in self.retail_hub.findChildren(Job)) or any(job.isRunning() for job in self.panel_canvas.findChildren(Job)):
+                event.ignore();QTimer.singleShot(300,self.close);return
         panels=[w for w in self.findChildren(QDialog) if w.isVisible()]
         if any(getattr(w,'job',None) is not None for w in panels):
             event.ignore();self.cloud.setText(T('İşlem tamamlanınca kapanacak…'));QTimer.singleShot(300,self.close);return

@@ -13,7 +13,7 @@ from deporiaq_onboarding import RegistrationClient,validated_payment_url,Checkou
 
 def test_panels_drag_resize_hide_without_reflow_and_persist(application,window):
     window.resize(1500,950);window.show();QTest.qWait(120);application.processEvents()
-    canvas=window.panel_canvas;keys=list(canvas.panels);panel=canvas.panels[keys[-1]]
+    canvas=window.panel_canvas;keys=[k for k,p in canvas.panels.items() if not p.isHidden()];panel=canvas.panels[keys[-1]]
     others={k:p.geometry() for k,p in canvas.panels.items() if p is not panel}
     original=panel.geometry();start=panel.bar.rect().center()
     QTest.mousePress(panel.bar,Qt.MouseButton.LeftButton,pos=start)
@@ -32,7 +32,7 @@ def test_panels_drag_resize_hide_without_reflow_and_persist(application,window):
     canvas.set_locked(True);locked=panel.geometry();panel.show()
     QTest.mousePress(panel.bar,Qt.MouseButton.LeftButton,pos=start);QTest.mouseMove(panel.bar,start+QPoint(-80,-60));QTest.mouseRelease(panel.bar,Qt.MouseButton.LeftButton,pos=start)
     assert panel.geometry()==locked
-    canvas.reset();assert all(not p.isHidden() for p in canvas.panels.values())
+    canvas.reset();assert all((not p.isHidden())==canvas.default_visibility[k] for k,p in canvas.panels.items())
 
 def test_compact_assistant_does_not_resize_dashboard(application,window):
     window.resize(1366,768);window.show();application.processEvents();size=window.kaydir.viewport().size()

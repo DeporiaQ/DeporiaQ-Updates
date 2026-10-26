@@ -20,22 +20,29 @@ def apply_appearance(window):
         style+='\nQWidget {color:#FFFFFF;} QFrame#panel,QFrame#kart {background:#080D15;border:2px solid #CBD5E1;} QPushButton {border:2px solid #CBD5E1;} QLabel#soluk {color:#E2E8F0;}'
     mode=vt.ayar_getir('ui_mode','dark')
     if mode=='light':
+        for name in ('chevron','chevron_up'):
+            style=style.replace(kaynak_yolu(name+'.svg').replace('\\','/'),kaynak_yolu(name+'_dark.svg').replace('\\','/'))
         style+='''
-        QWidget {color:#182D43;background:#F3F6FA;}
-        QDialog,QMainWindow {background:#F3F6FA;}
+        QWidget {color:#203147;background:#DDE4EC;}
+        QDialog,QMainWindow {background:#DDE4EC;}
         QLabel {background:transparent;}
-        QFrame#ustCubuk,QFrame#yanMenu,QFrame#altCubuk {background:#ECF1F7;border-color:#CCD7E5;}
-        QFrame#panel,QFrame#kart {background:rgba(250,253,255,225);border-color:#B2C6D9;}
+        QFrame#ustCubuk,QFrame#yanMenu,QFrame#altCubuk {background:#CED8E4;border-color:#93A5BA;}
+        QFrame#panel,QFrame#kart {background:#E9EEF3;border:1px solid #9AAEC3;}
         QLabel#markaKucuk,QLabel#isletme,QLabel#cloud,QLabel#kartBaslik {color:#1B334A;}
-        QLabel#profil,QLabel#soluk,QLabel#durum {color:#526981;}
-        QLabel#kartDeger {color:#057AB4;}
-        QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox,QPlainTextEdit,QListWidget,QTableWidget {background:#FFFFFF;color:#182D43;border-color:#B2C6D9;alternate-background-color:#EEF3F9;}
-        QPushButton {background:#E2EBF5;color:#1A3955;border-color:#BDCDDD;}
+        QLabel#profil,QLabel#soluk,QLabel#durum,QLabel#kurBilgisi,QLabel#surum {color:#40536B;}
+        QLabel#kartDeger {color:#08658B;}
+        QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox,QPlainTextEdit,QListWidget,QTableWidget {background:#F5F7FA;color:#203147;border:1px solid #94A8BE;alternate-background-color:#E0E7EF;selection-background-color:#245A94;selection-color:#FFFFFF;}
+        QPushButton {background:#D4DFEA;color:#203147;border-color:#98ACC2;}
         QPushButton:hover {background:#CFDFEF;}
-        QPushButton#birincil,QPushButton#tehlike,QPushButton#basari {color:#FFFFFF;}
+        QPushButton#birincil {background:#245A94;color:#FFFFFF;}
+        QPushButton#tehlike {background:#A92935;color:#FFFFFF;}
+        QPushButton#basari {background:#087353;color:#FFFFFF;}
+        QPushButton:disabled {background:#DAE1E9;color:#64748B;border-color:#B7C4D2;}
         QHeaderView::section {background:#DAE5F0;color:#243B53;}
         QTabBar::tab {background:#E2EBF5;color:#243B53;padding:8px;}
-        QTabBar::tab:selected {background:#FFFFFF;}
+        QTabBar::tab:selected {background:#C8D8E9;color:#182D43;}
+        QScrollBar:vertical,QScrollBar:horizontal {background:#D1DBE6;}
+        QScrollBar::handle:vertical,QScrollBar::handle:horizontal {background:#71879F;}
         '''
     style+='''
     QFrame#headerProfile,QFrame#headerActions {background:transparent;border:0;}

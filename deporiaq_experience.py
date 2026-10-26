@@ -85,7 +85,7 @@ class ExperienceHeader(QFrame):
         window.subscription_label=QLabel(T('Abonelik doğrulanıyor'));window.subscription_label.setObjectName('profil');pv.addWidget(window.subscription_label)
         self.search=QLineEdit(self);self.search.setObjectName('globalSearch');self.search.setPlaceholderText(T('Ürün, barkod veya menü ara…'));self.search.setAccessibleName(T('Uygulamada ara'))
         self.search.setMaxLength(120);self.search.addAction(search_icon(),QLineEdit.ActionPosition.TrailingPosition).triggered.connect(window.global_search_open)
-        self.assistant=QPushButton(T('Asistan'),self);self.assistant.setObjectName('assistantEntry');self.assistant.setStyleSheet('QPushButton{font-family:Segoe UI;font-size:16px;font-weight:600;color:#74d8ff;background:transparent;border:0;padding:4px;} QPushButton:hover{color:#b8eeff;}');self.assistant.clicked.connect(window.assistant_open)
+        self.assistant=QPushButton(T('Asistan'),self);self.assistant.setObjectName('assistantEntry');self.assistant.setStyleSheet('QPushButton{font-family:Segoe UI;font-size:16px;font-weight:600;background:transparent;border:0;padding:4px;} QPushButton:hover{background:rgba(126,155,185,35);}');self.assistant.clicked.connect(window.assistant_open)
         self.controls=QFrame(self);self.controls.setObjectName("headerActions");bar=QHBoxLayout(self.controls);bar.setContentsMargins(0,0,0,0);bar.setSpacing(4)
         self.settings=IconButton('settings',T('Ayarlar'));self.settings.clicked.connect(window.ayarlar_ac)
         window.notification_button=IconButton('bell',T('Bildirimler'));window.notification_button.clicked.connect(window.notification_history)

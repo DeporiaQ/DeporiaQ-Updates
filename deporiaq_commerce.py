@@ -34,7 +34,7 @@ class CommerceClient:
         if not self.cloud.bagli:
             raise CommerceError(T('Cloud oturumu gerekli. Çevrimdışı satış veya stok değişikliği yapılamaz.'))
         try:
-            endpoint='dpq_workspace' if action.startswith('workspace_') else 'dpq_call'
+            endpoint='dpq_retail' if action.startswith('retail_') else 'dpq_workspace' if action.startswith('workspace_') else 'dpq_call'
             return self.cloud._istek('/rest/v1/rpc/'+endpoint,'POST',{
                 'p_action':action,'p_payload':payload or {},'p_device':self.cloud.cihaz_kimligi})
         except Exception as e:
