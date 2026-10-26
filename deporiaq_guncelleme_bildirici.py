@@ -16,7 +16,7 @@ from tkinter import ttk
 import urllib.request
 from pathlib import Path
 
-MEVCUT_SURUM = "0.27.1"
+MEVCUT_SURUM = "0.28.0"
 PROGRAM_ADI = "DeporiaQ"
 AZAMI_GUNCELLEME_BOYUTU = 1024 * 1024 * 1024
 

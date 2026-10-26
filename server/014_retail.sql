@@ -192,6 +192,7 @@ begin
  if old.version is not null and old.version<>coalesce((p->>'version')::integer,0) then raise exception 'DPQ_CONFLICT: Raf planı değişti; yenileyin';end if;
  if op='save' then
  if jsonb_typeof(spec->'racks') is distinct from 'array' or jsonb_array_length(spec->'racks') not between 1 and 200 then raise exception 'DPQ_LAYOUT: 1–200 raf tanımlayın';end if;
+ if coalesce((spec->>'bay_gap')::numeric,16) not between 0 and 500 then raise exception 'DPQ_LAYOUT: Raf aralığı 0–500 cm olmalı';end if;
  if (spec->>'aisle')::numeric is null or (spec->>'aisle')::numeric not between 60 and 1000 then raise exception 'DPQ_LAYOUT: Koridor genişliği 60–1000 cm olmalı';end if;
  for rack_spec in select value from jsonb_array_elements(spec->'racks') loop
  if coalesce(rack_spec->>'id','') !~ '^[A-Za-z0-9_-]{1,40}$' or (rack_spec->>'row')::integer is null or (rack_spec->>'row')::integer not between 1 and 30
@@ -275,6 +276,7 @@ begin
  'offers',coalesce((select jsonb_agg(to_jsonb(o)) from dpq.retail_offers o where company_id=c),'[]'),
  'layouts',coalesce((select jsonb_agg(to_jsonb(l)) from dpq.rack_layouts l where company_id=c),'[]'),
  'shelves',coalesce((select jsonb_agg(to_jsonb(x)) from dpq.rack_stock x where company_id=c),'[]'),
+ 'finance_today',case when (caps->>'finance')::boolean then dpq.retail_finance(c,jsonb_build_object('from',(clock_timestamp() at time zone 'Europe/Istanbul')::date,'to',(clock_timestamp() at time zone 'Europe/Istanbul')::date)) else '{}'::jsonb end,
  'server_time',clock_timestamp());
  elsif p_action='retail_quote' then
  if r not in ('owner','admin','branch','employee','manager') then raise exception 'DPQ_ROLE: Satış yetkisi gerekli';end if;
@@ -411,6 +413,8 @@ begin
  idv:=coalesce(nullif(p_payload->>'id','')::uuid,req);namev:=trim(p_payload->>'name');kindv:=p_payload->>'location_type';activev:=coalesce((p_payload->>'active')::boolean,true);
  if length(coalesce(namev,'')) not between 1 and 100 or kindv is null or kindv not in ('center','warehouse','branch') then raise exception 'DPQ_INPUT: Konum adı ve türü gerekli';end if;
  if exists(select 1 from public.locations where id=idv and company_id<>c) then raise exception 'DPQ_ROLE: Başka işletmeye ait konum';end if;
+ if exists(select 1 from public.locations where id=idv and company_id=c) and
+ not exists(select 1 from public.locations where id=idv and company_id=c and name=p_payload->'expected'->>'name' and active=(p_payload->'expected'->>'active')::boolean and location_type=p_payload->'expected'->>'location_type') then raise exception 'DPQ_CONFLICT: Konum değişti; yenileyin';end if;
  if not activev and (exists(select 1 from public.inventory where company_id=c and location_id=idv and quantity<>0)
  or exists(select 1 from dpq.allocations a join dpq.orders o on o.id=a.order_id where o.company_id=c and (a.location_id=idv or a.target_id=idv) and a.state in ('reserved','transit'))
  or exists(select 1 from dpq.counter_orders where company_id=c and (origin_id=idv or location_id=idv) and status='reserved')
@@ -418,6 +422,16 @@ begin
  perform set_config('dpq.internal',c::text,true);
  insert into public.locations(id,company_id,name,location_type,active) values(idv,c,namev,kindv,activev)
  on conflict(id) do update set name=excluded.name,location_type=excluded.location_type,active=excluded.active;
+ result:=jsonb_build_object('id',idv);
+ elsif p_action='retail_channel_save' then
+ if r<>'owner' then raise exception 'DPQ_OWNER: Kanal düzenlemek için ana yönetici gerekli';end if;
+ idv:=coalesce(nullif(p_payload->>'id','')::uuid,req);namev:=trim(p_payload->>'name');activev:=coalesce((p_payload->>'active')::boolean,true);
+ if length(coalesce(namev,'')) not between 1 and 100 then raise exception 'DPQ_INPUT: Kanal adı gerekli';end if;
+ if exists(select 1 from dpq.channels where id=idv and company_id<>c) then raise exception 'DPQ_ROLE: Başka işletmeye ait kanal';end if;
+ if exists(select 1 from dpq.channels where id=idv and company_id=c) and
+ not exists(select 1 from dpq.channels where id=idv and company_id=c and name=p_payload->'expected'->>'name' and active=(p_payload->'expected'->>'active')::boolean) then raise exception 'DPQ_CONFLICT: Kanal değişti; yenileyin';end if;
+ insert into dpq.channels(id,company_id,name,active) values(idv,c,namev,activev)
+ on conflict(id) do update set name=excluded.name,active=excluded.active;
  result:=jsonb_build_object('id',idv);
  elsif p_action='retail_grant_save' then
  if r<>'owner' then raise exception 'DPQ_OWNER: Yetkilendirme için ana yönetici gerekli';end if;

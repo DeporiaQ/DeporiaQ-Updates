@@ -211,13 +211,12 @@ class LocationsDialog(ServerDialog):
     def save(self):
         if self.mode.currentData()=='locations':
             payload=dict(name=self.name.text().strip(),location_type=self.kind.currentData(),active=self.active.isChecked())
-            if self.selected:payload['id']=self.selected['id']
+            if self.selected:payload.update(id=self.selected['id'],expected={k:self.selected[k] for k in ('name','active','location_type')})
             self.mutation('retail_location_save',payload,lambda _:self.refresh())
-        elif not self.active.isChecked() and self.selected:self.mutation('channel_archive',{'channel_id':self.selected['id']},lambda _:self.refresh())
         else:
-            payload=dict(name=self.name.text().strip(),locations=[{'id':l['id'],'buffer':0} for l in self.hub.data.get('locations',[]) if l['active']])
-            if self.selected:payload['channel_id']=self.selected['id']
-            self.mutation('channel_save',payload,lambda _:self.refresh())
+            payload=dict(name=self.name.text().strip(),active=self.active.isChecked())
+            if self.selected:payload.update(id=self.selected['id'],expected={k:self.selected[k] for k in ('name','active')})
+            self.mutation('retail_channel_save',payload,lambda _:self.refresh())
     def refresh(self):self.run(lambda:self.client.read('retail_snapshot'),self.hub.accept)
 
 class GrantsDialog(ServerDialog):

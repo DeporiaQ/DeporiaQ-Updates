@@ -38,7 +38,7 @@ def warehouse_scene(layout,shelves,products,selected='',empty_only=False):
     colors=['#6aa5c3','#bd9470','#879b72','#ad7888','#7b83ad','#b49d64']
     for rack in sorted(racks,key=lambda r:(r['row'],r['bay'])):
         w,d,h=float(rack['width']),float(rack['depth']),float(rack['height']);n=int(rack['levels']);rid=rack['id']
-        x=row_offsets.get(rack['row'],0)+w/2;z=(rack['row']-1)*(max_depth+aisle)+d/2;row_offsets[rack['row']]=x+w/2+16
+        x=row_offsets.get(rack['row'],0)+w/2;z=(rack['row']-1)*(max_depth+aisle)+d/2;row_offsets[rack['row']]=x+w/2+float(spec.get('bay_gap',16))
         max_x=max(max_x,x+w/2);max_z=max(max_z,z+d/2);capacity+=w*n
         labels.append(dict(text=rid,x=x,y=h+24,z=z));positions[rid]=(x,z)
         for side_x in (-1,1):
@@ -56,7 +56,7 @@ def warehouse_scene(layout,shelves,products,selected='',empty_only=False):
             for entry in entries:
                 width=entry['quantity']*float(entry['unit_width']);placed+=entry['quantity'];verified+=entry['quantity'] if entry.get('verified') else 0
                 if not empty_only or selected==entry['product_id']:
-                    segments=min(12,max(1,entry['quantity']));step=width/segments
+                    segments=min(3 if len(racks)>40 else 12,max(1,entry['quantity']));step=width/segments
                     for seg in range(segments):
                         color='#35d8d1' if entry['product_id']==selected else colors[sum(map(ord,entry['product_id']))%len(colors)]
                         book_h=min(32,(h-24)/n-10)+(seg%3)*1.2

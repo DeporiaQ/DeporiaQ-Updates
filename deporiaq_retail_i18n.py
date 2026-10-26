@@ -428,3 +428,9 @@ EN={'0 adet bu raftan kaldırır; toplam stok değişmez. Başka rafa taşımada
  'İşlem kimliği:': 'Operation ID:',
  'Şube ve Kanalları Yönet': 'Manage Locations and Channels',
  'Şube ve Satış Kanalları': 'Locations and Sales Channels'}
+
+EN['Bugün · Net satış: {sales}\nBrüt kâr: {profit}\nGider: {expense}']='Today · Net sales: {sales}\nGross profit: {profit}\nExpenses: {expense}'
+
+EN['Raf arası (cm)']='Gap between racks (cm)'
+
+EN.update({"Kayıtlı Eski Sepetler":"Saved Legacy Baskets", "Eski Paket Kayıtları":"Legacy Bundle Records"})

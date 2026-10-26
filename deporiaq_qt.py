@@ -51,7 +51,7 @@ from deporiaq_panels import PanelCanvas,PanelsDialog
 from deporiaq_companion import CompanionController,PetDock,companion_settings
 from deporiaq_i18n import T, render, Text ,QCheckBox,QComboBox,QFileDialog,QFormLayout,QInputDialog,QLabel,QLineEdit,QMainWindow,QMessageBox,QPlainTextEdit,QPushButton,QTabWidget,QTableWidget,QTableWidgetItem,QWidget
 
-SURUM = "0.27.1"
+SURUM = "0.28.0"
 
 
 def kaynak_yolu(ad):
@@ -1171,7 +1171,7 @@ class AnaPencere(QMainWindow):
         self.grup_ac(T('Stok ve Ürünler'), [(T('Ürünler ve Stoklar'),self.urun_yonetimi_ac),(T('Stok Girişi'),self.stok_girisi_ac),(T('Stok Sayımı'),self.araclar_ac),(T('Ürün Ayrıntıları'),lambda:ProductDetailsDialog(self.commerce,self).exec()),(T('Hasarlı Ürün Ayır'),lambda:DamageDialog(self.commerce,self).exec()),(T('Parti ve Son Kullanma'),lambda:RecordsDialog(self.commerce,'batch',self).exec())])
 
     def satis_merkezi_ac(self):
-        self.grup_ac(T('Satışlar'),[(T('Çok Ürünlü Satış'),lambda:BasketDialog(self.commerce,self).exec()),(T('Şube Satış / Rezervasyon'),self.satis_ac),(T('İnternet Siparişleri'),self.internet_ac)])
+        self.grup_ac(T('Satışlar'),[(T('Satış Kasası'),lambda:self.retail_hub.open('pos')),(T('Kayıtlı Eski Sepetler'),lambda:BasketDialog(self.commerce,self).exec()),(T('Şube Satış / Rezervasyon'),self.satis_ac),(T('İnternet Siparişleri'),self.internet_ac)])
 
     def depo_merkezi_ac(self):
         self.grup_ac(T('Depolar ve Transferler'),[(T('Konumlar'),self.konum_yonetimi_ac),(T('Stok Transferi'),self.transfer_ac)])
@@ -1180,7 +1180,7 @@ class AnaPencere(QMainWindow):
         self.grup_ac(T('Raporlar'),[(T('İşletme Görevleri'),lambda:RecordsDialog(self.commerce,'task',self).exec()),(T('Operasyon Merkezi'),self.operasyon_ac),(T('Raporlar ve Yazdır'),self.raporlar_ac),(T('Kritik Stoklar'),self.kritikleri_ac),(T('Sipariş Önerileri'),self.siparis_onerileri_ac),(T('Hareket Geçmişi'),self.hareketleri_ac)])
 
     def yonetim_merkezi_ac(self):
-        self.grup_ac(T('Yönetim'),[(T('Kullanıcı Yetkileri'),self.kullanicilar_ac),(T('Veri ve Yedekleme'),self.yedek_al),(T('Tedarikçiler'),lambda:RecordsDialog(self.commerce,'supplier',self).exec()),(T('Görevler'),lambda:RecordsDialog(self.commerce,'task',self).exec()),(T('Satın Alma Siparişleri'),lambda:CollectionDialog(self.commerce,'purchase',self).exec()),(T('Set ve Paketler'),lambda:CollectionDialog(self.commerce,'bundle',self).exec()),(T('Excel Ürün İçe Aktarma'),lambda:ImportDialog(self.commerce,self).exec()),(T('Toplu Fiyat Güncelle'),lambda:BulkPricesDialog(self.commerce,self).exec()),(T('Personel İndirim Sınırı'),self.discount_policy),(T('İndirim Onayları'),lambda:ApprovalDialog(self.commerce,self).exec())])
+        self.grup_ac(T('Yönetim'),[(T('Kullanıcı Yetkileri'),self.kullanicilar_ac),(T('Veri ve Yedekleme'),self.yedek_al),(T('Tedarikçiler'),lambda:RecordsDialog(self.commerce,'supplier',self).exec()),(T('Görevler'),lambda:RecordsDialog(self.commerce,'task',self).exec()),(T('Satın Alma Siparişleri'),lambda:CollectionDialog(self.commerce,'purchase',self).exec()),(T('Set ve Paketler'),lambda:self.retail_hub.open('bundles')),(T('Eski Paket Kayıtları'),lambda:CollectionDialog(self.commerce,'bundle',self).exec()),(T('Excel Ürün İçe Aktarma'),lambda:ImportDialog(self.commerce,self).exec()),(T('Toplu Fiyat Güncelle'),lambda:BulkPricesDialog(self.commerce,self).exec()),(T('Personel İndirim Sınırı'),self.discount_policy),(T('İndirim Onayları'),lambda:ApprovalDialog(self.commerce,self).exec())])
 
     def destek_merkezi_ac(self):
         self.grup_ac(T('Yardım ve Destek'),[(T('Kullanım Rehberi'),self.yardim_ac),(T('Destek Talebi Gönder'),self.destek_ac)])

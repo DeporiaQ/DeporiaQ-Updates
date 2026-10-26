@@ -3,7 +3,7 @@ import copy,sys
 from pathlib import Path
 from PySide6.QtCore import Qt,QUrl,Signal,QTimer
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QFormLayout,QSpinBox,QDoubleSpinBox,
- QSplitter,QListWidget,QAbstractItemView,QTableWidget,QTableWidgetItem,QHeaderView,QApplication)
+ QSplitter,QListWidget,QAbstractItemView,QTableWidget,QTableWidgetItem,QHeaderView,QApplication,QSizePolicy)
 from deporiaq_i18n import T,render,QLabel,QPushButton,QLineEdit,QComboBox,QCheckBox,QMessageBox,QInputDialog
 from deporiaq_commerce_ui import ServerDialog,table,rows
 from deporiaq_retail_model import warehouse_scene,find_products,free_shelves
@@ -25,7 +25,7 @@ class WarehouseView(QWidget):
             self.view.setSource(QUrl.fromLocalFile(str(Path(getattr(sys,'_MEIPASS',Path(__file__).parent))/'warehouse/Warehouse.qml')))
             if self.view.status()==QQuickWidget.Status.Error:
                 errors='; '.join(x.toString() for x in self.view.errors());self.placeholder.setText(T('3D görünüm başlatılamadı: ')+errors);self.view.deleteLater();self.view=None;return False
-            self.placeholder.hide();self.layout_.addWidget(self.view);root=self.view.rootObject();root.setProperty('miniature',self.miniature)
+            self.placeholder.hide();self.view.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Expanding);self.layout_.addWidget(self.view,1);self.layout_.activate();root=self.view.rootObject();root.setProperty('miniature',self.miniature)
             root.shelfClicked.connect(self.shelfClicked.emit);root.expanded.connect(self.expanded.emit);return True
         except (ImportError,RuntimeError) as error:self.placeholder.setText(T('3D görünüm başlatılamadı: ')+str(error));return False
     def showEvent(self,event):
@@ -111,6 +111,7 @@ class LayoutEditor(ServerDialog):
         self.note=QLabel(T('Ölçüler santimetredir. Dolu raf/kat silinemez; önce üzerindeki ürünleri başka rafa veya yerleştirilmemiş alana alın.'));self.note.setWordWrap(True);self.body.addWidget(self.note)
         form=QHBoxLayout();self.row_count=QSpinBox();self.row_count.setRange(1,20);self.row_count.setValue(3);self.bays=QSpinBox();self.bays.setRange(1,20);self.bays.setValue(4);self.levels=QSpinBox();self.levels.setRange(1,10);self.levels.setValue(5);self.aisle=QSpinBox();self.aisle.setRange(60,1000);self.aisle.setValue(int((layout or {}).get('spec',{}).get('aisle',140)))
         for text,widget in [(T('Sıra'),self.row_count),(T('Her sırada raf'),self.bays),(T('Kat'),self.levels),(T('Koridor (cm)'),self.aisle)]:form.addWidget(QLabel(text));form.addWidget(widget)
+        self.bay_gap=QSpinBox();self.bay_gap.setRange(0,500);self.bay_gap.setValue(int((layout or {}).get('spec',{}).get('bay_gap',16)));form.addWidget(QLabel(T('Raf arası (cm)')));form.addWidget(self.bay_gap)
         self.body.addLayout(form);self.button(T('Bu Sayılarla Plan Oluştur'),self.generate)
         self.grid=QTableWidget(0,7);self.grid.setHorizontalHeaderLabels([T('Raf kodu'),T('Sıra'),T('Raf no'),T('Kat'),T('Genişlik'),T('Derinlik'),T('Yükseklik')]);self.grid.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.body.addWidget(self.grid,1)
         row=QHBoxLayout();self.button(T('Raf Ekle'),self.add,row);self.button(T('Seçili Rafı Kaldır'),lambda:self.grid.removeRow(self.grid.currentRow()) if self.grid.currentRow()>=0 else None,row);self.button(T('Kaydet'),self.save,row);self.body.addLayout(row)
@@ -132,7 +133,7 @@ class LayoutEditor(ServerDialog):
             for row in range(self.grid.rowCount()):
                 values=[self.grid.item(row,c).text().strip() for c in range(7)];racks.append(dict(id=values[0],row=int(values[1]),bay=int(values[2]),levels=int(values[3]),width=float(values[4]),depth=float(values[5]),height=float(values[6])))
         except (ValueError,AttributeError):self.status_label.setText(T('Raf numaraları ve ölçüler sayı olmalı.'));return
-        self.mutation('retail_layout_save',{'location_id':self.lid,'version':(self.record or {}).get('version',0),'spec':{'aisle':self.aisle.value(),'racks':racks}},lambda _:self.accept())
+        self.mutation('retail_layout_save',{'location_id':self.lid,'version':(self.record or {}).get('version',0),'spec':{'aisle':self.aisle.value(),'bay_gap':self.bay_gap.value(),'racks':racks}},lambda _:self.accept())
 
 class PlacementDialog(ServerDialog):
     def __init__(self,client,layout,data,selected,parent=None):

@@ -15,10 +15,12 @@ for name in ['whatsapp_icon.svg','x_icon.svg','chevron_up.svg']+[str(p.relative_
     assert archive.extract(entries[name])==(root/name).read_bytes()
 print('PASS: social icons and all built-in backgrounds are bundled')
 
-for name in ('companion/Cat.qml','deporiaq_icon.svg'):
+for name in ('companion/Cat.qml','warehouse/Warehouse.qml','deporiaq_icon.svg','chevron_dark.svg','chevron_up_dark.svg'):
     assert name in entries,'Missing asset: '+name
     assert archive.extract(entries[name])==(root/name).read_bytes()
 assert any(name.endswith('QtQuick3D/qmldir') for name in entries),'QtQuick3D QML module is missing'
 assert any('QtQuick3D' in name and name.endswith('.dll') for name in entries),'QtQuick3D runtime is missing'
 assert any('QtQuickWidgets' in name and name.endswith('.pyd') for name in entries),'QQuickWidget Python binding is missing'
 print('PASS: exact companion scene, brand icon and Qt Quick 3D runtime are bundled')
+
+assert any('tzdata/zoneinfo/Europe/Istanbul' in name for name in entries), 'Istanbul timezone data missing'

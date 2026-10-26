@@ -33,7 +33,7 @@ class RetailHub(QObject):
         for key,title in [('warehouse',T('3D Raf ve Doluluk')),('pos',T('Satış Kasası')),('campaigns',T('Kampanyalar')),('bundles',T('Set ve Paketler')),('accounts',T('Mali Tablo')),('customers',T('Müşteriler ve Üyelik'))]:
             widget=SalePanel(self) if key=='pos' else RetailTile(self,key,title)
             opener=None if key=='pos' else lambda k=key:self.open(k)
-            canvas.add('retail_'+key,title,widget,(0,920,800,460),(420,330),visible=False,opener=opener);self.panels[key]=widget
+            canvas.add('retail_'+key,title,widget,(0,920,800,460),((640,520) if key=='pos' else (420,330)),visible=False,opener=opener);self.panels[key]=widget
 
 class RetailTile(QWidget):
     def __init__(self,hub,key,title):
@@ -62,7 +62,12 @@ class RetailTile(QWidget):
             else:self.summary.setText(T('Raf planınızı oluşturun; boş alanları ve ürün yerlerini 3D görün.'))
         elif self.key in ('campaigns','bundles'):
             kind='campaign' if self.key=='campaigns' else 'bundle';count=sum(x['kind']==kind and x['active'] for x in data.get('offers',[]));self.summary.setText(T('{count} etkin tanım · Fiyat ve maliyet satış anında yeniden kontrol edilir.',count=count))
-        elif self.key=='accounts':self.summary.setText(T('Bugün, bu hafta, bu ay ve bu yıl: satış, iade, maliyet ve giderler. Şube ve satış kanalı kırılımları.'))
+        elif self.key=='accounts':
+            today=data.get('finance_today',{}).get('totals')
+            if today:
+                profit=Decimal(str(today['revenue']))-Decimal(str(today['cost']))
+                self.summary.setText(T('Bugün · Net satış: {sales}\nBrüt kâr: {profit}\nGider: {expense}',sales=money(today['revenue']),profit=money(profit),expense=money(today['expenses'])))
+            else:self.summary.setText(T('Bugün, bu hafta, bu ay ve bu yıl: satış, iade, maliyet ve giderler. Şube ve satış kanalı kırılımları.'))
         else:self.summary.setText(T('Müşteri kartları, gönüllü üyelik ve ayrı e-posta / SMS izinleri.'))
 
 class SalePanel(QWidget):

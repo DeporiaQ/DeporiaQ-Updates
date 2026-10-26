@@ -55,8 +55,14 @@ await cmd('retail_customer_save',{id:customer.id,version:customer.version,data:{
 await assert.rejects(()=>cmd('retail_customer_save',{id:customer.id,version:customer.version,data:customerData}),/DPQ_CONFLICT/);
 assert.equal((await read('retail_customers',{query:'fixture@example.invalid'}))[0].email_consent,false);
 const loc=(await cmd('retail_location_save',{name:'Yeni Şube',location_type:'branch',active:true})).id;
-await cmd('retail_location_save',{id:loc,name:'Kapalı Şube',location_type:'branch',active:false});
-await assert.rejects(()=>cmd('retail_location_save',{id:l,name:'Dolu depo',location_type:'warehouse',active:false}),/DPQ_LOCATION_STOCK/);
+await cmd('retail_location_save',{id:loc,name:'Kapalı Şube',location_type:'branch',active:false,expected:{name:'Yeni Şube',active:true,location_type:'branch'}});
+await assert.rejects(()=>cmd('retail_location_save',{id:l,name:'Dolu depo',location_type:'warehouse',active:false,expected:{name:'İstanbul Depo',active:true,location_type:'warehouse'}}),/DPQ_LOCATION_STOCK/);
+const ch=(await cmd('retail_channel_save',{name:'İnternet Kanalı',active:true})).id;
+await db.exec('reset role');await db.query('insert into dpq.channel_locations values($1,$2,7)',[ch,l]);await db.exec('set role authenticated');
+await cmd('retail_channel_save',{id:ch,name:'Yeni Kanal Adı',active:true,expected:{name:'İnternet Kanalı',active:true}});
+await assert.rejects(()=>cmd('retail_channel_save',{id:ch,name:'Eski Ekran',active:false,expected:{name:'İnternet Kanalı',active:true}}),/DPQ_CONFLICT/);
+await db.exec('reset role');assert.equal(Number((await db.query('select buffer from dpq.channel_locations where channel_id=$1',[ch])).rows[0].buffer),7);await db.exec('set role authenticated');
+assert.equal((await read('retail_snapshot')).finance_today.totals.revenue,210);
 await assert.rejects(()=>db.query('select dpq.retail_seed($1,$2)',[c,u]),/permission denied/);
 await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[staff]);await db.query('insert into dpq.staff_locations values($1,$2,$3)',[c,staff,l]);await db.exec('set role authenticated');
 await base('register',{name:'Staff'},'staff-device');

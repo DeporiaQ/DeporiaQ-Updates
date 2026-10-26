@@ -19,7 +19,7 @@ Rectangle {
     property int selectedLevel: 0
     signal shelfClicked(string rack, int level)
     signal expanded()
-    function resetView() { yaw=-30; pitch=-38; distance=Math.max(floorWidth,floorDepth)*1.25 }
+    function resetView() { yaw=-30; pitch=-38; distance=Math.max(floorWidth,floorDepth)*.9 }
     View3D {
         id: view
         anchors.fill: parent
@@ -37,7 +37,7 @@ Rectangle {
             id: orbit
             x: scene.centerX; y: 85; z: scene.centerZ
             eulerRotation: Qt.vector3d(scene.pitch,scene.yaw,0)
-            PerspectiveCamera { id: camera; z: scene.distance; clipNear: 1;clipFar: 50000;fieldOfView: 48 }
+            PerspectiveCamera { id: camera; z: scene.distance; clipNear: 1;clipFar: 50000;fieldOfView: 42 }
         }
         DirectionalLight {eulerRotation: Qt.vector3d(-55,-30,0);brightness: 1.25;castsShadow: true;shadowMapQuality: Light.ShadowMapQualityHigh;shadowBias: .02;ambientColor: "#667588"}
         DirectionalLight {eulerRotation: Qt.vector3d(-25,140,0);brightness: .65;color: "#9ec8e9"}
