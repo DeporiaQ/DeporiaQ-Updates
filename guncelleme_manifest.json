@@ -1,7 +1,7 @@
 {
-  "version": "0.27.1",
-  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.27.1/DeporiaQ_Setup_0.27.1.exe",
-  "sha256": "e7089a514d970e90f552e9df5cfa05ca7b5f5710425aeacbed96683d9006a9c4",
-  "notes": "Ürün düzenleme, arşiv ve güvenli silme; sabit oturan, fareyi izleyen 3D kedi; yardım tabelaları ve düzeltilmiş Türk bayrağı. Cloud geçişi tamamlandı.",
-  "notes_en": "Product editing, archiving and protected deletion; a seated 3D cat with pointer-following gaze and help signs; corrected Turkish flag. Cloud migration completed."
+  "version": "0.28.0",
+  "download_url": "https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.28.0/DeporiaQ_Setup_0.28.0.exe",
+  "sha256": "2df95d253a065215653adafac7710ae85402e3789e8a90d3ba04697d4294f8ff",
+  "notes": "Standart panel aralıkları ve okunaklı aydınlık tema; 3D raf ve doluluk, barkodlu kasa, kampanya, set/paket, mali tablo ve müşteri panelleri. Sunucu güncellemesi tamamlandı. Yeni paneller Panellerim içinde hazır.",
+  "notes_en": "Consistent panel spacing and readable light theme; 3D shelves, checkout, campaigns, bundles, financial reports and customers. Server migration completed. New panels are available in My Panels."
 }
