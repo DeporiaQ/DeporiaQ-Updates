@@ -51,7 +51,7 @@ from deporiaq_panels import PanelCanvas,PanelsDialog
 from deporiaq_companion import CompanionController,PetDock,companion_settings
 from deporiaq_i18n import T, render, Text ,QCheckBox,QComboBox,QFileDialog,QFormLayout,QInputDialog,QLabel,QLineEdit,QMainWindow,QMessageBox,QPlainTextEdit,QPushButton,QTabWidget,QTableWidget,QTableWidgetItem,QWidget
 
-SURUM = "0.28.0"
+SURUM = "0.28.1"
 
 
 def kaynak_yolu(ad):
@@ -1177,10 +1177,10 @@ class AnaPencere(QMainWindow):
         self.grup_ac(T('Depolar ve Transferler'),[(T('Konumlar'),self.konum_yonetimi_ac),(T('Stok Transferi'),self.transfer_ac)])
 
     def rapor_merkezi_ac(self):
-        self.grup_ac(T('Raporlar'),[(T('İşletme Görevleri'),lambda:RecordsDialog(self.commerce,'task',self).exec()),(T('Operasyon Merkezi'),self.operasyon_ac),(T('Raporlar ve Yazdır'),self.raporlar_ac),(T('Kritik Stoklar'),self.kritikleri_ac),(T('Sipariş Önerileri'),self.siparis_onerileri_ac),(T('Hareket Geçmişi'),self.hareketleri_ac)])
+        self.grup_ac(T('Raporlar'),[(T('Operasyon Merkezi'),self.operasyon_ac),(T('Raporlar ve Yazdır'),self.raporlar_ac),(T('Kritik Stoklar'),self.kritikleri_ac),(T('Sipariş Önerileri'),self.siparis_onerileri_ac),(T('Hareket Geçmişi'),self.hareketleri_ac)])
 
     def yonetim_merkezi_ac(self):
-        self.grup_ac(T('Yönetim'),[(T('Kullanıcı Yetkileri'),self.kullanicilar_ac),(T('Veri ve Yedekleme'),self.yedek_al),(T('Tedarikçiler'),lambda:RecordsDialog(self.commerce,'supplier',self).exec()),(T('Görevler'),lambda:RecordsDialog(self.commerce,'task',self).exec()),(T('Satın Alma Siparişleri'),lambda:CollectionDialog(self.commerce,'purchase',self).exec()),(T('Set ve Paketler'),lambda:self.retail_hub.open('bundles')),(T('Eski Paket Kayıtları'),lambda:CollectionDialog(self.commerce,'bundle',self).exec()),(T('Excel Ürün İçe Aktarma'),lambda:ImportDialog(self.commerce,self).exec()),(T('Toplu Fiyat Güncelle'),lambda:BulkPricesDialog(self.commerce,self).exec()),(T('Personel İndirim Sınırı'),self.discount_policy),(T('İndirim Onayları'),lambda:ApprovalDialog(self.commerce,self).exec())])
+        self.grup_ac(T('Yönetim'),[(T('Kullanıcı Yetkileri'),self.kullanicilar_ac),(T('Veri ve Yedekleme'),self.yedek_al),(T('Tedarikçiler'),lambda:RecordsDialog(self.commerce,'supplier',self).exec()),(T('Satın Alma Siparişleri'),lambda:CollectionDialog(self.commerce,'purchase',self).exec()),(T('Set ve Paketler'),lambda:self.retail_hub.open('bundles')),(T('Eski Paket Kayıtları'),lambda:CollectionDialog(self.commerce,'bundle',self).exec()),(T('Excel Ürün İçe Aktarma'),lambda:ImportDialog(self.commerce,self).exec()),(T('Toplu Fiyat Güncelle'),lambda:BulkPricesDialog(self.commerce,self).exec()),(T('Personel İndirim Sınırı'),self.discount_policy),(T('İndirim Onayları'),lambda:ApprovalDialog(self.commerce,self).exec())])
 
     def destek_merkezi_ac(self):
         self.grup_ac(T('Yardım ve Destek'),[(T('Kullanım Rehberi'),self.yardim_ac),(T('Destek Talebi Gönder'),self.destek_ac)])
@@ -1263,10 +1263,11 @@ class AnaPencere(QMainWindow):
         entries=[(T('Ana Sayfa'),self.home),(T('Stok ve Ürünler'),self.stok_merkezi_ac),
                  (T('Satışlar'),self.satis_merkezi_ac),(T('Depolar ve Transferler'),self.depo_merkezi_ac),
                  (T('Raporlar'),self.rapor_merkezi_ac)]
-        if self.kullanici["rol"]=="ANA_YONETICI":entries.append((T('Yönetim'),self.yonetim_merkezi_ac))
+        entries.append((T('Yönetim'),self.yonetim_merkezi_ac))
         entries += [(T('Paneller'),self.panels_open),(T('Paketim ve Abonelik'),self.paket_ac),(T('Ayarlar'),self.ayarlar_ac),(T('Yardım ve Destek'),self.destek_merkezi_ac)]
         for ad,komut in entries:
             b=QPushButton(ad);b.clicked.connect(komut);nav.addWidget(b)
+            if komut==self.yonetim_merkezi_ac:self.management_button=b;b.setVisible(self.kullanici["rol"]=="ANA_YONETICI")
         nav.addStretch()
         kaydir=QScrollArea();kaydir.setObjectName('yanMenuKaydirma');kaydir.setWidgetResizable(True)
         kaydir.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -1297,7 +1298,7 @@ class AnaPencere(QMainWindow):
         d = QHBoxLayout(alt); d.setContentsMargins(18, 8, 18, 8)
         durum = QLabel(T('{version} • Özetler yerel önbellektir',version=SURUM)); durum.setObjectName("durum")
         d.addWidget(durum)
-        self.pet_dock=PetDock();d.addWidget(self.pet_dock)
+        self.pet_dock=PetDock(self);self.pet_dock.hide()
         d.addStretch()
         guncelle=QPushButton(T('Güncellemeleri Denetle'));guncelle.clicked.connect(lambda:self.guncelleme_denetle(False));d.addWidget(guncelle)
         cikis = QPushButton(T('Çıkış Yap')); cikis.clicked.connect(self.cikis_yap)
@@ -1643,7 +1644,8 @@ class AnaPencere(QMainWindow):
         QMessageBox.information(self,T('Yedek tamamlandı'),T('Veritabanı yedeği kaydedildi:\n{v0}', v0=yol))
 
     def kullanicilar_ac(self):
-        QMessageBox.information(self,T('Kullanıcı Yönetimi'),T('Bu aday sürümde kullanıcı yetkileri sunucudaki şirket üyelikleriyle yönetilir. Yerel rol değişikliği sunucu yetkisi vermez.'))
+        from deporiaq_positions import AuthorityDialog
+        AuthorityDialog(self.retail_hub,self).exec()
 
     def kritikleri_ac(self):
         self.liste_dialog(T('Kritik Stoklar'), [T('Konum'), T('Barkod'), T('Ürün'), T('Mevcut'), T('Kritik')], self.vt.kritik_stoklari_getir(), ["konum","barkod","urun","miktar","kritik_stok"])

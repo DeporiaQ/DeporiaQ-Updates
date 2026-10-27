@@ -85,5 +85,30 @@ if(db.parallel){
  assert.equal(Number((await read('retail_snapshot')).inventory.find(x=>x.product_id===scarce).quantity),0);
  console.log('PASS two real PostgreSQL connections cannot sell the last book twice');
 }
+await db.exec('reset role');
+for(let i=0;i<2;i++)await db.exec(fs.readFileSync('server/015_positions_authority.sql','utf8'));
+await db.query("select set_config('request.jwt.claim.sub',$1,false)",[u]);await db.exec('set role authenticated');
+let updated=await read('retail_snapshot');assert.ok(!('layouts' in updated));assert.deepEqual(updated.positions,[]);
+const beforePositions=JSON.stringify(updated.inventory);
+const address=await cmd('retail_position_save',{data:{location_id:l,product_id:p,floor:'2. Kat',area:'L koridoru',shelf:'Polisiye A',compartment:'Üst göz',note:'Merdivenin solu'}});
+assert.equal((await read('retail_snapshot')).positions[0].shelf,'Polisiye A');
+assert.equal(JSON.stringify((await read('retail_snapshot')).inventory),beforePositions);
+await assert.rejects(()=>cmd('retail_position_save',{id:address.id,version:0,data:{location_id:l,product_id:p,shelf:'X'}}),/DPQ_CONFLICT/);
+await cmd('retail_position_delete',{id:address.id,version:address.version});
+await cmd('retail_offer_delete',{id:bundle.id,version:bundle.version});
+assert.ok(!(await read('retail_snapshot')).offers.some(x=>x.id===bundle.id));
+assert.equal((await read('retail_receipt',{id:sold.id})).total,300);
+await assert.rejects(()=>cmd('retail_offer_save',{id:bundle.id,version:bundle.version,data:{...data,kind:'bundle'}}),/DPQ_CONFLICT/);
+await assert.rejects(()=>cmd('retail_role_save',{user_id:u,role:'admin',version:0}),/DPQ_OWNER/);
+await cmd('retail_role_save',{user_id:staff,role:'admin',version:0,expires_at:'2099-01-01T00:00:00Z'});
+await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[staff]);await db.exec('set role authenticated');
+assert.equal((await base('status',{},'staff-device')).role,'admin');
+assert.equal((await read('retail_snapshot',{},'staff-device')).capabilities.finance,true);
+await assert.rejects(()=>read('retail_role_save',{user_id:u,role:'viewer',request_id:randomUUID()},'staff-device'),/DPQ_OWNER/);
+await base('catalog_manage',{operation:'edit',product_id:p,expected:Object.fromEntries(['barcode','name','sale_price','purchase_price','critical_stock','active'].map(k=>[k,updated.products.find(x=>x.id===p)[k]])),barcode:'001',name:'Olasılıksız',sale_price:100,purchase_price:60,critical_stock:5,request_id:randomUUID()},'staff-device');
+await db.exec('reset role');await db.query("update dpq.role_delegations set expires_at=now()-interval '1 second' where company_id=$1 and user_id=$2",[c,staff]);await db.exec('set role authenticated');
+assert.equal((await base('status',{},'staff-device')).role,'employee');
+await assert.rejects(()=>read('retail_finance',{from:today,to:today},'staff-device'),/DPQ_ROLE/);
+console.log('PASS 0.28.1 manual addresses, preserved receipts, owner identity, delegated role expiry and catalog guard');
 console.log('PASS 0.28 retail: authoritative prices/costs, atomic sets, stock, replay, refunds, reports, consent, shelf estimates, role/device grants');
 } catch(e) {console.error(JSON.stringify({message:e.message,detail:e.detail,where:e.where,position:e.position,stack:e.stack?.split('\n').slice(-4)},null,2));process.exitCode=1;} finally {await db.close();}

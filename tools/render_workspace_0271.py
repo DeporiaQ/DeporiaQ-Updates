@@ -34,7 +34,7 @@ def cat_fully_visible():
     rect=QRect(pet.view.mapTo(window,QPoint(0,0)),pet.view.size())
     assert window.rect().contains(rect),('Cat clipped by window',rect,window.rect())
     assert pet.view.parentWidget().rect().contains(pet.view.geometry()),'Cat clipped by sidebar home'
-    for widget in (pet.view,pet.dock,window.language_flags['tr'],window.support_mail):
+    for widget in (pet.view,window.language_flags['tr'],window.support_mail):
         assert not widget.visibleRegion().isEmpty(),('Sidebar control clipped',widget.objectName())
 frame=pet.view.grabFramebuffer();assert not frame.isNull()
 assert sum(frame.pixelColor(x,y).alpha()>10 for x in range(0,frame.width(),3) for y in range(0,frame.height(),3))>150
@@ -66,7 +66,7 @@ answer_visible();window.toggle_mode();shot('assistant-light');answer_visible();w
 window.assistant_panel.close();pet.tick();assert pet.view.isVisible()
 # Feeding never starts a walk or sleep animation.
 pet.state.last_fed=0;assert pet.state.hungry();pet.state.motion=False
-QTest.mouseClick(pet.dock,Qt.MouseButton.LeftButton,pos=QPoint(28,24));assert pet.state.food and pet.mode=='eat'
+assert pet.dock.isHidden();pet.feed();assert pet.state.food and pet.mode=='eat'
 pet.mode_until=0;pet.tick();assert not pet.state.food and not pet.state.hungry() and pet.mode=='happy'
 pet.mode_until=0;pet.tick();assert pet.mode=='idle';assert pet.view.pos()==position;shot('seated-after-feeding')
 pet.state.motion=True

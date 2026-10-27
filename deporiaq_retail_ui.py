@@ -26,9 +26,16 @@ class OffersDialog(EditableDialog):
         self.items_grid=table([T('Ürün'),T('Adet'),T('Normal toplam'),T('İndirimli toplam')]);self.body.addWidget(self.items_grid,1)
         self.preview=QLabel();self.preview.setWordWrap(True);self.body.addWidget(self.preview)
         note=QLabel(T('İndirimler üst üste eklenmez. Tek ürün için en yüksek uygun kampanya, set için yalnız set indirimi uygulanır. Süre ve maliyet satışta yeniden kontrol edilir.'));note.setWordWrap(True);self.body.addWidget(note)
-        row=QHBoxLayout();self.button(T('Yeni'),self.new,row);self.save_button=self.button(T('Kaydet'),self.save,row);self.button(T('Yetkili Bilgisayarlar'),lambda:GrantsDialog(hub,self).exec(),row);self.body.addLayout(row)
+        row=QHBoxLayout();self.button(T('Yeni'),self.new,row);self.save_button=self.button(T('Kaydet'),self.save,row);self.delete_button=self.button(T('Sil'),self.delete_offer,row);self.button(T('Yetkili Bilgisayarlar'),lambda:GrantsDialog(hub,self).exec(),row);self.body.addLayout(row)
         self.discount.valueChanged.connect(self.render_items);self.hub.updated.connect(self.loaded);self.loaded(hub.data)
         self.run(lambda:self.client.read('retail_snapshot'),hub.accept)
+    def delete_offer(self):
+        if not self.record:
+            self.status_label.setText(T('Önce listeden silinecek kaydı seçin.'));return
+        if QMessageBox.question(self,T('Kaydı Sil'),T('Seçili kampanya veya set silinsin mi? Geçmiş satış ve iade kayıtları korunur.'))!=QMessageBox.StandardButton.Yes:return
+        self.mutation('retail_offer_delete',{'id':self.record['id'],'version':self.record['version']},self.deleted)
+    def deleted(self,result):
+        self.remember_saved();self.new();self.status_label.setText(T('Silindi. Geçmiş satış kayıtları korundu.'));self.hub.refresh()
     def form_state(self):return (self.name.text(),self.discount.value(),self.starts.dateTime().toSecsSinceEpoch(),self.ends.dateTime().toSecsSinceEpoch(),self.scope.currentData(),self.active.isChecked(),self.member.isChecked(),str(self.items))
     def loaded(self,data):
         if not data:return
@@ -41,7 +48,7 @@ class OffersDialog(EditableDialog):
             if p['active']:self.product.addItem(p['barcode']+' · '+p['name'],p['id'])
         self.records=[o for o in data.get('offers',[]) if o['kind']==('bundle' if self.bundle else 'campaign')]
         rows(self.grid,[(o['name'],o['discount'],o['starts_at'],o['ends_at'],T('Etkin') if o['active'] else T('Pasif')) for o in self.records])
-        self.save_button.setEnabled(data.get('capabilities',{}).get('offers',False));self.render_items()
+        self.save_button.setEnabled(data.get('capabilities',{}).get('offers',False));self.delete_button.setEnabled(data.get('capabilities',{}).get('offers',False));self.render_items()
         if not hasattr(self,'_baseline'):self.remember_saved()
     def new(self):
         if not self.may_switch():return

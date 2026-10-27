@@ -107,7 +107,8 @@ def test_sidebar_keeps_companion_visible_at_small_window(application,window):
     # Exercise the widget layout without requiring an offscreen 3D renderer.
     pet.view=QWidget(window.companion_host);pet.state.size=240;pet.apply()
     window.resize(1000,720);window.show();application.processEvents();pet.home()
-    for widget in (pet.view,pet.dock,window.language_flags['tr'],window.support_mail):
+    assert pet.dock.isHidden()
+    for widget in (pet.view,window.language_flags['tr'],window.support_mail):
         assert window.rect().contains(QRect(widget.mapTo(window,QPoint()),widget.size()))
         assert not widget.visibleRegion().isEmpty()
     assert pet.view.parentWidget().rect().contains(pet.view.geometry())

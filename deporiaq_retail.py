@@ -2,7 +2,7 @@
 import copy,json
 from decimal import Decimal
 from PySide6.QtCore import QObject,QTimer,Signal,Qt
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QSpinBox,QDoubleSpinBox,QCompleter,QAbstractItemView
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QSpinBox,QDoubleSpinBox,QCompleter,QAbstractItemView,QListWidget
 from deporiaq_i18n import T,render,QLabel,QPushButton,QLineEdit,QComboBox,QMessageBox,QInputDialog
 from deporiaq_commerce_ui import Job,table,rows,quantity_control
 from deporiaq_retail_model import find_products,money,warehouse_scene
@@ -20,9 +20,16 @@ class RetailHub(QObject):
         if job.error:self.error=job.error
         else:self.error='';self.accept(job.result)
         job.deleteLater()
-    def accept(self,data):self.data=data;self.updated.emit(data)
+    def accept(self,data):
+        self.data=data
+        if data.get('role') and hasattr(self.window,'cloud_client'):
+            self.window.cloud_client.role=data['role']
+            self.window.kullanici=dict(self.window.kullanici);self.window.kullanici['rol']=self.window.cloud_client.yerel_rol_kodu(data['role'])
+            if hasattr(self.window,'management_button'):self.window.management_button.setVisible(data['role'] in ('owner','admin','manager'))
+            self.window.refresh_profile_text()
+        self.updated.emit(data)
     def open(self,key):
-        from deporiaq_warehouse import WarehouseDialog
+        from deporiaq_positions import PositionsDialog as WarehouseDialog
         from deporiaq_retail_ui import OffersDialog,FinanceDialog,CustomersDialog
         if key=='pos':return self.window.panel_canvas.open_panel('retail_pos')
         cls={'warehouse':WarehouseDialog,'campaigns':OffersDialog,'bundles':OffersDialog,'accounts':FinanceDialog,'customers':CustomersDialog}[key]
@@ -30,7 +37,7 @@ class RetailHub(QObject):
         try:dialog.exec()
         finally:dialog.deleteLater();self.refresh()
     def install(self,canvas):
-        for key,title in [('warehouse',T('3D Raf ve Doluluk')),('pos',T('Satış Kasası')),('campaigns',T('Kampanyalar')),('bundles',T('Set ve Paketler')),('accounts',T('Mali Tablo')),('customers',T('Müşteriler ve Üyelik'))]:
+        for key,title in [('warehouse',T('Ürün Konumları')),('pos',T('Satış Kasası')),('campaigns',T('Kampanyalar')),('bundles',T('Set ve Paketler')),('accounts',T('Mali Tablo')),('customers',T('Müşteriler ve Üyelik'))]:
             widget=SalePanel(self) if key=='pos' else RetailTile(self,key,title)
             opener=None if key=='pos' else lambda k=key:self.open(k)
             canvas.add('retail_'+key,title,widget,(0,920,800,460),((640,520) if key=='pos' else (420,330)),visible=False,opener=opener);self.panels[key]=widget
@@ -39,27 +46,24 @@ class RetailTile(QWidget):
     def __init__(self,hub,key,title):
         super().__init__();self.hub=hub;self.key=key;self.layout_=QVBoxLayout(self);self.summary=QLabel();self.summary.setWordWrap(True);self.layout_.addWidget(self.summary)
         if key=='warehouse':
-            from deporiaq_warehouse import WarehouseView
-            self.location=QComboBox();self.layout_.addWidget(self.location);self.view=WarehouseView(miniature=True);self.layout_.addWidget(self.view,1)
-            self.location.currentIndexChanged.connect(self.render);self.view.expanded.connect(lambda:hub.open(key))
+            self.query=QLineEdit();self.query.setPlaceholderText(T('Barkod veya ürün adı yazın…'));self.layout_.addWidget(self.query)
+            self.matches=QListWidget();self.layout_.addWidget(self.matches,1);self.query.textChanged.connect(self.render)
         else:self.layout_.addStretch()
         button=QPushButton(T('Aç'));button.clicked.connect(lambda:hub.open(key));self.layout_.addWidget(button)
         hub.updated.connect(self.loaded);self.loaded(hub.data)
-    def loaded(self,data):
-        if self.key=='warehouse':
-            previous=self.location.currentData();self.location.blockSignals(True);self.location.clear()
-            for l in data.get('locations',[]):
-                if l['active']:self.location.addItem(l['name'],l['id'])
-            if previous:self.location.setCurrentIndex(max(0,self.location.findData(previous)))
-            self.location.blockSignals(False)
-        self.render()
+    def loaded(self,data):self.render()
     def render(self,*args):
         data=self.hub.data
         if self.key=='warehouse':
-            layout=next((x for x in data.get('layouts',[]) if x['location_id']==self.location.currentData()),None)
-            if layout:
-                scene=warehouse_scene(layout,data.get('shelves',[]),data.get('products',[]));self.summary.setText(T('Raf doluluğu %{rate:.1f} · {count} adet yerleşmiş',rate=scene['occupancy'],count=scene['placed']));self.view.display(layout,data.get('shelves',[]),data.get('products',[]))
-            else:self.summary.setText(T('Raf planınızı oluşturun; boş alanları ve ürün yerlerini 3D görün.'))
+            self.summary.setText(T('Barkod veya ürün adıyla personelin kaydettiği kat, bölüm ve rafı bulun.'))
+            self.matches.clear()
+            if self.query.text().strip():
+                products={p['id']:p for p in find_products(data.get('products',[]),self.query.text())};locations={l['id']:l['name'] for l in data.get('locations',[])}
+                for pos in data.get('positions',[]):
+                    if pos['product_id'] in products:
+                        address=' → '.join(str(pos.get(k,'')) for k in ('floor','area','shelf','compartment') if pos.get(k))
+                        self.matches.addItem(products[pos['product_id']]['name']+' · '+locations.get(pos['location_id'],'')+'\n'+address)
+                if not self.matches.count():self.matches.addItem(T('Kayıtlı konum bulunamadı.'))
         elif self.key in ('campaigns','bundles'):
             kind='campaign' if self.key=='campaigns' else 'bundle';count=sum(x['kind']==kind and x['active'] for x in data.get('offers',[]));self.summary.setText(T('{count} etkin tanım · Fiyat ve maliyet satış anında yeniden kontrol edilir.',count=count))
         elif self.key=='accounts':

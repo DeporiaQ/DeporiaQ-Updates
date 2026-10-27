@@ -23,7 +23,7 @@ class PetState:
 class PetDock(QWidget):
     def __init__(self,parent=None):
         super().__init__(parent);self.controller=None;self.setFixedSize(162,40);self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip(T('Mama kabını doldur'));self.setAccessibleName(T('Mama kabı ve minder'))
+        self.setToolTip(T('Mama ver'));self.setAccessibleName(T('Mama kabı ve minder'))
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     def mousePressEvent(self,event):
         if self.controller and event.button()==Qt.MouseButton.LeftButton:self.controller.feed()
@@ -85,7 +85,7 @@ class CompanionController(QObject):
     def apply(self):
         if self.state.enabled:self.ensure_view()
         self.resize();available=self.state.enabled and self.view is not None and not self.failed
-        self.window.companion_host.setVisible(available);self.dock.setVisible(available)
+        self.window.companion_host.setVisible(available);self.dock.hide()
         if self.view:self.view.setVisible(available)
         self.window.header.assistant.setVisible(not available);self.dock.update()
     def home_point(self):
@@ -141,7 +141,7 @@ def companion_settings(controller,tabs):
     messages=QCheckBox(T('Ara sıra yardım tabelası göster'));messages.setChecked(controller.state.messages)
     motion=QCheckBox(T('Fareyi bakışlarıyla takip et'));motion.setChecked(controller.state.motion)
     size=QSpinBox();size.setRange(140,240);size.setValue(controller.state.size);size.setSuffix(' px')
-    feed=QPushButton(T('Mama kabını doldur'));feed.clicked.connect(controller.feed)
+    feed=QPushButton(T('Mama ver'));feed.clicked.connect(controller.feed)
     save=QPushButton(T('Kedi ayarlarını kaydet'))
     def commit():
         controller.state.name=name.text().strip() or 'Mırmır';controller.state.enabled=enabled.isChecked();controller.state.motion=motion.isChecked();controller.state.messages=messages.isChecked();controller.state.size=size.value();controller.save();controller.apply()

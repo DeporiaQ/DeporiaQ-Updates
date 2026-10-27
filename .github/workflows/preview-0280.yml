@@ -1,7 +1,7 @@
-name: DeporiaQ 0.28 Retail Preview Validation
+name: DeporiaQ 0.28.1 Retail Preview Validation
 on:
   push:
-    branches: ['codex/deporiaq-0.28.0']
+    branches: ['codex/deporiaq-0.28.1']
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,7 +18,7 @@ jobs:
       - run: python -m pip install PySide6==6.11.2 ttkbootstrap==2.2.3 pytest==9.1.1 reportlab==4.4.9 openpyxl==3.1.5 Pillow==12.3.0 psutil==7.2.2 tzdata==2025.2
       - run: python -m pytest tests --ignore=tests/test_bundle.py -q --junitxml=test-results/0280-unit.xml
       - name: Render native 3D warehouse and checkout
-        run: python tools/render_workspace_0280.py
+        run: python tools/render_workspace_0281.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
