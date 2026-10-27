@@ -1,6 +1,6 @@
-# DeporiaQ 0.28.0 — hazırlanmış aday sürüm
+# DeporiaQ 0.28.0
 
-Henüz yayımlanmadı. Sunucu geçişi tamamlanmadan kurulumu kullanıma açmayın.
+Mevcut işletmeler için stok, raf yerleşimi ve satış yönetimi güncellemesi.
 
 ## Değişiklikler
 - Paneller 12 piksel aralıklarla ızgaraya oturur; kapatılan panelin boşluğu korunur.
@@ -17,5 +17,7 @@ Henüz yayımlanmadı. Sunucu geçişi tamamlanmadan kurulumu kullanıma açmay�
 ## Doğrulama
 125 uygulama testi geçti. Gerçek PostgreSQL üzerinde son ürünü iki bağlantının aynı anda satması engellendi. Windows kurulum, açık uygulamada yükseltme ve yeniden açılma testleri geçti. Yerel 3D çizimler Windows üzerinde kontrol edildi. Aynı kurulum ve kurulu dosyalar Defender, kurulu dosyalar ayrıca ClamAV taramasından geçti.
 
-## Kalan yayın koşulu
-Supabase bağlantısı geçiş sırasında `Invalid or expired requestState` döndürdü. `DEPORIAQ_CLOUD_0.28.0_UPDATE.sql` henüz canlı sunucuya uygulanmadı. Bağlantı düzeldikten sonra geçiş uygulanmalı; gerçek şirket verilerinde geri alınan bir deneme işlemiyle kasa/rapor/yetkiler doğrulanmalı; stok ve abonelik korunması kontrol edilmeli; istenen örnek raflar hazırlanmalı. Sonrasında sürüm yayımlanıp otomatik güncelleme manifesti değiştirilebilir.
+## Sunucu doğrulaması
+Sunucu geçişi tamamlandı. Gerçek işletme verilerinde satış, tekrar gönderim, stok düşümü, iade ve mali tablo kontrolü geri alınan bir işlem içinde geçti. 101 ürün, 34.729 adet stok ve abonelik bitiş tarihi korundu. Yedi konum için örnek raf planı hazırlandı; tüm yerleşimler fiziksel olarak doğrulanmamış olarak işaretlendi.
+
+Mali tablo kayıtlı satış, iade, maliyet ve giderleri gösterir; kaydedilmemiş giderleri veya yasal muhasebe kayıtlarını kapsamaz. Nakit/kart alanları tahsilat kaydıdır; banka POS cihazından ödeme çekmez.

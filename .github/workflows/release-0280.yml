@@ -1,0 +1,122 @@
+name: Publish DeporiaQ 0.28.0 maintenance update
+on:
+  push:
+    branches: ['codex/deporiaq-0.28.0']
+    paths: ['.github/workflows/release-0280.yml']
+concurrency:
+  group: release-0280
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: read
+env:
+  GH_REPO: DeporiaQ/DeporiaQ-Updates
+  CANDIDATE_SHA: 744e79713e62ff0105c5d02bc40976252d7b1ca3
+  INSTALLER_SHA256: 2df95d253a065215653adafac7710ae85402e3789e8a90d3ba04697d4294f8ff
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify exact source, Windows upgrade, server tests and security scans
+        run: |
+          set -euo pipefail
+          for entry in \
+            40282644767:744e79713e62ff0105c5d02bc40976252d7b1ca3 \
+            40282645037:744e79713e62ff0105c5d02bc40976252d7b1ca3 \
+            40282644812:744e79713e62ff0105c5d02bc40976252d7b1ca3 \
+            40282797297:8082b8ddf2ac1e1c574166520a139c4c478b7953; do
+            run="${entry%%:*}"
+            source="${entry#*:}"
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .head_sha)" = "$source"
+            gh run watch "$run" --exit-status --interval 30
+            test "$(gh api "repos/$GH_REPO/actions/runs/$run" --jq .conclusion)" = success
+          done
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify the tested source and maintenance scope
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "$CANDIDATE_SHA"
+          git diff --exit-code "$CANDIDATE_SHA" HEAD -- '*.py' '*.iss' '*.svg' '*.ico' companion warehouse backgrounds dashboard_background.jpg server supabase/migrations
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          evidence=json.loads(Path('release-evidence-0.28.0.json').read_text())
+          assert evidence['scope']=='maintenance_for_existing_businesses'
+          assert evidence['desktop_source']==os.environ['CANDIDATE_SHA']
+          assert evidence['live_server_review']['ready_rpc']=='0.28.0'
+          assert evidence['live_server_review']['existing_product_count_stock_and_subscription_unchanged']
+          assert not any(evidence['commercial_launch'].values())
+          PY
+      - name: Download the exact tested and scanned installer
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/40282644767/artifacts" > artifacts.json
+          id=$(jq -er '.artifacts[] | select(.name=="DeporiaQ-0.28.0-candidate-setup" and .expired==false) | .id' artifacts.json)
+          digest=$(jq -er '.artifacts[] | select(.name=="DeporiaQ-0.28.0-candidate-setup" and .expired==false) | .digest' artifacts.json)
+          gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > candidate.zip
+          echo "${digest#sha256:}  candidate.zip" | sha256sum -c -
+          test "$(unzip -Z1 candidate.zip)" = DeporiaQ_Setup_0.28.0.exe
+          unzip candidate.zip
+          echo "$INSTALLER_SHA256  DeporiaQ_Setup_0.28.0.exe" | sha256sum -c -
+          cp DeporiaQ_Setup_0.28.0.exe DeporiaQ_Setup.exe
+          sha256sum DeporiaQ_Setup_0.28.0.exe DeporiaQ_Setup.exe > SHA256SUMS.txt
+          sha256sum DeporiaQ_Setup.exe > DeporiaQ_Setup.exe.sha256
+      - name: Publish verified maintenance release
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)" = v0.27.1
+          if gh release view v0.28.0 >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to overwrite assets.'
+            exit 1
+          fi
+          cp RELEASE_NOTES_0.28.0.md release-notes.md
+          cat >> release-notes.md <<'NOTES'
+
+          ## Doğrulama
+          - Kaynak: `744e79713e62ff0105c5d02bc40976252d7b1ca3`.
+          - Windows kurulum, açık uygulamada yükseltme ve yeniden açılma: Actions `40282644767`.
+          - PostgreSQL yetki, veri koruma ve eşzamanlı işlem testleri: `40282645037`.
+          - Aynı kurulum paketi ve kurulan dosyalar Microsoft Defender; kurulan dosyalar ayrıca ClamAV ile tarandı: `40282797297`. Taramalarda tehdit bulunmadı.
+          - 3D raf görünümü, ürün konumu vurgusu, kasa paneli ve temalar gerçek Windows görüntüleriyle kontrol edildi.
+          NOTES
+          gh release create v0.28.0 DeporiaQ_Setup_0.28.0.exe DeporiaQ_Setup.exe DeporiaQ_Setup.exe.sha256 SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title 'DeporiaQ 0.28.0' --notes-file release-notes.md --latest
+      - name: Enable in-app update with optimistic manifest revision
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/contents/guncelleme_manifest.json?ref=main" > current-manifest.json
+          python - <<'PY'
+          import base64,hashlib,json,os
+          from pathlib import Path
+          current=json.loads(Path('current-manifest.json').read_text())
+          old=json.loads(base64.b64decode(current['content']))
+          if tuple(map(int,old['version'].split('.'))) >= (0,28,0):
+              raise SystemExit('Newer or equal manifest exists; refusing to overwrite')
+          digest=hashlib.sha256(Path('DeporiaQ_Setup_0.28.0.exe').read_bytes()).hexdigest()
+          assert digest==os.environ['INSTALLER_SHA256']
+          manifest={
+              'version':'0.28.0',
+              'download_url':'https://github.com/DeporiaQ/DeporiaQ-Updates/releases/download/v0.28.0/DeporiaQ_Setup_0.28.0.exe',
+              'sha256':digest,
+              'notes':'Standart panel aralıkları ve okunaklı aydınlık tema; 3D raf ve doluluk, barkodlu kasa, kampanya, set/paket, mali tablo ve müşteri panelleri. Sunucu güncellemesi tamamlandı. Yeni paneller Panellerim içinde hazır.',
+              'notes_en':'Consistent panel spacing and readable light theme; 3D shelves, checkout, campaigns, bundles, financial reports and customers. Server migration completed. New panels are available in My Panels.'
+          }
+          payload={'message':'Publish verified DeporiaQ 0.28.0 maintenance update','branch':'main','sha':current['sha'],
+                   'content':base64.b64encode((json.dumps(manifest,ensure_ascii=False,indent=2)+'\n').encode()).decode()}
+          Path('manifest-update.json').write_text(json.dumps(payload))
+          PY
+          gh api "repos/$GH_REPO/contents/guncelleme_manifest.json" -X PUT --input manifest-update.json --silent
+          gh release view v0.28.0 --json tagName,isDraft,isPrerelease,url

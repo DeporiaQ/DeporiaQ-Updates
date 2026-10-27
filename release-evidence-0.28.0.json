@@ -1,6 +1,6 @@
 {
   "version": "0.28.0",
-  "status": "candidate_verified_live_migration_blocked",
+  "status": "ready_for_publication",
   "desktop_source": "744e79713e62ff0105c5d02bc40976252d7b1ca3",
   "windows_build_run": 40282644767,
   "retail_native_and_postgres_run": 40282644812,
@@ -11,14 +11,26 @@
   "installer_artifact_id": 12633550067,
   "unit_tests": 125,
   "live_server_review": {
-    "ready_rpc": null,
-    "migration_applied": false,
-    "sample_layouts_created": false,
-    "error": "Supabase apply_migration returned Invalid or expired requestState twice; readback confirmed new marker and table absent",
+    "ready_rpc": "0.28.0",
+    "migration_applied": true,
+    "sample_layouts_created": true,
     "before": {
       "products": 101,
       "stock": "34729.000",
       "subscription_valid_until": "2027-09-30T21:15:17.089802+00:00"
+    },
+    "sample_layout_count": 7,
+    "shelf_quantity": 34729,
+    "verified_shelf_entries": 0,
+    "existing_product_count_stock_and_subscription_unchanged": true,
+    "rollback_sale_return_finance_check": "passed",
+    "reviewed_at": "2026-10-27",
+    "advisors": {
+      "error_count": 0,
+      "private_rls_no_policy_info": 18,
+      "authenticated_definer_warnings": 18,
+      "leaked_password_protection_disabled": true,
+      "new_tables_direct_access_revoked": true
     }
   },
   "published": false,
@@ -28,5 +40,10 @@
     "Marketing consent is stored; no automated email or SMS delivery was added.",
     "Financial results exclude unrecorded expenses and do not replace statutory accounting.",
     "Installer is unsigned."
-  ]
+  ],
+  "scope": "maintenance_for_existing_businesses",
+  "commercial_launch": {
+    "public_signup_enabled": false,
+    "live_payments_enabled": false
+  }
 }
